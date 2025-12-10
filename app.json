@@ -1,16 +1,16 @@
 {
   "expo": {
     "name": "Tarok2",
-    "slug": "tarok2",
+    "slug": "tarok2-refresh",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "tarok2app",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.tarok2.app"
+      "bundleIdentifier": "com.tarok2.game"
     },
     "web": {
       "bundler": "metro",
@@ -22,22 +22,6 @@
           "mobileWebAppCapable": "yes",
           "mobileWebAppStatusBarStyle": "black-translucent"
         }
-      },
-      "manifest": {
-        "short_name": "Tarok2",
-        "name": "Tarok2",
-        "start_url": ".",
-        "display": "standalone",
-        "theme_color": "#000000",
-        "background_color": "#ffffff",
-        "icons": [
-          {
-            "src": "/icon.png",
-            "sizes": "1024x1024",
-            "type": "image/png",
-            "purpose": "any maskable"
-          }
-        ]
       }
     },
     "plugins": [
