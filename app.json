@@ -4,7 +4,7 @@
     "slug": "tarok2",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/icon-v2.png",  <-- TUKAJ (Glavna ikona)
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -15,7 +15,7 @@
       "bundler": "metro",
       "output": "single",
       "favicon": "./assets/images/favicon.png",
-      "icon": "./assets/images/icon.png"
+      "icon": "./assets/images/icon-v2.png" <-- IN TUKAJ (Spletna ikona)
     },
     "plugins": ["expo-router", "expo-font", "expo-web-browser"],
     "experiments": {
