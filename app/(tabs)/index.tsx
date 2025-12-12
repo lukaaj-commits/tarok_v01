@@ -10,8 +10,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  InputAccessoryView, // <--- NOVO: Uvoženo za iOS letev
-  Keyboard,
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { Plus, Info, Trash2, RotateCcw } from 'lucide-react-native';
@@ -447,21 +445,6 @@ export default function ActiveGame() {
         }
       />
 
-      {/* --- INPUT ACCESSORY VIEW (Samo za iOS) --- */}
-      {Platform.OS === 'ios' && (
-        <InputAccessoryView nativeID="DoneBar">
-          <View style={styles.accessoryBar}>
-            <TouchableOpacity onPress={toggleSign} style={styles.accessoryButton}>
-              <Text style={styles.accessoryButtonText}>Minus (-)</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => Keyboard.dismiss()} style={styles.accessoryButton}>
-              <Text style={[styles.accessoryButtonText, { fontWeight: 'bold' }]}>Končano</Text>
-            </TouchableOpacity>
-          </View>
-        </InputAccessoryView>
-      )}
-      {/* ------------------------------------------ */}
-
       <Modal
         visible={showScoreModal}
         transparent
@@ -473,20 +456,32 @@ export default function ActiveGame() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Vnesi točke</Text>
             
-            {/* --- PREPROST INPUT BREZ GUMBA OB STRANI --- */}
-            <TextInput
-              ref={scoreInputRef}
-              style={styles.scoreInputField}
-              value={scoreInput}
-              onChangeText={setScoreInput}
-              keyboardType="numeric"
-              returnKeyType="done"
-              placeholder="20"
-              placeholderTextColor="#666"
-              inputAccessoryViewID="DoneBar" // POVEZAVA Z LETVIJO ZGORAJ
-            />
-            {/* ------------------------------------------- */}
+            {/* ZGORNJA VRSTICA (Input + Gumb) */}
+            <View style={styles.inputRow}>
+              <TouchableOpacity 
+                style={styles.signButton} 
+                onPress={toggleSign}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.signButtonText}>+/-</Text>
+              </TouchableOpacity>
+              
+              {/* TU JE SPREMEMBA: DODAN WRAPPER */}
+              <View style={styles.scoreInputWrapper}>
+                <TextInput
+                  ref={scoreInputRef}
+                  style={styles.scoreInputField}
+                  value={scoreInput}
+                  onChangeText={setScoreInput}
+                  keyboardType="numeric"
+                  returnKeyType="done"
+                  placeholder="20"
+                  placeholderTextColor="#666"
+                />
+              </View>
+            </View>
 
+            {/* SPODNJA VRSTICA (Prekliči + Potrdi) */}
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
@@ -753,40 +748,47 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: 'center',
   },
-  // --- PREPROST INPUT (Kot na začetku) ---
-  scoreInputField: {
+  // --- KONČNO POPRAVLJENI STILI ---
+  inputRow: {
+    flexDirection: 'row',
+    width: '100%',     // Prisilna širina
+    gap: 12,           // Ujemanje z gumbi spodaj
+    marginBottom: 20,
+  },
+  signButton: {
+    backgroundColor: '#333', // Temno siva
+    width: 60,               // Fiksna širina
+    height: 60,              // Fiksna višina
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  signButtonText: {
+    color: '#4a9eff',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  // Tukaj je wrapper, ki se raztegne
+  scoreInputWrapper: {
+    flex: 1,             // Raztegni se do konca
+    height: 60,
     backgroundColor: '#2a2a2a',
+    borderRadius: 12,
+    justifyContent: 'center',
+  },
+  // Tukaj je input, ki je znotraj wrapperja
+  scoreInputField: {
+    width: '100%',
+    height: '100%',
     color: '#fff',
     fontSize: 24,
-    padding: 16,
-    borderRadius: 12,
     textAlign: 'center',
-    marginBottom: 20,
-    width: '100%', // Da se raztegne do konca
   },
-  // --- STIL ZA INPUT ACCESSORY (iOS letev) ---
-  accessoryBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#333', // Temno siva, da paše k tvojemu dizajnu
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#444',
-  },
-  accessoryButton: {
-    padding: 8,
-  },
-  accessoryButtonText: {
-    color: '#4a9eff', // Modra barva za akcije
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  // ------------------------------------------
+  // ------------------------------
   modalButtons: {
     flexDirection: 'row',
-    gap: 12,
+    width: '100%', // Prisilna širina tudi spodaj
+    gap: 12,       // Enak razmak kot zgoraj
   },
   modalButton: {
     flex: 1,
