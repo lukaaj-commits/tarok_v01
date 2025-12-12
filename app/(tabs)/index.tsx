@@ -449,7 +449,7 @@ export default function ActiveGame() {
               style={styles.scoreInputField}
               value={scoreInput}
               onChangeText={setScoreInput}
-              keyboardType="numeric"
+              keyboardType="numbers-and-punctuation"
               returnKeyType="done"
               placeholder="npr. 20 ali -20"
               placeholderTextColor="#666"
