@@ -8,7 +8,6 @@ import {
   Modal,
   FlatList,
   ScrollView,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -203,6 +202,18 @@ export default function ActiveGame() {
     setScoreInput('');
     setShowScoreModal(true);
   };
+
+  // --- FUNKCIJA ZA PREKLOP MINUSA ---
+  const toggleSign = () => {
+    setScoreInput((prev) => {
+      if (!prev) return '-'; // Če je prazno, dodaj minus
+      if (prev.startsWith('-')) {
+        return prev.substring(1); // Odstrani minus
+      }
+      return '-' + prev; // Dodaj minus
+    });
+  };
+  // ----------------------------------
 
   const submitScore = async () => {
     if (!selectedPlayerId || !gameId || !scoreInput) return;
@@ -444,16 +455,30 @@ export default function ActiveGame() {
           style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Vnesi točke</Text>
-            <TextInput
-              ref={scoreInputRef}
-              style={styles.scoreInputField}
-              value={scoreInput}
-              onChangeText={setScoreInput}
-              keyboardType="numbers-and-punctuation"
-              returnKeyType="done"
-              placeholder="npr. 20 ali -20"
-              placeholderTextColor="#666"
-            />
+            
+            {/* --- GUMB IN VNOS V ENI VRSTICI --- */}
+            <View style={styles.inputRow}>
+              <TouchableOpacity 
+                style={styles.signButton} 
+                onPress={toggleSign}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.signButtonText}>+/-</Text>
+              </TouchableOpacity>
+              
+              <TextInput
+                ref={scoreInputRef}
+                style={styles.scoreInputField}
+                value={scoreInput}
+                onChangeText={setScoreInput}
+                keyboardType="numeric" // Nazaj na velike številke!
+                returnKeyType="done"
+                placeholder="20"
+                placeholderTextColor="#666"
+              />
+            </View>
+            {/* ---------------------------------- */}
+
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
@@ -720,15 +745,39 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: 'center',
   },
+  // --- NOVI STILI ZA GUMB IN VNOS ---
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 20,
+  },
+  signButton: {
+    backgroundColor: '#333',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 12,
+    minWidth: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 60, // Da bo enako visoko kot input
+  },
+  signButtonText: {
+    color: '#4a9eff',
+    fontSize: 20,
+    fontWeight: '700',
+  },
   scoreInputField: {
+    flex: 1,
     backgroundColor: '#2a2a2a',
     color: '#fff',
     fontSize: 24,
     padding: 16,
     borderRadius: 12,
     textAlign: 'center',
-    marginBottom: 20,
+    height: 60,
   },
+  // ----------------------------------
   modalButtons: {
     flexDirection: 'row',
     gap: 12,
