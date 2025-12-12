@@ -745,38 +745,38 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: 'center',
   },
-  // --- POPRAVLJENI STILI ZA PORAVNAVO IN MANJŠI GUMB ---
+  // --- KONČNI POPRAVEK: STILI ---
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12, // Razmak enak kot pri gumbih spodaj
+    width: '100%',     // Nujno!
+    gap: 12,           // Ujemanje z gumbi spodaj
     marginBottom: 20,
-    width: '100%', // Zagotovi polno širino vrstice
   },
   signButton: {
-    backgroundColor: '#4a9eff',
-    paddingHorizontal: 12, // Manjši padding
-    paddingVertical: 12,   // Manjši padding
+    backgroundColor: '#333', // Temno siva, kot ti je bilo všeč
+    width: 60,               // Fiksna širina
+    height: 60,              // Fiksna višina
     borderRadius: 12,
-    minWidth: 50,         // Minimalna širina
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   signButtonText: {
-    color: '#fff',
-    fontSize: 20, // Manjši font
+    color: '#4a9eff',
+    fontSize: 20,
     fontWeight: '700',
   },
   scoreInputField: {
-    flex: 1, // KLJUČNO: Raztegni se do konca!
+    flex: 1,                 // TO JE BISTVO: Raztegni se do konca!
+    height: 60,              // Enaka višina kot gumb
     backgroundColor: '#2a2a2a',
     color: '#fff',
     fontSize: 24,
-    padding: 16, // Normalen padding
+    paddingHorizontal: 16,   // Normalen padding
     borderRadius: 12,
     textAlign: 'center',
   },
-  // -----------------------
+  // ------------------------------
   modalButtons: {
     flexDirection: 'row',
     gap: 12, // Razmak enak zgornjemu
