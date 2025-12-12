@@ -206,11 +206,11 @@ export default function ActiveGame() {
   // --- FUNKCIJA ZA PREKLOP MINUSA ---
   const toggleSign = () => {
     setScoreInput((prev) => {
-      if (!prev) return '-'; // Če je prazno, dodaj minus
+      if (!prev) return '-';
       if (prev.startsWith('-')) {
-        return prev.substring(1); // Odstrani minus
+        return prev.substring(1);
       }
-      return '-' + prev; // Dodaj minus
+      return '-' + prev;
     });
   };
   // ----------------------------------
@@ -456,7 +456,7 @@ export default function ActiveGame() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Vnesi točke</Text>
             
-            {/* --- GUMB IN VNOS V ENI VRSTICI --- */}
+            {/* ZGORNJA VRSTICA (Input + Gumb) */}
             <View style={styles.inputRow}>
               <TouchableOpacity 
                 style={styles.signButton} 
@@ -471,14 +471,14 @@ export default function ActiveGame() {
                 style={styles.scoreInputField}
                 value={scoreInput}
                 onChangeText={setScoreInput}
-                keyboardType="numeric" // Nazaj na velike številke!
+                keyboardType="numeric"
                 returnKeyType="done"
                 placeholder="20"
                 placeholderTextColor="#666"
               />
             </View>
-            {/* ---------------------------------- */}
 
+            {/* SPODNJA VRSTICA (Prekliči + Potrdi) */}
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
@@ -745,42 +745,43 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: 'center',
   },
-  // --- NOVI STILI ZA GUMB IN VNOS ---
+  // --- PORAVNANI STILI ---
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 12, // Razmak enak kot pri gumbih spodaj (12)
     marginBottom: 20,
+    width: '100%', // Zagotovi polno širino
   },
   signButton: {
-    backgroundColor: '#333',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    backgroundColor: '#4a9eff',
+    paddingHorizontal: 0, // Odstranil padding za fiksno širino
     borderRadius: 12,
-    minWidth: 60,
+    width: 60, // Fiksna širina
+    height: 60, // Fiksna višina (enaka inputu)
     alignItems: 'center',
     justifyContent: 'center',
-    height: 60, // Da bo enako visoko kot input
   },
   signButtonText: {
-    color: '#4a9eff',
-    fontSize: 20,
+    color: '#fff',
+    fontSize: 24,
     fontWeight: '700',
   },
   scoreInputField: {
-    flex: 1,
+    flex: 1, // Raztegni se do konca
     backgroundColor: '#2a2a2a',
     color: '#fff',
     fontSize: 24,
-    padding: 16,
+    padding: 0, // Reset padding
+    height: 60, // Fiksna višina
     borderRadius: 12,
     textAlign: 'center',
-    height: 60,
+    textAlignVertical: 'center', // Za Android poravnavo
   },
-  // ----------------------------------
+  // -----------------------
   modalButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 12, // Razmak enak zgornjemu
   },
   modalButton: {
     flex: 1,
