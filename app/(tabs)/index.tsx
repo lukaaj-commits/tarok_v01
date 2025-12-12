@@ -745,38 +745,36 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: 'center',
   },
-  // --- PORAVNANI STILI ---
+  // --- POPRAVLJENI STILI ZA PORAVNAVO IN MANJŠI GUMB ---
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12, // Razmak enak kot pri gumbih spodaj (12)
+    gap: 12, // Razmak enak kot pri gumbih spodaj
     marginBottom: 20,
-    width: '100%', // Zagotovi polno širino
+    width: '100%', // Zagotovi polno širino vrstice
   },
   signButton: {
     backgroundColor: '#4a9eff',
-    paddingHorizontal: 0, // Odstranil padding za fiksno širino
+    paddingHorizontal: 12, // Manjši padding
+    paddingVertical: 12,   // Manjši padding
     borderRadius: 12,
-    width: 60, // Fiksna širina
-    height: 60, // Fiksna višina (enaka inputu)
+    minWidth: 50,         // Minimalna širina
     alignItems: 'center',
     justifyContent: 'center',
   },
   signButtonText: {
     color: '#fff',
-    fontSize: 24,
+    fontSize: 20, // Manjši font
     fontWeight: '700',
   },
   scoreInputField: {
-    flex: 1, // Raztegni se do konca
+    flex: 1, // KLJUČNO: Raztegni se do konca!
     backgroundColor: '#2a2a2a',
     color: '#fff',
     fontSize: 24,
-    padding: 0, // Reset padding
-    height: 60, // Fiksna višina
+    padding: 16, // Normalen padding
     borderRadius: 12,
     textAlign: 'center',
-    textAlignVertical: 'center', // Za Android poravnavo
   },
   // -----------------------
   modalButtons: {
