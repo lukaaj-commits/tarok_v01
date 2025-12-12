@@ -466,16 +466,19 @@ export default function ActiveGame() {
                 <Text style={styles.signButtonText}>+/-</Text>
               </TouchableOpacity>
               
-              <TextInput
-                ref={scoreInputRef}
-                style={styles.scoreInputField}
-                value={scoreInput}
-                onChangeText={setScoreInput}
-                keyboardType="numeric"
-                returnKeyType="done"
-                placeholder="20"
-                placeholderTextColor="#666"
-              />
+              {/* TU JE SPREMEMBA: DODAN WRAPPER */}
+              <View style={styles.scoreInputWrapper}>
+                <TextInput
+                  ref={scoreInputRef}
+                  style={styles.scoreInputField}
+                  value={scoreInput}
+                  onChangeText={setScoreInput}
+                  keyboardType="numeric"
+                  returnKeyType="done"
+                  placeholder="20"
+                  placeholderTextColor="#666"
+                />
+              </View>
             </View>
 
             {/* SPODNJA VRSTICA (Prekliči + Potrdi) */}
@@ -745,16 +748,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: 'center',
   },
-  // --- KONČNI POPRAVEK: STILI ---
+  // --- KONČNO POPRAVLJENI STILI ---
   inputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',     // Nujno!
+    width: '100%',     // Prisilna širina
     gap: 12,           // Ujemanje z gumbi spodaj
     marginBottom: 20,
   },
   signButton: {
-    backgroundColor: '#333', // Temno siva, kot ti je bilo všeč
+    backgroundColor: '#333', // Temno siva
     width: 60,               // Fiksna širina
     height: 60,              // Fiksna višina
     borderRadius: 12,
@@ -766,20 +768,27 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
   },
-  scoreInputField: {
-    flex: 1,                 // TO JE BISTVO: Raztegni se do konca!
-    height: 60,              // Enaka višina kot gumb
+  // Tukaj je wrapper, ki se raztegne
+  scoreInputWrapper: {
+    flex: 1,             // Raztegni se do konca
+    height: 60,
     backgroundColor: '#2a2a2a',
+    borderRadius: 12,
+    justifyContent: 'center',
+  },
+  // Tukaj je input, ki je znotraj wrapperja
+  scoreInputField: {
+    width: '100%',
+    height: '100%',
     color: '#fff',
     fontSize: 24,
-    paddingHorizontal: 16,   // Normalen padding
-    borderRadius: 12,
     textAlign: 'center',
   },
   // ------------------------------
   modalButtons: {
     flexDirection: 'row',
-    gap: 12, // Razmak enak zgornjemu
+    width: '100%', // Prisilna širina tudi spodaj
+    gap: 12,       // Enak razmak kot zgoraj
   },
   modalButton: {
     flex: 1,
