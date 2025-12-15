@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,9 +10,11 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator, // Dodano za lepši loading
 } from 'react-native';
+import { useFocusEffect } from 'expo-router'; // KLJUČNO: Za osveževanje ko prideš nazaj na stran
 import { supabase } from '@/lib/supabase';
-import { Plus, Info, Trash2, RotateCcw } from 'lucide-react-native';
+import { Plus, Info, Trash2, RotateCcw, Play } from 'lucide-react-native'; // Dodal ikono Play
 
 type Player = {
   id: string;
@@ -50,20 +52,18 @@ export default function ActiveGame() {
   const [loading, setLoading] = useState(true);
   const scoreInputRef = useRef<TextInput>(null);
 
-  useEffect(() => {
-    initializeGame();
-  }, []);
+  // --- KLJUČNA SPREMEMBA: Uporaba useFocusEffect ---
+  // To se zgodi vsakič, ko uporabnik pride na ta zaslon (tudi iz History)
+  useFocusEffect(
+    useCallback(() => {
+      checkForActiveGame();
+    }, [])
+  );
 
-  useEffect(() => {
-    if (showScoreModal) {
-      setTimeout(() => {
-        scoreInputRef.current?.focus();
-      }, 100);
-    }
-  }, [showScoreModal]);
-
-  const initializeGame = async () => {
+  const checkForActiveGame = async () => {
+    setLoading(true);
     try {
+      // 1. Preveri v bazi, če obstaja aktivna igra
       const { data: activeGame } = await supabase
         .from('games')
         .select('*')
@@ -71,20 +71,26 @@ export default function ActiveGame() {
         .maybeSingle();
 
       if (activeGame) {
+        // ČE OBSTAJA: Naloži podatke in nastavi gameId
         setGameId(activeGame.id);
         await loadPlayers(activeGame.id);
         await loadRadelci(activeGame.id);
       } else {
-        await createNewGame();
+        // ČE NE OBSTAJA: Nastavi gameId na null (prikazal se bo gumb "Začni")
+        setGameId(null);
+        setPlayers([]);
+        setRadelci([]);
       }
     } catch (error) {
-      console.error('Error initializing game:', error);
+      console.error('Error checking active game:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const createNewGame = async () => {
+  // Ta funkcija se pokliče SAMO, ko uporabnik klikne "Začni novo igro"
+  const handleStartNewGame = async () => {
+    setLoading(true);
     try {
       const gameName = `${new Date().toLocaleDateString('sl-SI')} Tarok`;
       const { data: newGame, error } = await supabase
@@ -94,11 +100,16 @@ export default function ActiveGame() {
         .single();
 
       if (error) throw error;
+      
+      // Takoj nastavimo ID, da se UI spremeni
       setGameId(newGame.id);
-      return newGame.id;
+      // Pobrišemo prejšnje podatke (za vsak slučaj)
+      setPlayers([]);
+      setRadelci([]);
     } catch (error) {
       console.error('Error creating game:', error);
-      return null;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -133,21 +144,14 @@ export default function ActiveGame() {
   };
 
   const addPlayer = async () => {
-    if (players.length >= 7) return;
+    if (!gameId || players.length >= 7) return;
 
     try {
-      let currentGameId = gameId;
-
-      if (!currentGameId) {
-        currentGameId = await createNewGame();
-        if (!currentGameId) return;
-      }
-
       const newPosition = players.length;
       const { data, error } = await supabase
         .from('players')
         .insert({
-          game_id: currentGameId,
+          game_id: gameId,
           name: '',
           position: newPosition,
         })
@@ -203,7 +207,6 @@ export default function ActiveGame() {
     setShowScoreModal(true);
   };
 
-  // --- FUNKCIJA ZA PREKLOP MINUSA ---
   const toggleSign = () => {
     setScoreInput((prev) => {
       if (!prev) return '-';
@@ -213,7 +216,6 @@ export default function ActiveGame() {
       return '-' + prev;
     });
   };
-  // ----------------------------------
 
   const submitScore = async () => {
     if (!selectedPlayerId || !gameId || !scoreInput) return;
@@ -325,16 +327,19 @@ export default function ActiveGame() {
   const finishGame = async () => {
     try {
       if (gameId) {
+        // Označi igro kot neaktivno v bazi
         await supabase
           .from('games')
           .update({ is_active: false })
           .eq('id', gameId);
       }
 
+      // Resetiraj lokalno stanje na "ni igre"
       setGameId(null);
       setPlayers([]);
       setRadelci([]);
       setShowNewGameModal(false);
+      // checkForActiveGame se bo avtomatsko sprožil, a ker smo is_active dali na false, bo ostal na "Začni novo igro"
     } catch (error) {
       console.error('Error finishing game:', error);
     }
@@ -400,14 +405,32 @@ export default function ActiveGame() {
     );
   };
 
+  // 1. Prikaz med nalaganjem (Checking for active game...)
   if (loading) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.loadingText}>Nalaganje...</Text>
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#4a9eff" />
+        <Text style={styles.loadingText}>Preverjam igre...</Text>
       </View>
     );
   }
 
+  // 2. Prikaz ČE NI aktivne igre (Samo gumb Start)
+  if (!gameId) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.welcomeTitle}>Tarok</Text>
+        <Text style={styles.welcomeSubtitle}>Ni aktivne igre</Text>
+        
+        <TouchableOpacity style={styles.bigStartButton} onPress={handleStartNewGame}>
+          <Play size={32} color="#fff" fill="#fff" />
+          <Text style={styles.bigStartButtonText}>Začni novo igro</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // 3. Prikaz ČE JE aktivna igra (Tvoj obstoječi UI)
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -423,14 +446,12 @@ export default function ActiveGame() {
           <Text style={styles.addButtonText}>Dodaj radelc vsem</Text>
         </TouchableOpacity>
 
-        {players.length > 0 && (
-          <TouchableOpacity
-            style={styles.finishGameButton}
-            onPress={() => setShowNewGameModal(true)}>
-            <RotateCcw size={24} color="#fff" />
-            <Text style={styles.addButtonText}>Zaključi igro</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={styles.finishGameButton}
+          onPress={() => setShowNewGameModal(true)}>
+          <RotateCcw size={24} color="#fff" />
+          <Text style={styles.addButtonText}>Zaključi igro</Text>
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -456,7 +477,6 @@ export default function ActiveGame() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Vnesi točke</Text>
             
-            {/* ZGORNJA VRSTICA (Input + Gumb) */}
             <View style={styles.inputRow}>
               <TouchableOpacity 
                 style={styles.signButton} 
@@ -466,7 +486,6 @@ export default function ActiveGame() {
                 <Text style={styles.signButtonText}>+/-</Text>
               </TouchableOpacity>
               
-              {/* TU JE SPREMEMBA: DODAN WRAPPER */}
               <View style={styles.scoreInputWrapper}>
                 <TextInput
                   ref={scoreInputRef}
@@ -481,7 +500,6 @@ export default function ActiveGame() {
               </View>
             </View>
 
-            {/* SPODNJA VRSTICA (Prekliči + Potrdi) */}
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
@@ -603,6 +621,45 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0f0f0f',
   },
+  // Nov stil za centriranje vsebine (ko ni igre)
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  welcomeTitle: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  welcomeSubtitle: {
+    fontSize: 18,
+    color: '#888',
+    marginBottom: 40,
+  },
+  // Stil za VELIK gumb "Začni novo igro"
+  bigStartButton: {
+    backgroundColor: '#4a9eff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    gap: 12,
+    elevation: 5,
+    shadowColor: '#4a9eff',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  bigStartButtonText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  // --- Obstoječi stili ---
   header: {
     padding: 16,
     gap: 12,
@@ -726,7 +783,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     textAlign: 'center',
-    marginTop: 40,
+    marginTop: 20,
   },
   modalOverlay: {
     flex: 1,
@@ -748,17 +805,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: 'center',
   },
-  // --- KONČNO POPRAVLJENI STILI ---
   inputRow: {
     flexDirection: 'row',
-    width: '100%',     // Prisilna širina
-    gap: 12,           // Ujemanje z gumbi spodaj
+    width: '100%',
+    gap: 12,
     marginBottom: 20,
   },
   signButton: {
-    backgroundColor: '#333', // Temno siva
-    width: 60,               // Fiksna širina
-    height: 60,              // Fiksna višina
+    backgroundColor: '#333',
+    width: 60,
+    height: 60,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -768,15 +824,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
   },
-  // Tukaj je wrapper, ki se raztegne
   scoreInputWrapper: {
-    flex: 1,             // Raztegni se do konca
+    flex: 1,
     height: 60,
     backgroundColor: '#2a2a2a',
     borderRadius: 12,
     justifyContent: 'center',
   },
-  // Tukaj je input, ki je znotraj wrapperja
   scoreInputField: {
     width: '100%',
     height: '100%',
@@ -784,11 +838,10 @@ const styles = StyleSheet.create({
     fontSize: 24,
     textAlign: 'center',
   },
-  // ------------------------------
   modalButtons: {
     flexDirection: 'row',
-    width: '100%', // Prisilna širina tudi spodaj
-    gap: 12,       // Enak razmak kot zgoraj
+    width: '100%',
+    gap: 12,
   },
   modalButton: {
     flex: 1,
