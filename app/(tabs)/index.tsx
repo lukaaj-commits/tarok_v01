@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { Plus, Info, Trash2, RotateCcw, Play, ChevronLeft, Check, Trophy } from 'lucide-react-native';
+import { Plus, Info, Trash2, RotateCcw, Play, ChevronLeft, Trophy } from 'lucide-react-native';
 
 // --- TIPI ---
 type Player = {
@@ -36,7 +36,6 @@ type ScoreEntry = {
   id: string;
   points: number;
   created_at: string;
-  played?: boolean; 
   player_id?: string;
 };
 
@@ -61,7 +60,6 @@ export default function ActiveGame() {
   
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [scoreInput, setScoreInput] = useState('');
-  const [isPlayed, setIsPlayed] = useState(false);
   
   const [showScoreModal, setShowScoreModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false); 
@@ -196,7 +194,6 @@ export default function ActiveGame() {
   const openScoreInput = (playerId: string) => {
     setSelectedPlayerId(playerId);
     setScoreInput('');
-    setIsPlayed(false);
     setShowScoreModal(true);
   };
 
@@ -216,6 +213,13 @@ export default function ActiveGame() {
 
   const submitScore = async () => {
     if (!selectedPlayerId || !scoreInput) return;
+    
+    // Validacija vnosa
+    if (scoreInput === '-') {
+        setScoreInput('');
+        return;
+    }
+
     const points = parseInt(scoreInput, 10);
     if (isNaN(points)) {
         Alert.alert("Napaka", "Vnos ni veljavno število.");
@@ -224,14 +228,11 @@ export default function ActiveGame() {
 
     setSubmitting(true);
     try {
-      // 1. Shrani v bazo - BREZ VARNOSTNE MREŽE
-      // To prisili aplikacijo, da uporabi stolpec 'played'.
-      // Če stolpec ne obstaja, bo vrglo napako (in vemo pri čem smo).
+      // 1. Preprost insert (samo točke)
       const { error } = await supabase.from('score_entries').insert({
         player_id: selectedPlayerId, 
         game_id: gameId, 
-        points,
-        played: isPlayed 
+        points
       });
 
       if (error) throw error;
@@ -248,7 +249,6 @@ export default function ActiveGame() {
 
       setShowScoreModal(false);
       setScoreInput('');
-      setIsPlayed(false);
 
     } catch (e: any) { 
       Alert.alert("Napaka pri shranjevanju", e.message || "Neznana napaka");
@@ -265,7 +265,7 @@ export default function ActiveGame() {
     setShowHistoryModal(true);
   };
 
-  // --- LESTVICA (SORTED) ---
+  // --- LESTVICA ---
   const openLeaderboard = () => {
     setShowLeaderboardModal(true);
   };
@@ -397,7 +397,7 @@ export default function ActiveGame() {
           <Text style={styles.addButtonText}>Radelc</Text>
         </TouchableOpacity>
         
-        {/* GUMB ZA LESTVICO */}
+        {/* LESTVICA GUMB */}
         <TouchableOpacity style={styles.infoGameButton} onPress={openLeaderboard}>
           <Trophy size={24} color="#fff" />
         </TouchableOpacity>
@@ -417,6 +417,7 @@ export default function ActiveGame() {
         }
       />
 
+      {/* MODAL: VNOS TOČK */}
       <Modal visible={showScoreModal} transparent animationType="fade" onRequestClose={() => setShowScoreModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -440,12 +441,7 @@ export default function ActiveGame() {
               </View>
             </View>
 
-            <TouchableOpacity style={styles.checkboxContainer} onPress={() => setIsPlayed(!isPlayed)}>
-              <View style={[styles.checkbox, isPlayed && styles.checkboxChecked]}>
-                {isPlayed && <Check size={16} color="#fff" />}
-              </View>
-              <Text style={styles.checkboxLabel}>Igralec je igral igro</Text>
-            </TouchableOpacity>
+            {/* CHECKBOX ODSTRANJEN ZA STABILNOST */}
 
             <View style={styles.modalButtons}>
               <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowScoreModal(false)}>
@@ -476,16 +472,12 @@ export default function ActiveGame() {
               {playerHistory.map((entry, index) => {
                 let runningTotal = 0;
                 for (let i = 0; i <= index; i++) runningTotal += playerHistory[i].points;
-                
-                const didPlay = entry.played === true;
-
                 return (
                   <View key={entry.id} style={styles.historyItem}>
                     <View style={styles.pointsWrapper}>
                       <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>
                         {entry.points > 0 ? '+' : ''}{entry.points}
                       </Text>
-                      {didPlay && <View style={styles.yellowDot} />} 
                     </View>
                     <Text style={styles.historyTotal}>= {runningTotal}</Text>
                     <Text style={styles.historyDate}>{new Date(entry.created_at).toLocaleTimeString('sl-SI', {hour:'2-digit', minute:'2-digit'})}</Text>
@@ -500,7 +492,7 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      {/* MODAL: LESTVICA (LEADERBOARD) - Z IZBOLJŠANIM RANKINGOM */}
+      {/* MODAL: LESTVICA */}
       <Modal visible={showLeaderboardModal} transparent animationType="slide" onRequestClose={() => setShowLeaderboardModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -509,12 +501,7 @@ export default function ActiveGame() {
               {getSortedPlayers().map((player, index, array) => {
                  const pRadelci = radelci.filter(r => r.player_id === player.id);
                  
-                 // --- LOGIKA ZA RANKING (DELJENA MESTA) ---
-                 // Če je to prvi igralec, je rang 1.
-                 // Če ima enak rezultat kot prejšnji, ima enak rang kot prejšnji.
-                 // Sicer je rang enak (index + 1).
-                 // POZOR: Ker mapiramo, moramo "pogledati nazaj" v sortiranem arrayu.
-                 // Najbolj enostavno: Rang je (index prvega igralca s tem rezultatom) + 1.
+                 // PRAVILNO RANGIRANJE (1, 2, 2, 4...)
                  const rank = array.findIndex(p => p.total_score === player.total_score) + 1;
 
                  return (
