@@ -20,7 +20,7 @@ type GamePlayer = { id: string; name: string; total_score: number; position: num
 type Radelc = { id: string; player_id: string; is_used: boolean; position: number; };
 type ScoreEntry = { id: string; points: number; created_at: string; played: boolean; player_id?: string; };
 
-// NOVO: Tip za globalno statistiko
+// Tip za globalno statistiko
 type PlayerStats = { name: string; wins: number; second: number; third: number; total_games: number; total_points: number; };
 
 export default function History() {
@@ -34,7 +34,7 @@ export default function History() {
   const [selectedPlayerName, setSelectedPlayerName] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // NOVO: Stanja za globalno statistiko
+  // Stanja za globalno statistiko
   const [showGlobalStatsModal, setShowGlobalStatsModal] = useState(false);
   const [globalStats, setGlobalStats] = useState<PlayerStats[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
@@ -66,7 +66,6 @@ export default function History() {
   };
 
   const endGame = async (gameId: string) => {
-      // (Koda za zaključek igre - enaka kot prej)
       if (Platform.OS === 'web') {
         if (!window.confirm('Ali želiš zaključiti to igro?')) return;
       } else {
@@ -83,7 +82,6 @@ export default function History() {
       } catch (error) { console.error(error); }
   };
   const deleteGame = async (gameId: string) => {
-       // (Koda za izbris igre - enaka kot prej)
       if (Platform.OS === 'web') {
           if(!window.confirm('Ali si prepričan?')) return;
       } else {
@@ -106,25 +104,19 @@ export default function History() {
     } catch (error) { console.error(error); }
   };
 
-  // --- NOVO: Izračun globalne statistike ---
+  // --- Izračun globalne statistike ---
   const loadGlobalStats = async () => {
     setStatsLoading(true);
     setShowGlobalStatsModal(true);
     try {
-        // 1. Dobimo vse ZAKLJUČENE igre
         const { data: finishedGames } = await supabase.from('games').select('id').eq('is_active', false);
         const gameIds = finishedGames?.map(g => g.id) || [];
         if (gameIds.length === 0) { setGlobalStats([]); setStatsLoading(false); return; }
 
-        // 2. Dobimo vse igralce teh iger
         const { data: allPlayers } = await supabase.from('players').select('name, game_id, total_score').in('game_id', gameIds);
-        
         if (!allPlayers) { setGlobalStats([]); return; }
 
-        // 3. Grupiranje in izračun
         const statsMap = new Map<string, PlayerStats>();
-        
-        // Grupiramo igralce po igrah
         const playersByGame = allPlayers.reduce((acc, p) => {
             if (!acc[p.game_id]) acc[p.game_id] = [];
             acc[p.game_id].push(p);
@@ -132,26 +124,21 @@ export default function History() {
         }, {} as Record<string, typeof allPlayers>);
 
         Object.values(playersByGame).forEach(gameP => {
-            // Razvrstimo igralce v TEJ igri po točkah (največ točk = zmagovalec)
             gameP.sort((a, b) => b.total_score - a.total_score);
-            
             gameP.forEach((p, index) => {
-                const name = p.name; // Uporabljamo ime kot ključ (lahko bi tudi profile_id)
+                const name = p.name; 
                 if (!statsMap.has(name)) {
                     statsMap.set(name, { name, wins: 0, second: 0, third: 0, total_games: 0, total_points: 0 });
                 }
                 const stat = statsMap.get(name)!;
                 stat.total_games += 1;
                 stat.total_points += p.total_score;
-                
-                // Dodelimo medalje
                 if (index === 0) stat.wins += 1;
                 if (index === 1) stat.second += 1;
                 if (index === 2) stat.third += 1;
             });
         });
 
-        // Razvrstimo lestvico (Zlate > Srebrne > Bronaste)
         const sortedStats = Array.from(statsMap.values()).sort((a, b) => {
             if (b.wins !== a.wins) return b.wins - a.wins;
             if (b.second !== a.second) return b.second - a.second;
@@ -183,7 +170,6 @@ export default function History() {
 
   return (
     <View style={styles.container}>
-      {/* NOVO: Header z gumbom za statistiko */}
       <View style={styles.mainHeader}>
           <Text style={styles.headerTitle}>Zgodovina iger</Text>
           <TouchableOpacity style={styles.globalStatsButton} onPress={loadGlobalStats}>
@@ -196,11 +182,7 @@ export default function History() {
         keyExtractor={(item) => item.id}
         renderItem={renderGame}
         contentContainerStyle={styles.listContainer}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Ni še nobene igre</Text>
-          </View>
-        }
+        ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>Ni še nobene igre</Text></View>}
       />
 
       {/* --- MODAL ZA GLOBALNO STATISTIKO (VEČNA LESTVICA) --- */}
@@ -214,32 +196,48 @@ export default function History() {
                     <ActivityIndicator size="large" color="#4a9eff" style={{marginTop: 20}} />
                 ) : (
                     <ScrollView style={styles.historyList}>
-                        {globalStats.map((stat, index) => (
-                            <View key={stat.name} style={styles.leaderboardItem}>
-                                <Text style={styles.rankText}>{index + 1}.</Text>
-                                <View style={{flex: 1}}>
-                                    <Text style={styles.leaderboardName}>{stat.name}</Text>
-                                    <Text style={{color: '#666', fontSize: 12}}>{stat.total_games} iger • {stat.total_points} točk</Text>
+                        {globalStats.map((stat, index) => {
+                            // --- POPRAVEK: ŠPORTNO RAZVRŠČANJE ---
+                            // Poiščemo indeks prvega igralca, ki ima enake medalje kot trenutni
+                            const rank = globalStats.findIndex(s => 
+                                s.wins === stat.wins && 
+                                s.second === stat.second && 
+                                s.third === stat.third
+                            ) + 1;
+
+                            return (
+                                <View key={stat.name} style={styles.leaderboardItem}>
+                                    <View style={{width: 30, alignItems: 'center'}}>
+                                        {rank === 1 ? <Trophy size={18} color="#ffd700" /> :
+                                         rank === 2 ? <Trophy size={18} color="#c0c0c0" /> :
+                                         rank === 3 ? <Trophy size={18} color="#cd7f32" /> :
+                                         <Text style={styles.rankText}>{rank}.</Text>
+                                        }
+                                    </View>
+                                    <View style={{flex: 1, paddingLeft: 8}}>
+                                        <Text style={styles.leaderboardName}>{stat.name}</Text>
+                                        <Text style={{color: '#666', fontSize: 12}}>{stat.total_games} iger • {stat.total_points} točk</Text>
+                                    </View>
+                                    <View style={{flexDirection: 'row', gap: 6}}>
+                                        {/* ZMAGE */}
+                                        <View style={styles.medalBox}>
+                                            <Trophy size={14} color="#ffd700" />
+                                            <Text style={{color:'#ffd700', fontWeight:'700', marginLeft:2}}>{stat.wins}</Text>
+                                        </View>
+                                        {/* DRUGA MESTA */}
+                                        <View style={styles.medalBox}>
+                                            <Trophy size={14} color="#c0c0c0" />
+                                            <Text style={{color:'#c0c0c0', fontWeight:'700', marginLeft:2}}>{stat.second}</Text>
+                                        </View>
+                                        {/* TRETJA MESTA */}
+                                        <View style={styles.medalBox}>
+                                            <Trophy size={14} color="#cd7f32" />
+                                            <Text style={{color:'#cd7f32', fontWeight:'700', marginLeft:2}}>{stat.third}</Text>
+                                        </View>
+                                    </View>
                                 </View>
-                                <View style={{flexDirection: 'row', gap: 6}}>
-                                    {/* ZMAGE */}
-                                    <View style={styles.medalBox}>
-                                        <Trophy size={14} color="#ffd700" />
-                                        <Text style={{color:'#ffd700', fontWeight:'700', marginLeft:2}}>{stat.wins}</Text>
-                                    </View>
-                                    {/* DRUGA MESTA */}
-                                    <View style={styles.medalBox}>
-                                        <Trophy size={14} color="#c0c0c0" />
-                                        <Text style={{color:'#c0c0c0', fontWeight:'700', marginLeft:2}}>{stat.second}</Text>
-                                    </View>
-                                    {/* TRETJA MESTA */}
-                                    <View style={styles.medalBox}>
-                                        <Trophy size={14} color="#cd7f32" />
-                                        <Text style={{color:'#cd7f32', fontWeight:'700', marginLeft:2}}>{stat.third}</Text>
-                                    </View>
-                                </View>
-                            </View>
-                        ))}
+                            );
+                        })}
                     </ScrollView>
                 )}
                 <TouchableOpacity style={styles.closeButton} onPress={() => setShowGlobalStatsModal(false)}>
@@ -349,7 +347,6 @@ export default function History() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f0f0f' },
-  // NOVI STILI ZA HEADER ZGODOVINE
   mainHeader: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -367,9 +364,7 @@ const styles = StyleSheet.create({
       borderColor: '#444'
   },
   subTitle: { color: '#666', fontSize: 14, textAlign: 'center', marginBottom: 15 },
-  
   medalBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#222', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6 },
-
   listContainer: { padding: 16, gap: 12 },
   gameCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#333' },
   gameHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
@@ -429,7 +424,7 @@ const styles = StyleSheet.create({
   historyDate: { color: '#666', fontSize: 12, flex: 1, textAlign: 'right' },
   playedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ffd700' },
   leaderboardItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: '#2a2a2a', borderRadius: 8, marginBottom: 8, gap: 10 },
-  rankText: { color: '#888', fontSize: 18, fontWeight: '700', width: 30 },
+  rankText: { color: '#888', fontSize: 18, fontWeight: '700' },
   leaderboardName: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1 },
   leaderboardScore: { fontSize: 22, fontWeight: '800', width: 60, textAlign: 'right' },
 });
