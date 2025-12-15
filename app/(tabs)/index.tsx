@@ -52,6 +52,7 @@ export default function ActiveGame() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  // POMEMBNO: gameId mora biti na začetku VEDNO null!
   const [gameId, setGameId] = useState<string | null>(null);
   const [gameName, setGameName] = useState<string>('');
   
@@ -71,15 +72,18 @@ export default function ActiveGame() {
   
   const scoreInputRef = useRef<TextInput>(null);
 
-  // --- LOBBY & INIT ---
+  // --- LOBBY LOGIKA (SEZNAM IGER) ---
   useFocusEffect(
     useCallback(() => {
+      // Vsakič ko pridemo na ekran, osvežimo seznam, ampak NE vstopimo v igro
       fetchActiveGamesList();
     }, [])
   );
 
   const fetchActiveGamesList = async () => {
+    // Loading pokažemo samo, če nismo že sredi igre
     if (!gameId) setLoading(true);
+    
     try {
       const { data } = await supabase
         .from('games')
@@ -87,6 +91,7 @@ export default function ActiveGame() {
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
+      // SAMO napolnimo seznam. NE nastavljamo gameId!
       setActiveGamesList(data || []);
     } catch (error) {
       console.error('Error fetching games:', error);
@@ -95,6 +100,7 @@ export default function ActiveGame() {
     }
   };
 
+  // --- VSTOP V IGRO (Samo na klik!) ---
   const enterGame = async (selectedGame: Game) => {
     setLoading(true);
     try {
@@ -113,9 +119,11 @@ export default function ActiveGame() {
     setGameId(null);
     setPlayers([]);
     setRadelci([]);
+    // Ko gremo ven, osvežimo seznam, da vidimo morebitne nove igre
     fetchActiveGamesList();
   };
 
+  // --- USTVARJANJE NOVE IGRE ---
   const handleStartNewGame = async () => {
     createGameInDb();
   };
@@ -132,6 +140,7 @@ export default function ActiveGame() {
 
       if (error) throw error;
       
+      // Tukaj pa lahko avtomatsko vstopimo, ker smo jo ravno ustvarili MI
       await fetchActiveGamesList();
       await enterGame(newGame);
     } catch (error) {
@@ -141,7 +150,7 @@ export default function ActiveGame() {
     }
   };
 
-  // --- LOGIKA IGRE ---
+  // --- LOGIKA IGRE (Supabase klici) ---
   const loadPlayers = async (gId: string) => {
     const { data } = await supabase.from('players').select('*').eq('game_id', gId).order('position');
     setPlayers(data || []);
@@ -214,7 +223,7 @@ export default function ActiveGame() {
   const submitScore = async () => {
     if (!selectedPlayerId || !scoreInput) return;
     
-    // Validacija vnosa
+    // Validacija
     if (scoreInput === '-') {
         setScoreInput('');
         return;
@@ -228,7 +237,7 @@ export default function ActiveGame() {
 
     setSubmitting(true);
     try {
-      // 1. Preprost insert (samo točke)
+      // Shranimo samo točke (brez checkboxa)
       const { error } = await supabase.from('score_entries').insert({
         player_id: selectedPlayerId, 
         game_id: gameId, 
@@ -237,7 +246,6 @@ export default function ActiveGame() {
 
       if (error) throw error;
 
-      // 2. Posodobi igralca
       const player = players.find(p => p.id === selectedPlayerId);
       if (player) {
         const newScore = player.total_score + points;
@@ -257,7 +265,7 @@ export default function ActiveGame() {
     }
   };
 
-  // --- ZGODOVINA ---
+  // --- ZGODOVINA IN LESTVICA ---
   const loadPlayerHistory = async (pid: string) => {
     const { data } = await supabase.from('score_entries').select('*').eq('player_id', pid).order('created_at');
     setPlayerHistory(data || []);
@@ -265,7 +273,6 @@ export default function ActiveGame() {
     setShowHistoryModal(true);
   };
 
-  // --- LESTVICA ---
   const openLeaderboard = () => {
     setShowLeaderboardModal(true);
   };
@@ -319,9 +326,10 @@ export default function ActiveGame() {
   };
 
   // ==========================================
-  // RENDER
+  // RENDER (UI)
   // ==========================================
 
+  // Loading
   if (loading && !gameId && activeGamesList.length === 0) {
     return (
       <View style={[styles.container, styles.centerContent]}>
@@ -330,6 +338,7 @@ export default function ActiveGame() {
     );
   }
 
+  // 1. POGLED: ČE NI AKTIVNIH IGER -> VELIK GUMB
   if (!gameId && activeGamesList.length === 0) {
     return (
       <View style={[styles.container, styles.centerContent]}>
@@ -343,6 +352,7 @@ export default function ActiveGame() {
     );
   }
 
+  // 2. POGLED: LOBBY (SEZNAM IGER)
   if (!gameId) {
     return (
       <View style={styles.container}>
@@ -375,6 +385,7 @@ export default function ActiveGame() {
     );
   }
 
+  // 3. POGLED: IGRA (BOARD)
   return (
     <View style={styles.container}>
       <View style={styles.gameHeaderBar}>
@@ -441,8 +452,6 @@ export default function ActiveGame() {
               </View>
             </View>
 
-            {/* CHECKBOX ODSTRANJEN ZA STABILNOST */}
-
             <View style={styles.modalButtons}>
               <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowScoreModal(false)}>
                 <Text style={styles.modalButtonText}>Prekliči</Text>
@@ -463,7 +472,7 @@ export default function ActiveGame() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* MODAL: ZGODOVINA (POSAMEZNIK) */}
+      {/* MODAL: ZGODOVINA IGRALCA */}
       <Modal visible={showHistoryModal} transparent animationType="slide" onRequestClose={() => setShowHistoryModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -492,7 +501,7 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      {/* MODAL: LESTVICA */}
+      {/* MODAL: LESTVICA (LEADERBOARD) */}
       <Modal visible={showLeaderboardModal} transparent animationType="slide" onRequestClose={() => setShowLeaderboardModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -501,15 +510,13 @@ export default function ActiveGame() {
               {getSortedPlayers().map((player, index, array) => {
                  const pRadelci = radelci.filter(r => r.player_id === player.id);
                  
-                 // PRAVILNO RANGIRANJE (1, 2, 2, 4...)
+                 // ŠPORTNO RAZVRŠČANJE (1, 2, 2, 4...)
                  const rank = array.findIndex(p => p.total_score === player.total_score) + 1;
 
                  return (
                   <View key={player.id} style={styles.leaderboardItem}>
                     <Text style={styles.rankText}>{rank}.</Text>
-                    
                     <Text style={styles.leaderboardName} numberOfLines={1}>{player.name || 'Brez imena'}</Text>
-                    
                     <View style={styles.miniRadelciContainer}>
                       {pRadelci.map(r => (
                         <View 
@@ -518,7 +525,6 @@ export default function ActiveGame() {
                         />
                       ))}
                     </View>
-
                     <Text style={[styles.leaderboardScore, player.total_score >= 0 ? styles.positivePoints : styles.negativePoints]}>
                       {player.total_score}
                     </Text>
@@ -644,11 +650,6 @@ const styles = StyleSheet.create({
   scoreInputWrapper: { flex: 1, height: 60, backgroundColor: '#2a2a2a', borderRadius: 12, justifyContent: 'center' },
   scoreInputField: { width: '100%', height: '100%', color: '#fff', fontSize: 24, textAlign: 'center' },
   
-  checkboxContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20, gap: 10 },
-  checkbox: { width: 24, height: 24, borderWidth: 2, borderColor: '#666', borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  checkboxChecked: { backgroundColor: '#4a9eff', borderColor: '#4a9eff' },
-  checkboxLabel: { color: '#fff', fontSize: 16 },
-
   modalButtons: { flexDirection: 'row', width: '100%', gap: 12 },
   modalButton: { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center' },
   cancelButton: { backgroundColor: '#444' },
@@ -661,8 +662,7 @@ const styles = StyleSheet.create({
   historyPlayerName: { color: '#fff', fontSize: 16, fontWeight: '600', width: 80, marginRight: 8 },
   
   pointsWrapper: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'center', gap: 6 },
-  yellowDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#f59e0b', borderWidth: 1, borderColor: '#fff' },
-
+  
   historyPoints: { fontSize: 20, fontWeight: '700' },
   positivePoints: { color: '#22c55e' },
   negativePoints: { color: '#ef4444' },
