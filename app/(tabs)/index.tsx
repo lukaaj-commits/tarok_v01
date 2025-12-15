@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { Plus, Info, Trash2, RotateCcw, Play, ChevronLeft, Check, ListOrdered, Trophy } from 'lucide-react-native';
+import { Plus, Info, Trash2, RotateCcw, Play, ChevronLeft, Check, Trophy } from 'lucide-react-native';
 
 // --- TIPI ---
 type Player = {
@@ -65,7 +65,7 @@ export default function ActiveGame() {
   
   const [showScoreModal, setShowScoreModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false); 
-  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false); // NOVO: Lestvica
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
   const [showFinishGameModal, setShowFinishGameModal] = useState(false);
   const [showKlopModal, setShowKlopModal] = useState(false);
   
@@ -224,7 +224,9 @@ export default function ActiveGame() {
 
     setSubmitting(true);
     try {
-      // 1. Poskus z 'played'
+      // 1. Shrani v bazo - BREZ VARNOSTNE MREŽE
+      // To prisili aplikacijo, da uporabi stolpec 'played'.
+      // Če stolpec ne obstaja, bo vrglo napako (in vemo pri čem smo).
       const { error } = await supabase.from('score_entries').insert({
         player_id: selectedPlayerId, 
         game_id: gameId, 
@@ -232,15 +234,9 @@ export default function ActiveGame() {
         played: isPlayed 
       });
 
-      if (error) {
-         // 2. Fallback
-         await supabase.from('score_entries').insert({
-            player_id: selectedPlayerId,
-            game_id: gameId,
-            points
-        });
-      }
+      if (error) throw error;
 
+      // 2. Posodobi igralca
       const player = players.find(p => p.id === selectedPlayerId);
       if (player) {
         const newScore = player.total_score + points;
@@ -255,13 +251,13 @@ export default function ActiveGame() {
       setIsPlayed(false);
 
     } catch (e: any) { 
-      Alert.alert("Napaka", "Prišlo je do napake pri shranjevanju.");
+      Alert.alert("Napaka pri shranjevanju", e.message || "Neznana napaka");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // --- ZGODOVINA POSAMEZNIK ---
+  // --- ZGODOVINA ---
   const loadPlayerHistory = async (pid: string) => {
     const { data } = await supabase.from('score_entries').select('*').eq('player_id', pid).order('created_at');
     setPlayerHistory(data || []);
@@ -269,12 +265,11 @@ export default function ActiveGame() {
     setShowHistoryModal(true);
   };
 
-  // --- NOVO: ODPRI LESTVICO (LEADERBOARD) ---
+  // --- LESTVICA (SORTED) ---
   const openLeaderboard = () => {
     setShowLeaderboardModal(true);
   };
 
-  // Pomožna funkcija za sortiranje
   const getSortedPlayers = () => {
     return [...players].sort((a, b) => b.total_score - a.total_score);
   };
@@ -392,7 +387,6 @@ export default function ActiveGame() {
         </Text>
       </View>
 
-      {/* ORODNA VRSTICA */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.addButton} onPress={addPlayer}>
           <Plus size={20} color="#fff" />
@@ -403,7 +397,7 @@ export default function ActiveGame() {
           <Text style={styles.addButtonText}>Radelc</Text>
         </TouchableOpacity>
         
-        {/* --- NOVO: LESTVICA (Trophy/List icon) --- */}
+        {/* GUMB ZA LESTVICO */}
         <TouchableOpacity style={styles.infoGameButton} onPress={openLeaderboard}>
           <Trophy size={24} color="#fff" />
         </TouchableOpacity>
@@ -423,7 +417,6 @@ export default function ActiveGame() {
         }
       />
 
-      {/* MODAL: VNOS TOČK */}
       <Modal visible={showScoreModal} transparent animationType="fade" onRequestClose={() => setShowScoreModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -474,7 +467,7 @@ export default function ActiveGame() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* MODAL: ZGODOVINA (POSAMEZNIK) - Z RUMENO PIKO */}
+      {/* MODAL: ZGODOVINA (POSAMEZNIK) */}
       <Modal visible={showHistoryModal} transparent animationType="slide" onRequestClose={() => setShowHistoryModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -484,8 +477,7 @@ export default function ActiveGame() {
                 let runningTotal = 0;
                 for (let i = 0; i <= index; i++) runningTotal += playerHistory[i].points;
                 
-                // Preverjanje za rumeno piko (robustno)
-                const didPlay = !!entry.played; // Pretvori null/undefined/true v boolean
+                const didPlay = entry.played === true;
 
                 return (
                   <View key={entry.id} style={styles.historyItem}>
@@ -493,7 +485,6 @@ export default function ActiveGame() {
                       <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>
                         {entry.points > 0 ? '+' : ''}{entry.points}
                       </Text>
-                      {/* Rumena pika - mora biti vidna! */}
                       {didPlay && <View style={styles.yellowDot} />} 
                     </View>
                     <Text style={styles.historyTotal}>= {runningTotal}</Text>
@@ -509,25 +500,29 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      {/* --- NOVO: MODAL LESTVICA (LEADERBOARD) --- */}
+      {/* MODAL: LESTVICA (LEADERBOARD) - Z IZBOLJŠANIM RANKINGOM */}
       <Modal visible={showLeaderboardModal} transparent animationType="slide" onRequestClose={() => setShowLeaderboardModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
             <Text style={styles.modalTitle}>Trenutna lestvica 🏆</Text>
             <ScrollView style={styles.historyList}>
-              {getSortedPlayers().map((player, index) => {
-                 // Poišči radelce za tega igralca
+              {getSortedPlayers().map((player, index, array) => {
                  const pRadelci = radelci.filter(r => r.player_id === player.id);
                  
+                 // --- LOGIKA ZA RANKING (DELJENA MESTA) ---
+                 // Če je to prvi igralec, je rang 1.
+                 // Če ima enak rezultat kot prejšnji, ima enak rang kot prejšnji.
+                 // Sicer je rang enak (index + 1).
+                 // POZOR: Ker mapiramo, moramo "pogledati nazaj" v sortiranem arrayu.
+                 // Najbolj enostavno: Rang je (index prvega igralca s tem rezultatom) + 1.
+                 const rank = array.findIndex(p => p.total_score === player.total_score) + 1;
+
                  return (
                   <View key={player.id} style={styles.leaderboardItem}>
-                    {/* MESTO */}
-                    <Text style={styles.rankText}>{index + 1}.</Text>
+                    <Text style={styles.rankText}>{rank}.</Text>
                     
-                    {/* IME */}
                     <Text style={styles.leaderboardName} numberOfLines={1}>{player.name || 'Brez imena'}</Text>
                     
-                    {/* RADELCI V LESTVICI */}
                     <View style={styles.miniRadelciContainer}>
                       {pRadelci.map(r => (
                         <View 
@@ -537,7 +532,6 @@ export default function ActiveGame() {
                       ))}
                     </View>
 
-                    {/* TOČKE */}
                     <Text style={[styles.leaderboardScore, player.total_score >= 0 ? styles.positivePoints : styles.negativePoints]}>
                       {player.total_score}
                     </Text>
@@ -680,7 +674,6 @@ const styles = StyleSheet.create({
   historyPlayerName: { color: '#fff', fontSize: 16, fontWeight: '600', width: 80, marginRight: 8 },
   
   pointsWrapper: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'center', gap: 6 },
-  // RUMENA PIKA ZDAJ Z ROBOM (Bolj vidna)
   yellowDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#f59e0b', borderWidth: 1, borderColor: '#fff' },
 
   historyPoints: { fontSize: 20, fontWeight: '700' },
@@ -689,7 +682,6 @@ const styles = StyleSheet.create({
   historyTotal: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1, textAlign: 'center' },
   historyDate: { color: '#666', fontSize: 12, flex: 1, textAlign: 'right' },
   
-  // LEADERBOARD (LESTVICA) STILI
   leaderboardItem: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -704,7 +696,7 @@ const styles = StyleSheet.create({
   leaderboardName: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1 },
   leaderboardScore: { fontSize: 22, fontWeight: '800', width: 60, textAlign: 'right' },
   miniRadelciContainer: { flexDirection: 'row', gap: 2 },
-  miniRadelc: { width: 12, height: 12, borderRadius: 6 }, // Manjši krogci za lestvico
+  miniRadelc: { width: 12, height: 12, borderRadius: 6 },
   
   closeButton: { backgroundColor: '#4a9eff', padding: 14, borderRadius: 12, alignItems: 'center' },
   emptyHistoryContainer: { paddingVertical: 40, alignItems: 'center' },
