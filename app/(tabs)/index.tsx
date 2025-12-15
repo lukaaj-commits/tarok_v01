@@ -12,10 +12,11 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Switch
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { Plus, Info, Trash2, RotateCcw, Play, ChevronLeft, Trophy, Search, UserPlus } from 'lucide-react-native';
+import { Plus, Info, Trash2, RotateCcw, Play, ChevronLeft, Trophy, Search, UserPlus, CheckCircle2, Circle } from 'lucide-react-native';
 
 // --- TIPI ---
 type PlayerProfile = {
@@ -43,6 +44,7 @@ type ScoreEntry = {
   points: number;
   created_at: string;
   player_id?: string;
+  played?: boolean; // Dodan status "igral"
 };
 
 type Game = {
@@ -68,8 +70,10 @@ export default function ActiveGame() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
 
+  // Stanja za vnos točk
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [scoreInput, setScoreInput] = useState('');
+  const [scorePlayed, setScorePlayed] = useState(false); // NOVO: Ali je igralec "igral" rundo
   
   const [showScoreModal, setShowScoreModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false); 
@@ -89,7 +93,6 @@ export default function ActiveGame() {
   );
 
   useEffect(() => {
-    // Tiho nalaganje profilov ob zagonu
     fetchProfiles(false);
   }, []);
 
@@ -110,40 +113,23 @@ export default function ActiveGame() {
     }
   };
 
-  // --- NALAGANJE PROFILOV (Z DIAGNOSTIKO) ---
-  const fetchProfiles = async (showDebugAlert = false) => {
+  const fetchProfiles = async (showDebug = false) => {
     try {
-      // Izrecno izberemo ID in NAME
       const { data, error } = await supabase
         .from('player_profiles')
         .select('id, name')
         .order('name');
         
       if (error) {
-        console.error("Supabase Error:", error);
-        if (showDebugAlert) {
-            Alert.alert("NAPAKA BAZE", JSON.stringify(error));
-        }
+        if (showDebug) Alert.alert("NAPAKA BAZE", error.message);
         return;
       }
       
       const list = data || [];
       setAllProfiles(list);
-      
-      if (showDebugAlert) {
-          // Pokaži uporabniku, kaj je dobil
-          if (list.length === 0) {
-              Alert.alert("BAZA PRAZNA", "Tabela 'player_profiles' ne vsebuje nobenega zapisa.");
-          } else {
-              // Če tole vidiš, pomeni da dela
-              // (Zakomentiraj to vrstico, ko bo delalo, da ne bo tečno)
-              Alert.alert("BAZA POVEZANA", `Našel sem ${list.length} igralcev.\nPrvi: ${list[0].name}`);
-          }
-      }
 
-    } catch (error: any) {
-      console.error('System Error:', error);
-      if (showDebugAlert) Alert.alert("SISTEMSKA NAPAKA", error.message);
+    } catch (err: any) {
+      if (showDebug) Alert.alert("NAPAKA", err.message);
     }
   };
 
@@ -207,8 +193,7 @@ export default function ActiveGame() {
   const openAddPlayerModal = () => {
     setSearchQuery('');
     setShowAddPlayerModal(true);
-    // Ko odpremo modal, sprožimo poizvedbo z alertom, da vidimo stanje
-    fetchProfiles(true); 
+    fetchProfiles(false); 
   };
 
   const addExistingProfileToGame = async (profile: PlayerProfile) => {
@@ -287,12 +272,15 @@ export default function ActiveGame() {
     setRadelci(radelci.map(r => r.id === radId ? { ...r, is_used: !current } : r));
   };
 
+  // --- VNOS TOČK ---
   const openScoreInput = (playerId: string) => {
     setSelectedPlayerId(playerId);
     setScoreInput('');
+    setScorePlayed(false); // Resetiraj stikalo
     setShowScoreModal(true);
   };
 
+  // Tukaj OHRANIMO autoFocus logiko (setTimeout), ker tako želiš
   useEffect(() => {
     if (showScoreModal) {
       setTimeout(() => scoreInputRef.current?.focus(), 100);
@@ -323,10 +311,12 @@ export default function ActiveGame() {
 
     setSubmitting(true);
     try {
+      // SHRANJEVANJE V BAZO (vključno s 'played')
       const { error } = await supabase.from('score_entries').insert({
         player_id: selectedPlayerId, 
         game_id: gameId, 
-        points
+        points,
+        played: scorePlayed // <--- TUKAJ SHRANIMO ČE JE IGRAL
       });
 
       if (error) throw error;
@@ -351,6 +341,7 @@ export default function ActiveGame() {
   };
 
   const loadPlayerHistory = async (pid: string) => {
+    // Naložimo zgodovino in tudi podatek 'played'
     const { data } = await supabase.from('score_entries').select('*').eq('player_id', pid).order('created_at');
     setPlayerHistory(data || []);
     setSelectedPlayerId(pid);
@@ -506,23 +497,22 @@ export default function ActiveGame() {
             
             <View style={styles.searchContainer}>
                 <Search size={24} color="#666" style={{ marginRight: 12 }} />
-                {/* POPRAVLJEN INPUT - BREZ ROBA */}
+                {/* SPREMEMBA: Brez autoFocus tukaj.
+                   Tipkovnica se odpre šele na klik.
+                */}
                 <TextInput
-                    style={styles.searchInput}
+                    style={[styles.searchInput, { outlineStyle: 'none', borderWidth: 0 } as any]}
                     placeholder="Išči ali ustvari novega..."
                     placeholderTextColor="#666"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
-                    autoFocus
-                    // Ključno za Android
+                    // autoFocus={false} je privzeto, zato ga sploh ne rabimo pisati
                     underlineColorAndroid="transparent"
-                    // Ključno za Web
-                    // @ts-ignore
-                    style={[styles.searchInput, { outlineStyle: 'none' }]} 
+                    selectionColor="#4a9eff"
+                    cursorColor="#4a9eff"
                 />
             </View>
 
-            {/* Diagnostika */}
             {allProfiles.length === 0 && searchQuery.length === 0 && (
                 <Text style={{color: '#666', textAlign: 'center', marginBottom: 10}}>
                     Nalagam imenik...
@@ -560,11 +550,12 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      {/* Ostali modali... (nespremenjeni, a vključeni) */}
+      {/* --- MODAL: VNOS TOČK --- */}
       <Modal visible={showScoreModal} transparent animationType="fade" onRequestClose={() => setShowScoreModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Vnesi točke</Text>
+            
             <View style={styles.inputRow}>
               <TouchableOpacity style={styles.signButton} onPress={toggleSign} activeOpacity={0.7}>
                 <Text style={styles.signButtonText}>+/-</Text>
@@ -579,9 +570,24 @@ export default function ActiveGame() {
                   returnKeyType="done"
                   placeholder="20"
                   placeholderTextColor="#666"
+                  // Tukaj autoFocus deluje preko useEffect+ref zgoraj (nismo spreminjali)
                 />
               </View>
             </View>
+
+            {/* --- NOVO: Kljukica za "Je igral?" --- */}
+            <TouchableOpacity 
+                style={styles.playedToggleContainer} 
+                onPress={() => setScorePlayed(!scorePlayed)}
+                activeOpacity={0.8}
+            >
+                <View style={[styles.checkboxBase, scorePlayed && styles.checkboxChecked]}>
+                    {scorePlayed && <CheckCircle2 size={20} color="#000" />}
+                </View>
+                <Text style={styles.playedLabel}>Igralec je igral? (za statistiko)</Text>
+            </TouchableOpacity>
+            {/* ------------------------------------- */}
+
             <View style={styles.modalButtons}>
               <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowScoreModal(false)}>
                 <Text style={styles.modalButtonText}>Prekliči</Text>
@@ -602,6 +608,7 @@ export default function ActiveGame() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* --- MODAL: ZGODOVINA --- */}
       <Modal visible={showHistoryModal} transparent animationType="slide" onRequestClose={() => setShowHistoryModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -616,6 +623,13 @@ export default function ActiveGame() {
                       <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>
                         {entry.points > 0 ? '+' : ''}{entry.points}
                       </Text>
+                      
+                      {/* --- NOVO: RUMENA PIKICA ČE JE IGRAL --- */}
+                      {entry.played && (
+                          <View style={styles.playedDot} />
+                      )}
+                      {/* -------------------------------------- */}
+
                     </View>
                     <Text style={styles.historyTotal}>= {runningTotal}</Text>
                     <Text style={styles.historyDate}>{new Date(entry.created_at).toLocaleTimeString('sl-SI', {hour:'2-digit', minute:'2-digit'})}</Text>
@@ -630,6 +644,7 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
+      {/* Ostali modali... */}
       <Modal visible={showLeaderboardModal} transparent animationType="slide" onRequestClose={() => setShowLeaderboardModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -755,9 +770,12 @@ const styles = StyleSheet.create({
   scoreContainer: { alignItems: 'center', paddingVertical: 20, backgroundColor: '#2a2a2a', borderRadius: 12, marginBottom: 12 },
   scoreText: { color: '#fff', fontSize: 48, fontWeight: '700' },
   radelciContainer: { flexDirection: 'row', paddingVertical: 8 },
-  radelc: { width: 32, height: 32, borderRadius: 16, marginHorizontal: 4 },
-  radelcUnused: { backgroundColor: 'transparent', borderWidth: 3, borderColor: '#4a9eff' },
-  radelcUsed: { backgroundColor: '#000', borderWidth: 0 },
+  
+  // POPRAVLJEN STIL RADELCA (Zdaj je rumen poln krog)
+  radelc: { width: 16, height: 16, borderRadius: 8, marginHorizontal: 4 },
+  radelcUnused: { backgroundColor: '#ffd700', borderWidth: 0 }, // Rumen in poln
+  radelcUsed: { backgroundColor: '#333', borderWidth: 1, borderColor: '#555' }, // Temen in prazen
+
   emptyText: { color: '#666', fontSize: 16, textAlign: 'center', marginTop: 40 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#1a1a1a', borderRadius: 16, padding: 24, width: '80%', maxWidth: 400 },
@@ -795,7 +813,6 @@ const styles = StyleSheet.create({
   klopTitle: { color: '#ffd700', fontSize: 28, fontWeight: '800', marginBottom: 24, textAlign: 'center' },
   klopButton: { backgroundColor: '#4a9eff', padding: 16, borderRadius: 12, alignItems: 'center' },
 
-  // --- STILI ZA ISKALNIK ---
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -809,8 +826,9 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#fff',
     fontSize: 20,
-    borderWidth: 0, // Eksplicitno
+    borderWidth: 0,
     borderColor: 'transparent',
+    backgroundColor: 'transparent',
   },
   profileItem: {
     flexDirection: 'row',
@@ -841,5 +859,42 @@ const styles = StyleSheet.create({
     color: '#4a9eff',
     fontSize: 18,
     fontWeight: '700',
+  },
+
+  // --- NOVI STILI ZA "Played" toggle in pikico ---
+  playedToggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2a2a2a',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 20,
+    gap: 12,
+  },
+  checkboxBase: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#4a9eff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  checkboxChecked: {
+    backgroundColor: '#ffd700', // Rumen ko je obkljukan
+    borderColor: '#ffd700',
+  },
+  playedLabel: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  playedDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ffd700', // Rumena pikica
+    marginLeft: 6,
   },
 });
