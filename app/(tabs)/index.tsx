@@ -12,7 +12,6 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
-  Switch
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -44,7 +43,7 @@ type ScoreEntry = {
   points: number;
   created_at: string;
   player_id?: string;
-  played?: boolean;
+  played?: boolean; // Status za rumeno piko
 };
 
 type Game = {
@@ -55,6 +54,7 @@ type Game = {
 };
 
 export default function ActiveGame() {
+  // --- STANJA ---
   const [activeGamesList, setActiveGamesList] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -71,7 +71,7 @@ export default function ActiveGame() {
 
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [scoreInput, setScoreInput] = useState('');
-  const [scorePlayed, setScorePlayed] = useState(false);
+  const [scorePlayed, setScorePlayed] = useState(false); // Za rumeno piko
   
   const [showScoreModal, setShowScoreModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false); 
@@ -83,6 +83,7 @@ export default function ActiveGame() {
   
   const scoreInputRef = useRef<TextInput>(null);
 
+  // --- LOBBY & INIT ---
   useFocusEffect(
     useCallback(() => {
       fetchActiveGamesList();
@@ -101,16 +102,33 @@ export default function ActiveGame() {
         .select('*')
         .eq('is_active', true)
         .order('created_at', { ascending: false });
+
       setActiveGamesList(data || []);
-    } catch (error) { console.error(error); } finally { setLoading(false); }
+    } catch (error) {
+      console.error('Error fetching games:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchProfiles = async (showDebug = false) => {
     try {
-      const { data, error } = await supabase.from('player_profiles').select('id, name').order('name');
-      if (error) { if (showDebug) Alert.alert("NAPAKA BAZE", error.message); return; }
-      setAllProfiles(data || []);
-    } catch (err: any) { if (showDebug) Alert.alert("NAPAKA", err.message); }
+      const { data, error } = await supabase
+        .from('player_profiles')
+        .select('id, name')
+        .order('name');
+        
+      if (error) {
+        if (showDebug) Alert.alert("NAPAKA BAZE", error.message);
+        return;
+      }
+      
+      const list = data || [];
+      setAllProfiles(list);
+
+    } catch (err: any) {
+      if (showDebug) Alert.alert("NAPAKA", err.message);
+    }
   };
 
   const enterGame = async (selectedGame: Game) => {
@@ -120,7 +138,11 @@ export default function ActiveGame() {
       setGameName(selectedGame.name);
       await loadPlayers(selectedGame.id);
       await loadRadelci(selectedGame.id);
-    } catch (error) { console.error(error); } finally { setLoading(false); }
+    } catch (error) {
+      console.error('Error entering game:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const exitToLobby = () => {
@@ -130,17 +152,29 @@ export default function ActiveGame() {
     fetchActiveGamesList();
   };
 
-  const handleStartNewGame = async () => { createGameInDb(); };
+  const handleStartNewGame = async () => {
+    createGameInDb();
+  };
 
   const createGameInDb = async () => {
     setLoading(true);
     try {
       const newName = `${new Date().toLocaleDateString('sl-SI')} Tarok ${new Date().toLocaleTimeString('sl-SI', {hour: '2-digit', minute:'2-digit'})}`;
-      const { data: newGame, error } = await supabase.from('games').insert({ name: newName, is_active: true }).select().single();
+      const { data: newGame, error } = await supabase
+        .from('games')
+        .insert({ name: newName, is_active: true })
+        .select()
+        .single();
+
       if (error) throw error;
+      
       await fetchActiveGamesList();
       await enterGame(newGame);
-    } catch (error) { Alert.alert("Napaka", "Ni bilo mogoče ustvariti igre."); } finally { setLoading(false); }
+    } catch (error) {
+      Alert.alert("Napaka", "Ni bilo mogoče ustvariti igre.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadPlayers = async (gId: string) => {
@@ -153,6 +187,7 @@ export default function ActiveGame() {
     setRadelci(data || []);
   };
 
+  // --- DODAJANJE IGRALCA ---
   const openAddPlayerModal = () => {
     setSearchQuery('');
     setShowAddPlayerModal(true);
@@ -161,14 +196,23 @@ export default function ActiveGame() {
 
   const addExistingProfileToGame = async (profile: PlayerProfile) => {
     if (!gameId) return;
+    
     if (players.some(p => p.profile_id === profile.id || p.name === profile.name)) {
       Alert.alert("Opozorilo", "Ta igralec je že v igri.");
       return;
     }
+
     try {
-      const { data } = await supabase.from('players').insert({ 
-          game_id: gameId, name: profile.name, position: players.length, profile_id: profile.id
-        }).select().single();
+      const { data } = await supabase
+        .from('players')
+        .insert({ 
+          game_id: gameId, 
+          name: profile.name, 
+          position: players.length,
+          profile_id: profile.id
+        })
+        .select().single();
+        
       if (data) {
         setPlayers([...players, data]);
         setShowAddPlayerModal(false);
@@ -179,20 +223,33 @@ export default function ActiveGame() {
   const createNewProfileAndAdd = async () => {
     if (!gameId || !searchQuery.trim()) return;
     const name = searchQuery.trim();
+
     try {
-      const { data: newProfile, error } = await supabase.from('player_profiles').insert({ name }).select().single();
+      const { data: newProfile, error } = await supabase
+        .from('player_profiles')
+        .insert({ name })
+        .select()
+        .single();
+
       if (error) {
         const { data: existingProfile } = await supabase.from('player_profiles').select('*').eq('name', name).single();
-        if (existingProfile) { addExistingProfileToGame(existingProfile); return; }
+        if (existingProfile) {
+            addExistingProfileToGame(existingProfile);
+            return;
+        }
         Alert.alert("Napaka", "Ni bilo mogoče ustvariti profila.");
         return;
       }
+
       await addExistingProfileToGame(newProfile);
       fetchProfiles(false);
+
     } catch (e) { console.error(e); }
   };
 
-  const filteredProfiles = allProfiles.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredProfiles = allProfiles.filter(p => 
+    p.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const deletePlayer = async (id: string) => {
     await supabase.from('players').delete().eq('id', id);
@@ -213,13 +270,15 @@ export default function ActiveGame() {
     setRadelci(radelci.map(r => r.id === radId ? { ...r, is_used: !current } : r));
   };
 
+  // --- VNOS TOČK ---
   const openScoreInput = (playerId: string) => {
     setSelectedPlayerId(playerId);
     setScoreInput('');
-    setScorePlayed(false);
+    setScorePlayed(false); // Reset
     setShowScoreModal(true);
   };
 
+  // AutoFocus samo za točke (ne spreminjamo, kot si želel)
   useEffect(() => {
     if (showScoreModal) {
       setTimeout(() => scoreInputRef.current?.focus(), 100);
@@ -236,15 +295,27 @@ export default function ActiveGame() {
 
   const submitScore = async () => {
     if (!selectedPlayerId || !scoreInput) return;
-    if (scoreInput === '-') { setScoreInput(''); return; }
+    
+    if (scoreInput === '-') {
+        setScoreInput('');
+        return;
+    }
+
     const points = parseInt(scoreInput, 10);
-    if (isNaN(points)) { Alert.alert("Napaka", "Vnos ni veljavno število."); return; }
+    if (isNaN(points)) {
+        Alert.alert("Napaka", "Vnos ni veljavno število.");
+        return;
+    }
 
     setSubmitting(true);
     try {
       const { error } = await supabase.from('score_entries').insert({
-        player_id: selectedPlayerId, game_id: gameId, points, played: scorePlayed
+        player_id: selectedPlayerId, 
+        game_id: gameId, 
+        points,
+        played: scorePlayed // Shranimo "je igral"
       });
+
       if (error) throw error;
 
       const player = players.find(p => p.id === selectedPlayerId);
@@ -252,11 +323,18 @@ export default function ActiveGame() {
         const newScore = player.total_score + points;
         await supabase.from('players').update({ total_score: newScore }).eq('id', selectedPlayerId);
         setPlayers(players.map(p => p.id === selectedPlayerId ? { ...p, total_score: newScore } : p));
+        
         if (newScore === 0) setShowKlopModal(true);
       }
+
       setShowScoreModal(false);
       setScoreInput('');
-    } catch (e: any) { Alert.alert("Napaka", e.message); } finally { setSubmitting(false); }
+
+    } catch (e: any) { 
+      Alert.alert("Napaka pri shranjevanju", e.message || "Neznana napaka");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const loadPlayerHistory = async (pid: string) => {
@@ -266,8 +344,18 @@ export default function ActiveGame() {
     setShowHistoryModal(true);
   };
 
+  const openLeaderboard = () => {
+    setShowLeaderboardModal(true);
+  };
+
+  const getSortedPlayers = () => {
+    return [...players].sort((a, b) => b.total_score - a.total_score);
+  };
+
   const finishGame = async () => {
-    if (gameId) { await supabase.from('games').update({ is_active: false }).eq('id', gameId); }
+    if (gameId) {
+      await supabase.from('games').update({ is_active: false }).eq('id', gameId);
+    }
     setShowFinishGameModal(false);
     exitToLobby();
   };
@@ -301,9 +389,16 @@ export default function ActiveGame() {
     );
   };
 
+  // ==========================================
   // RENDER
+  // ==========================================
+
   if (loading && !gameId && activeGamesList.length === 0) {
-    return <View style={[styles.container, styles.centerContent]}><ActivityIndicator size="large" color="#4a9eff" /></View>;
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#4a9eff" />
+      </View>
+    );
   }
 
   if (!gameId && activeGamesList.length === 0) {
@@ -358,7 +453,9 @@ export default function ActiveGame() {
           <ChevronLeft size={28} color="#4a9eff" />
           <Text style={styles.backButtonText}>Seznam</Text>
         </TouchableOpacity>
-        <Text style={styles.headerGameTitle} numberOfLines={1}>{gameName || 'Tarok'}</Text>
+        <Text style={styles.headerGameTitle} numberOfLines={1}>
+          {gameName || 'Tarok'}
+        </Text>
       </View>
 
       <View style={styles.header}>
@@ -370,7 +467,7 @@ export default function ActiveGame() {
           <Plus size={20} color="#fff" />
           <Text style={styles.addButtonText}>Radelc</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.infoGameButton} onPress={() => setShowLeaderboardModal(true)}>
+        <TouchableOpacity style={styles.infoGameButton} onPress={openLeaderboard}>
           <Trophy size={24} color="#fff" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.finishGameButtonOrange} onPress={() => setShowFinishGameModal(true)}>
@@ -383,31 +480,40 @@ export default function ActiveGame() {
         keyExtractor={(item) => item.id}
         renderItem={renderPlayer}
         contentContainerStyle={styles.listContainer}
-        ListEmptyComponent={<Text style={styles.emptyText}>Dodaj igralce za začetek.</Text>}
+        ListEmptyComponent={
+          <Text style={styles.emptyText}>Dodaj igralce za začetek.</Text>
+        }
       />
 
-      {/* MODAL: DODAJ IGRALCA */}
+      {/* --- MODAL: DODAJ IGRALCA --- */}
       <Modal visible={showAddPlayerModal} animationType="slide" transparent onRequestClose={() => setShowAddPlayerModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { height: '90%', maxHeight: '90%' }]}>
             <Text style={styles.modalTitle}>Dodaj igralca</Text>
+            
             <View style={styles.searchContainer}>
                 <Search size={24} color="#666" style={{ marginRight: 12 }} />
+                
+                {/* POPRAVEK: Tipkovnica se NE odpre sama */}
                 <TextInput
                     style={[styles.searchInput, { outlineStyle: 'none', borderWidth: 0 } as any]}
                     placeholder="Išči ali ustvari novega..."
                     placeholderTextColor="#666"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
-                    autoFocus={false} // <--- POPRAVEK: Tipkovnica se NE odpre sama
+                    // autoFocus vrstica je IZBRISANA
                     underlineColorAndroid="transparent"
                     selectionColor="#4a9eff"
                     cursorColor="#4a9eff"
                 />
             </View>
+
             {allProfiles.length === 0 && searchQuery.length === 0 && (
-                <Text style={{color: '#666', textAlign: 'center', marginBottom: 10}}>Nalagam imenik...</Text>
+                <Text style={{color: '#666', textAlign: 'center', marginBottom: 10}}>
+                    Nalagam imenik...
+                </Text>
             )}
+
             <FlatList
                 data={filteredProfiles}
                 keyExtractor={(item) => item.id}
@@ -426,9 +532,12 @@ export default function ActiveGame() {
                             <UserPlus size={28} color="#fff" />
                             <Text style={styles.createNewText}>Ustvari: "{searchQuery}"</Text>
                         </TouchableOpacity>
-                    ) : (<Text style={styles.emptyText}>Začni pisati ime...</Text>)
+                    ) : (
+                        <Text style={styles.emptyText}>Začni pisati ime...</Text>
+                    )
                 }
             />
+
             <TouchableOpacity style={styles.closeButton} onPress={() => setShowAddPlayerModal(false)}>
                 <Text style={styles.modalButtonText}>Zapri</Text>
             </TouchableOpacity>
@@ -436,11 +545,12 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      {/* MODAL: VNOS TOČK */}
+      {/* --- MODAL: VNOS TOČK --- */}
       <Modal visible={showScoreModal} transparent animationType="fade" onRequestClose={() => setShowScoreModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Vnesi točke</Text>
+            
             <View style={styles.inputRow}>
               <TouchableOpacity style={styles.signButton} onPress={toggleSign} activeOpacity={0.7}>
                 <Text style={styles.signButtonText}>+/-</Text>
@@ -458,25 +568,40 @@ export default function ActiveGame() {
                 />
               </View>
             </View>
-            <TouchableOpacity style={styles.playedToggleContainer} onPress={() => setScorePlayed(!scorePlayed)} activeOpacity={0.8}>
+
+            {/* Kljukica za "Je igral?" */}
+            <TouchableOpacity 
+                style={styles.playedToggleContainer} 
+                onPress={() => setScorePlayed(!scorePlayed)}
+                activeOpacity={0.8}
+            >
                 <View style={[styles.checkboxBase, scorePlayed && styles.checkboxChecked]}>
                     {scorePlayed && <CheckCircle2 size={20} color="#000" />}
                 </View>
                 <Text style={styles.playedLabel}>Igralec je igral? (za statistiko)</Text>
             </TouchableOpacity>
+
             <View style={styles.modalButtons}>
               <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowScoreModal(false)}>
                 <Text style={styles.modalButtonText}>Prekliči</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButton, styles.submitButton]} onPress={submitScore} disabled={submitting}>
-                {submitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.modalButtonText}>Potrdi</Text>}
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.submitButton]} 
+                onPress={submitScore}
+                disabled={submitting} 
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.modalButtonText}>Potrdi</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* MODAL: ZGODOVINA (Lokalna) */}
+      {/* --- MODAL: ZGODOVINA IGRALCA --- */}
       <Modal visible={showHistoryModal} transparent animationType="slide" onRequestClose={() => setShowHistoryModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -487,7 +612,7 @@ export default function ActiveGame() {
                 for (let i = 0; i <= index; i++) runningTotal += playerHistory[i].points;
                 return (
                   <View key={entry.id} style={styles.historyItem}>
-                    {/* POPRAVEK PORAVNAVE: Fiksna širina za točke in ločen prostor za piko */}
+                    {/* PORAVNAVA IN RUMENA PIKA */}
                     <View style={styles.pointsWrapper}>
                       <View style={styles.fixedPointsWidth}>
                           <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>
@@ -511,13 +636,13 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      {/* Ostali modali (Leaderboard, Finish, Klop) ... (nespremenjeni, samo vključeni) */}
-       <Modal visible={showLeaderboardModal} transparent animationType="slide" onRequestClose={() => setShowLeaderboardModal(false)}>
+      {/* Ostali modali... */}
+      <Modal visible={showLeaderboardModal} transparent animationType="slide" onRequestClose={() => setShowLeaderboardModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
             <Text style={styles.modalTitle}>Trenutna lestvica 🏆</Text>
             <ScrollView style={styles.historyList}>
-              {[...players].sort((a, b) => b.total_score - a.total_score).map((player, index, array) => {
+              {getSortedPlayers().map((player, index, array) => {
                  const pRadelci = radelci.filter(r => r.player_id === player.id);
                  const rank = array.findIndex(p => p.total_score === player.total_score) + 1;
                  return (
@@ -526,7 +651,10 @@ export default function ActiveGame() {
                     <Text style={styles.leaderboardName} numberOfLines={1}>{player.name || 'Brez imena'}</Text>
                     <View style={styles.miniRadelciContainer}>
                       {pRadelci.map(r => (
-                        <View key={r.id} style={[styles.miniRadelc, r.is_used ? styles.radelcUsed : styles.radelcUnused]} />
+                        <View 
+                          key={r.id} 
+                          style={[styles.miniRadelc, r.is_used ? styles.radelcUsed : styles.radelcUnused]} 
+                        />
                       ))}
                     </View>
                     <Text style={[styles.leaderboardScore, player.total_score >= 0 ? styles.positivePoints : styles.negativePoints]}>
@@ -559,6 +687,7 @@ export default function ActiveGame() {
           </View>
         </View>
       </Modal>
+
       <Modal visible={showKlopModal} transparent animationType="fade" onRequestClose={() => setShowKlopModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -576,15 +705,44 @@ export default function ActiveGame() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f0f0f' },
   centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  
   lobbyTitle: { fontSize: 32, fontWeight: '800', color: '#fff', padding: 20, paddingTop: 60 },
-  gameCard: { backgroundColor: '#1a1a1a', padding: 20, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: '#333', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  gameCard: {
+    backgroundColor: '#1a1a1a',
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#333',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   gameName: { fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 4 },
   gameDate: { fontSize: 14, color: '#888' },
-  bigStartButton: { backgroundColor: '#4a9eff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 20, paddingHorizontal: 32, borderRadius: 16, gap: 12, width: '100%', maxWidth: 400 },
+  bigStartButton: {
+    backgroundColor: '#4a9eff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    gap: 12,
+    width: '100%',
+    maxWidth: 400,
+  },
   bigStartButtonText: { color: '#fff', fontSize: 20, fontWeight: '700' },
   welcomeTitle: { fontSize: 48, fontWeight: '800', color: '#fff', marginBottom: 8 },
   welcomeSubtitle: { fontSize: 18, color: '#888', marginBottom: 40 },
-  gameHeaderBar: { flexDirection: 'row', alignItems: 'center', paddingTop: 50, paddingHorizontal: 16, paddingBottom: 10, backgroundColor: '#0f0f0f' },
+  gameHeaderBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 50,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    backgroundColor: '#0f0f0f',
+  },
   backButton: { flexDirection: 'row', alignItems: 'center', marginRight: 10 },
   backButtonText: { color: '#4a9eff', fontSize: 16, fontWeight: '600' },
   headerGameTitle: { color: '#fff', fontSize: 18, fontWeight: '700', flex: 1 },
@@ -604,9 +762,12 @@ const styles = StyleSheet.create({
   scoreContainer: { alignItems: 'center', paddingVertical: 20, backgroundColor: '#2a2a2a', borderRadius: 12, marginBottom: 12 },
   scoreText: { color: '#fff', fontSize: 48, fontWeight: '700' },
   radelciContainer: { flexDirection: 'row', paddingVertical: 8 },
+  
+  // Radelc slogi (popravljeni v prejšnjem koraku)
   radelc: { width: 16, height: 16, borderRadius: 8, marginHorizontal: 4 },
   radelcUnused: { backgroundColor: '#ffd700', borderWidth: 0 },
   radelcUsed: { backgroundColor: '#333', borderWidth: 1, borderColor: '#555' },
+
   emptyText: { color: '#666', fontSize: 16, textAlign: 'center', marginTop: 40 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#1a1a1a', borderRadius: 16, padding: 24, width: '80%', maxWidth: 400 },
@@ -626,10 +787,10 @@ const styles = StyleSheet.create({
   historyItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 16, backgroundColor: '#2a2a2a', borderRadius: 8, marginBottom: 8 },
   historyPlayerName: { color: '#fff', fontSize: 16, fontWeight: '600', width: 80, marginRight: 8 },
   
-  // POPRAVLJENO: Poravnava v zgodovini
+  // PORAVNAVA v zgodovini (lokalni)
   pointsWrapper: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'center' },
-  fixedPointsWidth: { width: 60, alignItems: 'flex-end', paddingRight: 5 }, // Fiksna širina za številke
-  dotContainer: { width: 20, alignItems: 'flex-start' }, // Fiksna širina za piko
+  fixedPointsWidth: { width: 60, alignItems: 'flex-end', paddingRight: 5 },
+  dotContainer: { width: 20, alignItems: 'flex-start' },
   
   historyPoints: { fontSize: 20, fontWeight: '700' },
   positivePoints: { color: '#22c55e' },
@@ -648,6 +809,7 @@ const styles = StyleSheet.create({
   confirmText: { color: '#ccc', fontSize: 15, textAlign: 'center', marginBottom: 20, lineHeight: 22 },
   klopTitle: { color: '#ffd700', fontSize: 28, fontWeight: '800', marginBottom: 24, textAlign: 'center' },
   klopButton: { backgroundColor: '#4a9eff', padding: 16, borderRadius: 12, alignItems: 'center' },
+
   searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#2a2a2a', paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16, marginBottom: 20 },
   searchInput: { flex: 1, color: '#fff', fontSize: 20, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent' },
   profileItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 20, paddingHorizontal: 16, backgroundColor: '#2a2a2a', borderRadius: 16, marginBottom: 10 },
@@ -655,11 +817,12 @@ const styles = StyleSheet.create({
   createNewButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 20, backgroundColor: '#333', borderRadius: 16, gap: 12, marginTop: 10 },
   createNewText: { color: '#4a9eff', fontSize: 18, fontWeight: '700' },
   
+  // Stili za "Played" toggle
   playedToggleContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#2a2a2a', padding: 12, borderRadius: 12, marginBottom: 20, gap: 12 },
   checkboxBase: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: '#4a9eff', alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' },
   checkboxChecked: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   playedLabel: { color: '#fff', fontSize: 16, fontWeight: '600' },
   
-  // RUMENA PIKICA
+  // Rumena pika
   playedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ffd700' },
 });
