@@ -1,14 +1,15 @@
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Dodamo nazaj za stabilnost
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// 1. Project URL (Ta je bil pravilen)
+// --- TVOJI PODATKI ---
+
 const supabaseUrl = 'https://skzwyzrbctrgfwyljilw.supabase.co';
 
-// 2. API Key - TUKAJ PRILEPI TISTEGA, KI SE ZAČNE Z "ey..."
+// Tvoj pravi anon key:
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNrend5enJiY3RyZ2Z3eWxqaWx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUzODE2OTUsImV4cCI6MjA4MDk1NzY5NX0.nk15ok0fSFkwtMO1q1gKlTMndOVTNTQ3XbP1lv9XJYw';
 
-// -----------------------------------------------------
+// ---------------------
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -19,7 +20,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// --- TIPI (Pustimo jih, da ostala koda deluje) ---
+// --- DEFINICIJE TIPOV (Da bo TypeScript zadovoljen) ---
 export type Database = {
   public: {
     Tables: {
@@ -51,7 +52,7 @@ export type Database = {
           position: number;
           total_score: number;
           created_at: string;
-          profile_id?: string; // Dodan profile_id
+          profile_id?: string; 
         };
         Insert: {
           id?: string;
@@ -60,7 +61,7 @@ export type Database = {
           position: number;
           total_score?: number;
           created_at?: string;
-          profile_id?: string; // Dodan profile_id
+          profile_id?: string;
         };
         Update: {
           id?: string;
@@ -69,7 +70,7 @@ export type Database = {
           position?: number;
           total_score?: number;
           created_at?: string;
-          profile_id?: string; // Dodan profile_id
+          profile_id?: string;
         };
       };
       score_entries: {
@@ -124,7 +125,6 @@ export type Database = {
           created_at?: string;
         };
       };
-      // Dodana definicija za player_profiles, da bo TS zadovoljen
       player_profiles: {
         Row: {
           id: string;
