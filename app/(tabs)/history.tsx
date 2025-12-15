@@ -271,6 +271,7 @@ export default function History() {
         }
       />
 
+      {/* --- MODAL ZA PODROBNOSTI IGRE --- */}
       <Modal
         visible={showGameModal}
         transparent
@@ -290,16 +291,20 @@ export default function History() {
             </View>
 
             <ScrollView style={styles.playersListContainer}>
-              {gamePlayers.map((player, index) => {
+              {gamePlayers.map((player, index, array) => {
                 const playerRadelci = getPlayerRadelci(player.id);
+                
+                // --- LOGIKA ZA ŠPORTNO RAZVRŠČANJE (1, 2, 2, 4...) ---
+                const rank = array.findIndex(p => p.total_score === player.total_score) + 1;
+
                 return (
                   <View key={player.id} style={styles.playerRowContainer}>
                     <View style={styles.rankContainer}>
-                      {index === 0 && <Trophy size={20} color="#ffd700" />}
-                      {index === 1 && <Trophy size={20} color="#c0c0c0" />}
-                      {index === 2 && <Trophy size={20} color="#cd7f32" />}
-                      {index > 2 && (
-                        <Text style={styles.rankNumber}>{index + 1}</Text>
+                      {rank === 1 && <Trophy size={20} color="#ffd700" />}
+                      {rank === 2 && <Trophy size={20} color="#c0c0c0" />}
+                      {rank === 3 && <Trophy size={20} color="#cd7f32" />}
+                      {rank > 3 && (
+                        <Text style={styles.rankNumber}>{rank}</Text>
                       )}
                     </View>
                     <Text style={styles.playerName}>
@@ -379,6 +384,7 @@ export default function History() {
         </View>
       </Modal>
 
+      {/* --- MODAL ZA ZGODOVINO TOČK --- */}
       <Modal
         visible={showPlayerHistoryModal}
         transparent
@@ -391,8 +397,9 @@ export default function History() {
             </Text>
             <ScrollView style={styles.historyList}>
               {gamePlayers
+                // Tudi tukaj potrebujemo razvrščanje, čeprav bi moralo biti že urejeno iz DB
                 .sort((a, b) => b.total_score - a.total_score)
-                .map((player, playerIndex) => {
+                .map((player, playerIndex, array) => {
                   const playerEntries = playerHistory.filter(
                     (e) => e.player_id === player.id
                   );
@@ -400,15 +407,18 @@ export default function History() {
 
                   if (playerEntries.length === 0) return null;
 
+                  // --- LOGIKA ZA ŠPORTNO RAZVRŠČANJE ---
+                  const rank = array.findIndex(p => p.total_score === player.total_score) + 1;
+
                   return (
                     <View key={player.id} style={styles.playerHistorySection}>
                       <View style={styles.playerHistoryHeader}>
                         <View style={styles.playerRankBadge}>
-                          {playerIndex === 0 && <Trophy size={16} color="#ffd700" />}
-                          {playerIndex === 1 && <Trophy size={16} color="#c0c0c0" />}
-                          {playerIndex === 2 && <Trophy size={16} color="#cd7f32" />}
-                          {playerIndex > 2 && (
-                            <Text style={styles.playerRankText}>{playerIndex + 1}</Text>
+                          {rank === 1 && <Trophy size={16} color="#ffd700" />}
+                          {rank === 2 && <Trophy size={16} color="#c0c0c0" />}
+                          {rank === 3 && <Trophy size={16} color="#cd7f32" />}
+                          {rank > 3 && (
+                            <Text style={styles.playerRankText}>{rank}</Text>
                           )}
                         </View>
                         <Text style={styles.playerHistorySectionTitle}>
