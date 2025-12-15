@@ -11,7 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
+  Alert, // Uvoženo za prikaz napak
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -48,18 +48,17 @@ type Game = {
 };
 
 export default function ActiveGame() {
-  // --- STANJA ZA LOBBY ---
+  // --- STANJA ---
   const [activeGamesList, setActiveGamesList] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false); // Novo stanje za gumb Potrdi
 
-  // --- STANJA ZA TRENUTNO IGRO ---
   const [gameId, setGameId] = useState<string | null>(null);
   const [gameName, setGameName] = useState<string>('');
   
   const [players, setPlayers] = useState<Player[]>([]);
   const [radelci, setRadelci] = useState<Radelc[]>([]);
   
-  // --- STANJA ZA VNOSE IN MODALE ---
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [scoreInput, setScoreInput] = useState('');
   const [isPlayed, setIsPlayed] = useState(false);
@@ -75,7 +74,7 @@ export default function ActiveGame() {
   
   const scoreInputRef = useRef<TextInput>(null);
 
-  // --- 1. LOBBY LOGIKA ---
+  // --- LOBBY & INIT ---
   useFocusEffect(
     useCallback(() => {
       fetchActiveGamesList();
@@ -99,7 +98,6 @@ export default function ActiveGame() {
     }
   };
 
-  // --- 2. VSTOP V IGRO ---
   const enterGame = async (selectedGame: Game) => {
     setLoading(true);
     try {
@@ -121,7 +119,6 @@ export default function ActiveGame() {
     fetchActiveGamesList();
   };
 
-  // --- 3. NOVA IGRA ---
   const handleStartNewGame = async () => {
     createGameInDb();
   };
@@ -141,14 +138,13 @@ export default function ActiveGame() {
       await fetchActiveGamesList();
       await enterGame(newGame);
     } catch (error) {
-      console.error('Error creating game:', error);
+      Alert.alert("Napaka", "Ni bilo mogoče ustvariti igre.");
     } finally {
       setLoading(false);
     }
   };
 
   // --- LOGIKA IGRE ---
-
   const loadPlayers = async (gId: string) => {
     const { data } = await supabase.from('players').select('*').eq('game_id', gId).order('position');
     setPlayers(data || []);
@@ -219,24 +215,43 @@ export default function ActiveGame() {
     });
   };
 
+  // --- POPRAVLJENA FUNKCIJA SUBMIT ---
   const submitScore = async () => {
-    if (!selectedPlayerId || !scoreInput) return; // Popravljeno: odstranjen !gameId in omogočen vnos tudi pri 0
+    // 1. Preverjanje vnosa
+    if (!selectedPlayerId) {
+      Alert.alert("Napaka", "Neznan igralec. Poskusi ponovno.");
+      return;
+    }
+    if (scoreInput === '') {
+      Alert.alert("Manjkajo točke", "Prosim vpiši število točk.");
+      return;
+    }
     
     const points = parseInt(scoreInput, 10);
     if (isNaN(points)) {
-        Alert.alert("Napaka", "Prosimo vnesite veljavno število točk.");
+        Alert.alert("Napaka", "Vnos ni veljavno število.");
         return;
     }
 
+    setSubmitting(true); // Pokaži loading na gumbu
+
     try {
+      // 2. Poskus vnosa v bazo
+      // POZOR: Če baza nima stolpca 'played', bo tukaj vrglo napako!
       const { error } = await supabase.from('score_entries').insert({
         player_id: selectedPlayerId, 
         game_id: gameId, 
         points,
         played: isPlayed 
       });
-      if (error) throw error;
 
+      if (error) {
+        // Če pride do napake, jo pokaži uporabniku
+        Alert.alert("Napaka pri shranjevanju", `Baza javlja: ${error.message}\n\n(Verjetno manjka stolpec 'played' v tabeli score_entries)`);
+        throw error;
+      }
+
+      // 3. Posodobitev lokalnega stanja (samo če je šlo v bazo)
       const player = players.find(p => p.id === selectedPlayerId);
       if (player) {
         const newScore = player.total_score + points;
@@ -245,13 +260,20 @@ export default function ActiveGame() {
         
         if (newScore === 0) setShowKlopModal(true);
       }
+
+      // 4. Zapri modal
       setShowScoreModal(false);
       setScoreInput('');
       setIsPlayed(false);
-    } catch (e) { console.error(e); }
+
+    } catch (e) { 
+      console.error(e); 
+      // Napaka je že prikazana zgoraj v Alertu
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  // --- ZGODOVINA (POSAMEZNIK) ---
   const loadPlayerHistory = async (pid: string) => {
     const { data } = await supabase.from('score_entries').select('*').eq('player_id', pid).order('created_at');
     setPlayerHistory(data || []);
@@ -259,7 +281,6 @@ export default function ActiveGame() {
     setShowHistoryModal(true);
   };
 
-  // --- ZGODOVINA (CELA IGRA) ---
   const loadGameHistory = async () => {
     if (!gameId) return;
     try {
@@ -271,9 +292,7 @@ export default function ActiveGame() {
 
       setGameHistory(data || []);
       setShowGameHistoryModal(true);
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   };
 
   const finishGame = async () => {
@@ -320,11 +339,7 @@ export default function ActiveGame() {
     );
   };
 
-  // ==========================================
-  // RENDER
-  // ==========================================
-
-  // 1. Loading
+  // --- RENDER ---
   if (loading && !gameId && activeGamesList.length === 0) {
     return (
       <View style={[styles.container, styles.centerContent]}>
@@ -333,13 +348,11 @@ export default function ActiveGame() {
     );
   }
 
-  // 2. LOBBY
   if (!gameId && activeGamesList.length === 0) {
     return (
       <View style={[styles.container, styles.centerContent]}>
         <Text style={styles.welcomeTitle}>Tarok</Text>
         <Text style={styles.welcomeSubtitle}>Ni aktivne igre</Text>
-        
         <TouchableOpacity style={styles.bigStartButton} onPress={handleStartNewGame}>
           <Play size={32} color="#fff" fill="#fff" />
           <Text style={styles.bigStartButtonText}>Začni novo igro</Text>
@@ -348,7 +361,6 @@ export default function ActiveGame() {
     );
   }
 
-  // 3. SEZNAM IGER
   if (!gameId) {
     return (
       <View style={styles.container}>
@@ -381,7 +393,6 @@ export default function ActiveGame() {
     );
   }
 
-  // 4. IGRA
   return (
     <View style={styles.container}>
       <View style={styles.gameHeaderBar}>
@@ -421,7 +432,6 @@ export default function ActiveGame() {
         }
       />
 
-      {/* MODAL: VNOS TOČK */}
       <Modal visible={showScoreModal} transparent animationType="fade" onRequestClose={() => setShowScoreModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -445,28 +455,33 @@ export default function ActiveGame() {
               </View>
             </View>
 
-            {/* POPRAVLJENO BESEDILO */}
             <TouchableOpacity style={styles.checkboxContainer} onPress={() => setIsPlayed(!isPlayed)}>
               <View style={[styles.checkbox, isPlayed && styles.checkboxChecked]}>
                 {isPlayed && <Check size={16} color="#fff" />}
               </View>
               <Text style={styles.checkboxLabel}>Igralec je igral igro</Text>
             </TouchableOpacity>
-            {/* ----------------------- */}
 
             <View style={styles.modalButtons}>
               <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowScoreModal(false)}>
                 <Text style={styles.modalButtonText}>Prekliči</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButton, styles.submitButton]} onPress={submitScore}>
-                <Text style={styles.modalButtonText}>Potrdi</Text>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.submitButton]} 
+                onPress={submitScore}
+                disabled={submitting} // Onemogoči gumb med pošiljanjem
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.modalButtonText}>Potrdi</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* MODAL: ZGODOVINA (POSAMEZNIK) */}
       <Modal visible={showHistoryModal} transparent animationType="slide" onRequestClose={() => setShowHistoryModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -483,7 +498,6 @@ export default function ActiveGame() {
                       </Text>
                       {entry.played && <View style={styles.yellowDot} />} 
                     </View>
-
                     <Text style={styles.historyTotal}>= {runningTotal}</Text>
                     <Text style={styles.historyDate}>{new Date(entry.created_at).toLocaleTimeString('sl-SI', {hour:'2-digit', minute:'2-digit'})}</Text>
                   </View>
@@ -497,7 +511,6 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      {/* MODAL: POTEK IGRE (CELA IGRA) */}
       <Modal visible={showGameHistoryModal} transparent animationType="slide" onRequestClose={() => setShowGameHistoryModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -511,14 +524,12 @@ export default function ActiveGame() {
                   return (
                     <View key={entry.id} style={styles.historyItem}>
                       <Text style={styles.historyPlayerName} numberOfLines={1}>{playerName}</Text>
-                      
                       <View style={styles.pointsWrapper}>
                          <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>
                           {entry.points > 0 ? '+' : ''}{entry.points}
                         </Text>
                         {entry.played && <View style={styles.yellowDot} />}
                       </View>
-                      
                       <Text style={styles.historyDate}>
                         {new Date(entry.created_at).toLocaleTimeString('sl-SI', {hour:'2-digit', minute:'2-digit'})}
                       </Text>
