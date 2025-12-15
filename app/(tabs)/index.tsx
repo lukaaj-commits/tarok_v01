@@ -11,7 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert, // Uvoženo za prikaz napak
+  Alert,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -36,7 +36,7 @@ type ScoreEntry = {
   id: string;
   points: number;
   created_at: string;
-  played: boolean; 
+  played?: boolean; // Vprašaj, ker morda v bazi še ne obstaja
   player_id?: string;
 };
 
@@ -51,7 +51,7 @@ export default function ActiveGame() {
   // --- STANJA ---
   const [activeGamesList, setActiveGamesList] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false); // Novo stanje za gumb Potrdi
+  const [submitting, setSubmitting] = useState(false); // Da preprečimo dvojni klik
 
   const [gameId, setGameId] = useState<string | null>(null);
   const [gameName, setGameName] = useState<string>('');
@@ -92,7 +92,7 @@ export default function ActiveGame() {
 
       setActiveGamesList(data || []);
     } catch (error) {
-      console.error('Error fetching games:', error);
+      console.error('Napaka pri nalaganju iger:', error);
     } finally {
       setLoading(false);
     }
@@ -106,7 +106,7 @@ export default function ActiveGame() {
       await loadPlayers(selectedGame.id);
       await loadRadelci(selectedGame.id);
     } catch (error) {
-      console.error('Error entering game:', error);
+      console.error('Napaka pri vstopu v igro:', error);
     } finally {
       setLoading(false);
     }
@@ -215,14 +215,14 @@ export default function ActiveGame() {
     });
   };
 
-  // --- POPRAVLJENA FUNKCIJA SUBMIT ---
+  // --- GLAVNA FUNKCIJA: SHRANI TOČKE (VARNA VERZIJA) ---
   const submitScore = async () => {
-    // 1. Preverjanje vnosa
+    // 1. Validacija
     if (!selectedPlayerId) {
-      Alert.alert("Napaka", "Neznan igralec. Poskusi ponovno.");
+      Alert.alert("Napaka", "Prosim izberi igralca.");
       return;
     }
-    if (scoreInput === '') {
+    if (scoreInput === '' || scoreInput === '-') {
       Alert.alert("Manjkajo točke", "Prosim vpiši število točk.");
       return;
     }
@@ -233,11 +233,10 @@ export default function ActiveGame() {
         return;
     }
 
-    setSubmitting(true); // Pokaži loading na gumbu
+    setSubmitting(true);
 
     try {
-      // 2. Poskus vnosa v bazo
-      // POZOR: Če baza nima stolpca 'played', bo tukaj vrglo napako!
+      // 2. POSKUS A: Shrani VSE (tudi "played")
       const { error } = await supabase.from('score_entries').insert({
         player_id: selectedPlayerId, 
         game_id: gameId, 
@@ -246,12 +245,28 @@ export default function ActiveGame() {
       });
 
       if (error) {
-        // Če pride do napake, jo pokaži uporabniku
-        Alert.alert("Napaka pri shranjevanju", `Baza javlja: ${error.message}\n\n(Verjetno manjka stolpec 'played' v tabeli score_entries)`);
-        throw error;
+        // Če baza zavrne "played", poskusimo plan B
+        console.log("Prvi poskus neuspešen, poskušam brez 'played'...", error.message);
+        
+        // 3. POSKUS B: Shrani SAMO točke (Fallback)
+        const { error: retryError } = await supabase.from('score_entries').insert({
+            player_id: selectedPlayerId,
+            game_id: gameId,
+            points
+            // Brez 'played'
+        });
+
+        if (retryError) {
+            throw retryError; // Če še to ne dela, je nekaj hudo narobe
+        } else {
+            // Če Plan B uspe, opozori uporabnika
+            if (isPlayed) {
+                Alert.alert("Opozorilo", "Točke so shranjene, vendar podatek 'Igralec je igral' ni bil zapisan, ker baza še ni posodobljena. Prosim zaženi SQL migracijo.");
+            }
+        }
       }
 
-      // 3. Posodobitev lokalnega stanja (samo če je šlo v bazo)
+      // 4. Posodobitev stanja (če smo prišli do sem, je vsaj en insert uspel)
       const player = players.find(p => p.id === selectedPlayerId);
       if (player) {
         const newScore = player.total_score + points;
@@ -261,14 +276,12 @@ export default function ActiveGame() {
         if (newScore === 0) setShowKlopModal(true);
       }
 
-      // 4. Zapri modal
       setShowScoreModal(false);
       setScoreInput('');
       setIsPlayed(false);
 
-    } catch (e) { 
-      console.error(e); 
-      // Napaka je že prikazana zgoraj v Alertu
+    } catch (e: any) { 
+      Alert.alert("Napaka pri shranjevanju", e.message || "Neznana napaka");
     } finally {
       setSubmitting(false);
     }
@@ -469,7 +482,7 @@ export default function ActiveGame() {
               <TouchableOpacity 
                 style={[styles.modalButton, styles.submitButton]} 
                 onPress={submitScore}
-                disabled={submitting} // Onemogoči gumb med pošiljanjem
+                disabled={submitting} 
               >
                 {submitting ? (
                   <ActivityIndicator size="small" color="#fff" />
@@ -490,13 +503,15 @@ export default function ActiveGame() {
               {playerHistory.map((entry, index) => {
                 let runningTotal = 0;
                 for (let i = 0; i <= index; i++) runningTotal += playerHistory[i].points;
+                // Preveri, če podatek 'played' obstaja
+                const didPlay = entry.played === true;
                 return (
                   <View key={entry.id} style={styles.historyItem}>
                     <View style={styles.pointsWrapper}>
                       <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>
                         {entry.points > 0 ? '+' : ''}{entry.points}
                       </Text>
-                      {entry.played && <View style={styles.yellowDot} />} 
+                      {didPlay && <View style={styles.yellowDot} />} 
                     </View>
                     <Text style={styles.historyTotal}>= {runningTotal}</Text>
                     <Text style={styles.historyDate}>{new Date(entry.created_at).toLocaleTimeString('sl-SI', {hour:'2-digit', minute:'2-digit'})}</Text>
@@ -521,6 +536,7 @@ export default function ActiveGame() {
               ) : (
                 gameHistory.map((entry) => {
                   const playerName = players.find(p => p.id === entry.player_id)?.name || 'Neznan';
+                  const didPlay = entry.played === true;
                   return (
                     <View key={entry.id} style={styles.historyItem}>
                       <Text style={styles.historyPlayerName} numberOfLines={1}>{playerName}</Text>
@@ -528,7 +544,7 @@ export default function ActiveGame() {
                          <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>
                           {entry.points > 0 ? '+' : ''}{entry.points}
                         </Text>
-                        {entry.played && <View style={styles.yellowDot} />}
+                        {didPlay && <View style={styles.yellowDot} />}
                       </View>
                       <Text style={styles.historyDate}>
                         {new Date(entry.created_at).toLocaleTimeString('sl-SI', {hour:'2-digit', minute:'2-digit'})}
