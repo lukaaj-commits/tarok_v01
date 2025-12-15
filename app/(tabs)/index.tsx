@@ -110,33 +110,32 @@ export default function ActiveGame() {
   };
 
   // --- NALAGANJE PROFILOV ---
-  const fetchProfiles = async (showDiagnistics = false) => {
+  const fetchProfiles = async (showDiagnosticAlert = false) => {
     try {
+      console.log("Začenjam nalaganje profilov...");
       const { data, error } = await supabase
         .from('player_profiles')
         .select('*')
         .order('name');
         
       if (error) {
-        if (showDiagnistics) Alert.alert("Napaka pri bazi", error.message);
+        console.error("Napaka baze:", error);
+        if (showDiagnosticAlert) Alert.alert("Napaka pri bazi", error.message);
         return;
       }
       
       const list = data || [];
+      console.log("Naloženi profili:", list.length);
       setAllProfiles(list);
       
-      if (showDiagnistics) {
-          if (list.length === 0) {
-              Alert.alert("Baza je prazna", "Povezava deluje, ampak v tabeli 'player_profiles' ni nobenega zapisa.");
-          } else {
-              // Če tole vidiš, pomeni da dela!
-              // Alert.alert("Uspeh!", `Naložil sem ${list.length} igralcev.`); 
-              // (Zakomentirano, da ne teži vsakič, odkomentiraj če še vedno ne dela)
-          }
+      if (showDiagnosticAlert) {
+          // TOLE TI BO POVEDALO, ČE DELUJE
+          Alert.alert("Status baze", `Povezava: OK\nŠtevilo najdenih igralcev: ${list.length}`);
       }
 
     } catch (error: any) {
-      if (showDiagnistics) Alert.alert("Sistemska napaka", error.message);
+      console.error('Sistemska napaka:', error);
+      if (showDiagnosticAlert) Alert.alert("Sistemska napaka", error.message);
     }
   };
 
@@ -200,7 +199,8 @@ export default function ActiveGame() {
   const openAddPlayerModal = () => {
     setSearchQuery('');
     setShowAddPlayerModal(true);
-    fetchProfiles(true); // Pokaži alert če je kaj narobe
+    // Ko odpreš modal, sproži diagnostiko
+    fetchProfiles(true); 
   };
 
   const addExistingProfileToGame = async (profile: PlayerProfile) => {
@@ -505,12 +505,19 @@ export default function ActiveGame() {
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                     autoFocus
-                    // FIX ZA BELI ROB
+                    // POPRAVEK ZA BELI ROB
                     underlineColorAndroid="transparent"
                     selectionColor="#4a9eff"
                     cursorColor="#4a9eff"
                 />
             </View>
+
+            {/* Diagnostično sporočilo */}
+            {allProfiles.length === 0 && searchQuery.length === 0 && (
+                <Text style={{color: '#666', textAlign: 'center', marginBottom: 10}}>
+                    Nalagam imenik...
+                </Text>
+            )}
 
             <FlatList
                 data={filteredProfiles}
@@ -543,7 +550,7 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      {/* --- OSTALI MODALI --- */}
+      {/* Ostali modali... (nespremenjeni) */}
       <Modal visible={showScoreModal} transparent animationType="fade" onRequestClose={() => setShowScoreModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -778,7 +785,7 @@ const styles = StyleSheet.create({
   klopTitle: { color: '#ffd700', fontSize: 28, fontWeight: '800', marginBottom: 24, textAlign: 'center' },
   klopButton: { backgroundColor: '#4a9eff', padding: 16, borderRadius: 12, alignItems: 'center' },
 
-  // --- POPRAVLJEN STIL ZA ISKALNIK (BREZ ROBA) ---
+  // --- STILI ZA ISKALNIK (BREZ ROBA) ---
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -793,8 +800,8 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 20,
     borderWidth: 0,
-    // TypeScript hack za web (ignoriraj napako v editorju)
-    outlineStyle: 'none' as any, 
+    borderColor: 'transparent',
+    backgroundColor: 'transparent',
   },
   profileItem: {
     flexDirection: 'row',
