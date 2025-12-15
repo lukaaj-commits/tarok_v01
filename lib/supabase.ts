@@ -1,19 +1,21 @@
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // Dodamo nazaj za stabilnost
 
-// --- TVOJI PRAVI PODATKI (Prepisani iz tvojih slik) ---
-
-// 1. Project URL (iz tvoje slike .env.local)
+// 1. Project URL (Ta je bil pravilen)
 const supabaseUrl = 'https://skzwyzrbctrgfwyljilw.supabase.co';
 
-// 2. API Key (iz tvoje slike .env.local - sb_publishable...)
-const supabaseAnonKey = 'sb_publishable_1KgDO8xo2IcyT76urJNDlw_EXSvH-7d';
+// 2. API Key - TUKAJ PRILEPI TISTEGA, KI SE ZAČNE Z "ey..."
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNrend5enJiY3RyZ2Z3eWxqaWx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUzODE2OTUsImV4cCI6MjA4MDk1NzY5NX0.nk15ok0fSFkwtMO1q1gKlTMndOVTNTQ3XbP1lv9XJYw';
 
 // -----------------------------------------------------
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: false, // Pustimo false, kot si imel v originalu
+    storage: AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
   },
 });
 
