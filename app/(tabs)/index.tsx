@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,14 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator, // Dodano za lepši loading
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router'; // KLJUČNO: Za osveževanje ko prideš nazaj na stran
+import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { Plus, Info, Trash2, RotateCcw, Play } from 'lucide-react-native'; // Dodal ikono Play
+import { Plus, Info, Trash2, RotateCcw, Play, ChevronLeft } from 'lucide-react-native';
 
+// --- TIPI ---
 type Player = {
   id: string;
   name: string;
@@ -38,74 +40,118 @@ type ScoreEntry = {
   player_id?: string;
 };
 
+type Game = {
+  id: string;
+  name: string;
+  created_at: string;
+  is_active: boolean;
+};
+
 export default function ActiveGame() {
+  // --- STANJA ZA LOBBY (SEZNAM IGER) ---
+  const [activeGamesList, setActiveGamesList] = useState<Game[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // --- STANJA ZA TRENUTNO IGRO ---
   const [gameId, setGameId] = useState<string | null>(null);
+  const [gameName, setGameName] = useState<string>('');
+  
   const [players, setPlayers] = useState<Player[]>([]);
   const [radelci, setRadelci] = useState<Radelc[]>([]);
+  
+  // --- STANJA ZA VNOSE IN MODALE ---
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [scoreInput, setScoreInput] = useState('');
+  
   const [showScoreModal, setShowScoreModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [showNewGameModal, setShowNewGameModal] = useState(false);
+  const [showFinishGameModal, setShowFinishGameModal] = useState(false);
   const [showKlopModal, setShowKlopModal] = useState(false);
+  
   const [playerHistory, setPlayerHistory] = useState<ScoreEntry[]>([]);
-  const [loading, setLoading] = useState(true);
   const scoreInputRef = useRef<TextInput>(null);
 
-  // --- KLJUČNA SPREMEMBA: Uporaba useFocusEffect ---
-  // To se zgodi vsakič, ko uporabnik pride na ta zaslon (tudi iz History)
+  // --- 1. LOBBY LOGIKA: Naloži seznam aktivnih iger ---
   useFocusEffect(
     useCallback(() => {
-      checkForActiveGame();
+      fetchActiveGamesList();
     }, [])
   );
 
-  const checkForActiveGame = async () => {
-    setLoading(true);
+  const fetchActiveGamesList = async () => {
+    // Če smo že v igri, ne kažemo loading spinnerja čez cel ekran
+    if (!gameId) setLoading(true);
+    
     try {
-      // 1. Preveri v bazi, če obstaja aktivna igra
-      const { data: activeGame } = await supabase
+      const { data } = await supabase
         .from('games')
         .select('*')
         .eq('is_active', true)
-        .maybeSingle();
+        .order('created_at', { ascending: false });
 
-      if (activeGame) {
-        // ČE OBSTAJA: Naloži podatke in nastavi gameId
-        setGameId(activeGame.id);
-        await loadPlayers(activeGame.id);
-        await loadRadelci(activeGame.id);
-      } else {
-        // ČE NE OBSTAJA: Nastavi gameId na null (prikazal se bo gumb "Začni")
-        setGameId(null);
-        setPlayers([]);
-        setRadelci([]);
-      }
+      setActiveGamesList(data || []);
     } catch (error) {
-      console.error('Error checking active game:', error);
+      console.error('Error fetching games:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Ta funkcija se pokliče SAMO, ko uporabnik klikne "Začni novo igro"
-  const handleStartNewGame = async () => {
+  // --- 2. VSTOP V IGRO ---
+  const enterGame = async (selectedGame: Game) => {
     setLoading(true);
     try {
-      const gameName = `${new Date().toLocaleDateString('sl-SI')} Tarok`;
+      setGameId(selectedGame.id);
+      setGameName(selectedGame.name);
+      // Naloži podatke za to specifično igro
+      await loadPlayers(selectedGame.id);
+      await loadRadelci(selectedGame.id);
+    } catch (error) {
+      console.error('Error entering game:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const exitToLobby = () => {
+    setGameId(null);
+    setPlayers([]);
+    setRadelci([]);
+    fetchActiveGamesList(); // Osveži seznam
+  };
+
+  // --- 3. NOVA IGRA ---
+  const handleStartNewGame = async () => {
+    // Če smo že v igri, vprašaj za potrditev
+    if (gameId) {
+      Alert.alert(
+        "Nova igra",
+        "Ali želiš začeti novo igro? Trenutna igra bo ostala shranjena med aktivnimi.",
+        [
+          { text: "Prekliči", style: "cancel" },
+          { text: "Začni novo", onPress: () => createGameInDb() }
+        ]
+      );
+    } else {
+      createGameInDb();
+    }
+  };
+
+  const createGameInDb = async () => {
+    setLoading(true);
+    try {
+      const newName = `${new Date().toLocaleDateString('sl-SI')} Tarok ${new Date().toLocaleTimeString('sl-SI', {hour: '2-digit', minute:'2-digit'})}`;
       const { data: newGame, error } = await supabase
         .from('games')
-        .insert({ name: gameName, is_active: true })
+        .insert({ name: newName, is_active: true })
         .select()
         .single();
 
       if (error) throw error;
       
-      // Takoj nastavimo ID, da se UI spremeni
-      setGameId(newGame.id);
-      // Pobrišemo prejšnje podatke (za vsak slučaj)
-      setPlayers([]);
-      setRadelci([]);
+      // Osveži seznam in takoj vstopi
+      await fetchActiveGamesList();
+      await enterGame(newGame);
     } catch (error) {
       console.error('Error creating game:', error);
     } finally {
@@ -113,245 +159,121 @@ export default function ActiveGame() {
     }
   };
 
-  const loadPlayers = async (gId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('players')
-        .select('*')
-        .eq('game_id', gId)
-        .order('position');
+  // --- LOGIKA IGRE (Supabase klici) ---
 
-      if (error) throw error;
-      setPlayers(data || []);
-    } catch (error) {
-      console.error('Error loading players:', error);
-    }
+  const loadPlayers = async (gId: string) => {
+    const { data } = await supabase.from('players').select('*').eq('game_id', gId).order('position');
+    setPlayers(data || []);
   };
 
   const loadRadelci = async (gId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('radelci')
-        .select('*')
-        .eq('game_id', gId)
-        .order('position');
-
-      if (error) throw error;
-      setRadelci(data || []);
-    } catch (error) {
-      console.error('Error loading radelci:', error);
-    }
+    const { data } = await supabase.from('radelci').select('*').eq('game_id', gId).order('position');
+    setRadelci(data || []);
   };
 
   const addPlayer = async () => {
     if (!gameId || players.length >= 7) return;
-
     try {
-      const newPosition = players.length;
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('players')
-        .insert({
-          game_id: gameId,
-          name: '',
-          position: newPosition,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      setPlayers([...players, data]);
-    } catch (error) {
-      console.error('Error adding player:', error);
-    }
+        .insert({ game_id: gameId, name: '', position: players.length })
+        .select().single();
+      if (data) setPlayers([...players, data]);
+    } catch (e) { console.error(e); }
   };
 
-  const updatePlayerNameLocal = (playerId: string, newName: string) => {
-    setPlayers(
-      players.map((p) =>
-        p.id === playerId ? { ...p, name: newName } : p
-      )
-    );
+  const updatePlayerNameLocal = (id: string, name: string) => {
+    setPlayers(players.map(p => p.id === id ? { ...p, name } : p));
   };
 
-  const updatePlayerNameDB = async (playerId: string, newName: string) => {
-    try {
-      const { error } = await supabase
-        .from('players')
-        .update({ name: newName.trim() })
-        .eq('id', playerId);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error updating player name:', error);
-    }
+  const updatePlayerNameDB = async (id: string, name: string) => {
+    await supabase.from('players').update({ name: name.trim() }).eq('id', id);
   };
 
-  const deletePlayer = async (playerId: string) => {
-    try {
-      const { error } = await supabase
-        .from('players')
-        .delete()
-        .eq('id', playerId);
-
-      if (error) throw error;
-      setPlayers(players.filter((p) => p.id !== playerId));
-      setRadelci(radelci.filter((r) => r.player_id !== playerId));
-    } catch (error) {
-      console.error('Error deleting player:', error);
-    }
+  const deletePlayer = async (id: string) => {
+    await supabase.from('players').delete().eq('id', id);
+    setPlayers(players.filter(p => p.id !== id));
+    setRadelci(radelci.filter(r => r.player_id !== id));
   };
 
+  const addGlobalRadelc = async () => {
+    if (!gameId) return;
+    const maxPos = radelci.length > 0 ? Math.max(...radelci.map(r => r.position)) : -1;
+    const newRads = players.map(p => ({ game_id: gameId, player_id: p.id, is_used: false, position: maxPos + 1 }));
+    const { data } = await supabase.from('radelci').insert(newRads).select();
+    if (data) setRadelci([...radelci, ...data]);
+  };
+
+  const toggleRadelc = async (radId: string, current: boolean) => {
+    await supabase.from('radelci').update({ is_used: !current }).eq('id', radId);
+    setRadelci(radelci.map(r => r.id === radId ? { ...r, is_used: !current } : r));
+  };
+
+  // --- VNOS TOČK ---
   const openScoreInput = (playerId: string) => {
     setSelectedPlayerId(playerId);
     setScoreInput('');
     setShowScoreModal(true);
   };
 
+  // Fokusiranje inputa ko se odpre modal
+  useEffect(() => {
+    if (showScoreModal) {
+      setTimeout(() => scoreInputRef.current?.focus(), 100);
+    }
+  }, [showScoreModal]);
+
   const toggleSign = () => {
     setScoreInput((prev) => {
       if (!prev) return '-';
-      if (prev.startsWith('-')) {
-        return prev.substring(1);
-      }
+      if (prev.startsWith('-')) return prev.substring(1);
       return '-' + prev;
     });
   };
 
   const submitScore = async () => {
     if (!selectedPlayerId || !gameId || !scoreInput) return;
-
     const points = parseInt(scoreInput, 10);
     if (isNaN(points)) return;
 
     try {
-      const { error: insertError } = await supabase.from('score_entries').insert({
-        player_id: selectedPlayerId,
-        game_id: gameId,
-        points: points,
+      const { error } = await supabase.from('score_entries').insert({
+        player_id: selectedPlayerId, game_id: gameId, points
       });
+      if (error) throw error;
 
-      if (insertError) throw insertError;
-
-      const player = players.find((p) => p.id === selectedPlayerId);
+      const player = players.find(p => p.id === selectedPlayerId);
       if (player) {
         const newScore = player.total_score + points;
-        const { error: updateError } = await supabase
-          .from('players')
-          .update({ total_score: newScore })
-          .eq('id', selectedPlayerId);
-
-        if (updateError) throw updateError;
-
-        setPlayers(
-          players.map((p) =>
-            p.id === selectedPlayerId ? { ...p, total_score: newScore } : p
-          )
-        );
-
-        if (newScore === 0) {
-          setShowKlopModal(true);
-        }
+        await supabase.from('players').update({ total_score: newScore }).eq('id', selectedPlayerId);
+        setPlayers(players.map(p => p.id === selectedPlayerId ? { ...p, total_score: newScore } : p));
+        
+        if (newScore === 0) setShowKlopModal(true);
       }
-
       setShowScoreModal(false);
       setScoreInput('');
-    } catch (error) {
-      console.error('Error submitting score:', error);
-    }
+    } catch (e) { console.error(e); }
   };
 
-  const addGlobalRadelc = async () => {
-    if (!gameId) return;
-
-    try {
-      const maxPosition =
-        radelci.length > 0
-          ? Math.max(...radelci.map((r) => r.position))
-          : -1;
-
-      const newRadelci = players.map((player, index) => ({
-        game_id: gameId,
-        player_id: player.id,
-        is_used: false,
-        position: maxPosition + 1,
-      }));
-
-      const { data, error } = await supabase
-        .from('radelci')
-        .insert(newRadelci)
-        .select();
-
-      if (error) throw error;
-      setRadelci([...radelci, ...(data || [])]);
-    } catch (error) {
-      console.error('Error adding global radelc:', error);
-    }
-  };
-
-  const toggleRadelc = async (radelcId: string, currentState: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('radelci')
-        .update({ is_used: !currentState })
-        .eq('id', radelcId);
-
-      if (error) throw error;
-      setRadelci(
-        radelci.map((r) =>
-          r.id === radelcId ? { ...r, is_used: !currentState } : r
-        )
-      );
-    } catch (error) {
-      console.error('Error toggling radelc:', error);
-    }
-  };
-
-  const loadPlayerHistory = async (playerId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('score_entries')
-        .select('*')
-        .eq('player_id', playerId)
-        .order('created_at');
-
-      if (error) throw error;
-
-      setPlayerHistory(data || []);
-      setSelectedPlayerId(playerId);
-      setShowHistoryModal(true);
-    } catch (error) {
-      console.error('Error loading player history:', error);
-    }
+  // --- ZGODOVINA IN ZAKLJUČEK ---
+  const loadPlayerHistory = async (pid: string) => {
+    const { data } = await supabase.from('score_entries').select('*').eq('player_id', pid).order('created_at');
+    setPlayerHistory(data || []);
+    setSelectedPlayerId(pid);
+    setShowHistoryModal(true);
   };
 
   const finishGame = async () => {
-    try {
-      if (gameId) {
-        // Označi igro kot neaktivno v bazi
-        await supabase
-          .from('games')
-          .update({ is_active: false })
-          .eq('id', gameId);
-      }
-
-      // Resetiraj lokalno stanje na "ni igre"
-      setGameId(null);
-      setPlayers([]);
-      setRadelci([]);
-      setShowNewGameModal(false);
-      // checkForActiveGame se bo avtomatsko sprožil, a ker smo is_active dali na false, bo ostal na "Začni novo igro"
-    } catch (error) {
-      console.error('Error finishing game:', error);
+    if (gameId) {
+      await supabase.from('games').update({ is_active: false }).eq('id', gameId);
     }
+    setShowFinishGameModal(false);
+    exitToLobby();
   };
 
-  const getPlayerRadelci = (playerId: string) => {
-    return radelci.filter((r) => r.player_id === playerId);
-  };
-
+  // --- RENDER FUNKCIJA ZA IGRALCA ---
   const renderPlayer = ({ item }: { item: Player }) => {
-    const playerRadelci = getPlayerRadelci(item.id);
-
+    const pRadelci = radelci.filter(r => r.player_id === item.id);
     return (
       <View style={styles.playerCard}>
         <View style={styles.playerHeader}>
@@ -359,45 +281,26 @@ export default function ActiveGame() {
             <TextInput
               style={styles.playerNameInput}
               value={item.name}
-              onChangeText={(text) => updatePlayerNameLocal(item.id, text)}
+              onChangeText={(t) => updatePlayerNameLocal(item.id, t)}
               onBlur={() => updatePlayerNameDB(item.id, item.name)}
-              placeholder="Vnesi ime"
+              placeholder="Ime"
               placeholderTextColor="#666"
             />
-            <TouchableOpacity
-              onPress={() => loadPlayerHistory(item.id)}
-              style={styles.infoButton}>
+            <TouchableOpacity onPress={() => loadPlayerHistory(item.id)} style={styles.infoButton}>
               <Info size={20} color="#4a9eff" />
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => deletePlayer(item.id)}
-              style={styles.deleteButton}>
+            <TouchableOpacity onPress={() => deletePlayer(item.id)} style={styles.deleteButton}>
               <Trash2 size={20} color="#ff4a4a" />
             </TouchableOpacity>
           </View>
         </View>
-
-        <TouchableOpacity
-          style={styles.scoreContainer}
-          onPress={() => openScoreInput(item.id)}>
+        <TouchableOpacity style={styles.scoreContainer} onPress={() => openScoreInput(item.id)}>
           <Text style={styles.scoreText}>{item.total_score}</Text>
-          <Text style={styles.scoreTapHint}>Klikni za vnos</Text>
         </TouchableOpacity>
-
-        <ScrollView
-          horizontal
-          style={styles.radelciContainer}
-          showsHorizontalScrollIndicator={false}>
-          {playerRadelci.map((radelc) => (
-            <TouchableOpacity
-              key={radelc.id}
-              onPress={() => toggleRadelc(radelc.id, radelc.is_used)}>
-              <View
-                style={[
-                  styles.radelc,
-                  radelc.is_used ? styles.radelcUsed : styles.radelcUnused,
-                ]}
-              />
+        <ScrollView horizontal style={styles.radelciContainer} showsHorizontalScrollIndicator={false}>
+          {pRadelci.map(r => (
+            <TouchableOpacity key={r.id} onPress={() => toggleRadelc(r.id, r.is_used)}>
+              <View style={[styles.radelc, r.is_used ? styles.radelcUsed : styles.radelcUnused]} />
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -405,84 +308,121 @@ export default function ActiveGame() {
     );
   };
 
-  // 1. Prikaz med nalaganjem (Checking for active game...)
-  if (loading) {
+  // ==========================================
+  // GLAVNI RENDER (POGLED)
+  // ==========================================
+
+  // 1. Loading stanje (samo če nalagamo lobby in nimamo podatkov)
+  if (loading && !gameId && activeGamesList.length === 0) {
     return (
       <View style={[styles.container, styles.centerContent]}>
         <ActivityIndicator size="large" color="#4a9eff" />
-        <Text style={styles.loadingText}>Preverjam igre...</Text>
       </View>
     );
   }
 
-  // 2. Prikaz ČE NI aktivne igre (Samo gumb Start)
+  // 2. POGLED: LOBBY (Seznam iger) - Če ni izbrana nobena igra
   if (!gameId) {
     return (
-      <View style={[styles.container, styles.centerContent]}>
-        <Text style={styles.welcomeTitle}>Tarok</Text>
-        <Text style={styles.welcomeSubtitle}>Ni aktivne igre</Text>
+      <View style={styles.container}>
+        <Text style={styles.lobbyTitle}>Aktivne igre</Text>
         
-        <TouchableOpacity style={styles.bigStartButton} onPress={handleStartNewGame}>
-          <Play size={32} color="#fff" fill="#fff" />
-          <Text style={styles.bigStartButtonText}>Začni novo igro</Text>
-        </TouchableOpacity>
+        {activeGamesList.length === 0 ? (
+           <View style={styles.centerContent}>
+             <Text style={styles.emptyText}>Ni aktivnih iger.</Text>
+             <TouchableOpacity style={styles.bigStartButton} onPress={handleStartNewGame}>
+               <Play size={32} color="#fff" fill="#fff" />
+               <Text style={styles.bigStartButtonText}>Nova igra</Text>
+             </TouchableOpacity>
+           </View>
+        ) : (
+          <View style={{ flex: 1 }}>
+             <FlatList
+              data={activeGamesList}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContainer}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.gameCard} onPress={() => enterGame(item)}>
+                  <View>
+                    <Text style={styles.gameName}>{item.name}</Text>
+                    <Text style={styles.gameDate}>
+                      {new Date(item.created_at).toLocaleDateString('sl-SI')} • {new Date(item.created_at).toLocaleTimeString('sl-SI', {hour: '2-digit', minute:'2-digit'})}
+                    </Text>
+                  </View>
+                  <Play size={24} color="#4a9eff" fill="#4a9eff" />
+                </TouchableOpacity>
+              )}
+            />
+            {/* Gumb za novo igro pod seznamom */}
+            <View style={{ padding: 16 }}>
+              <TouchableOpacity style={styles.bigStartButton} onPress={handleStartNewGame}>
+                <Plus size={24} color="#fff" />
+                <Text style={styles.bigStartButtonText}>Začni še eno igro</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
     );
   }
 
-  // 3. Prikaz ČE JE aktivna igra (Tvoj obstoječi UI)
+  // 3. POGLED: AKTIVNA IGRA (Če je gameId nastavljen)
   return (
     <View style={styles.container}>
+      {/* ZGORNJA VRSTICA: Nazaj + Naslov */}
+      <View style={styles.gameHeaderBar}>
+        <TouchableOpacity onPress={exitToLobby} style={styles.backButton}>
+          <ChevronLeft size={28} color="#4a9eff" />
+          <Text style={styles.backButtonText}>Seznam</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerGameTitle} numberOfLines={1}>
+          {gameName || 'Tarok'}
+        </Text>
+      </View>
+
+      {/* ORODNA VRSTICA (Gumbi za akcijo) */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.addButton} onPress={addPlayer}>
-          <Plus size={24} color="#fff" />
-          <Text style={styles.addButtonText}>Dodaj igralca</Text>
+          <Plus size={20} color="#fff" />
+          <Text style={styles.addButtonText}>Igralec</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.addRadelcButton}
-          onPress={addGlobalRadelc}>
-          <Plus size={24} color="#fff" />
-          <Text style={styles.addButtonText}>Dodaj radelc vsem</Text>
+        <TouchableOpacity style={styles.addRadelcButton} onPress={addGlobalRadelc}>
+          <Plus size={20} color="#fff" />
+          <Text style={styles.addButtonText}>Radelc</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.finishGameButton}
-          onPress={() => setShowNewGameModal(true)}>
+        {/* Gumb za NOVO IGRO znotraj igre (+) */}
+        <TouchableOpacity style={styles.newGameSmallButton} onPress={handleStartNewGame}>
+          <Plus size={24} color="#fff" />
+        </TouchableOpacity>
+
+        {/* Gumb za ZAKLJUČEK igre */}
+        <TouchableOpacity style={styles.finishGameButton} onPress={() => setShowFinishGameModal(true)}>
           <RotateCcw size={24} color="#fff" />
-          <Text style={styles.addButtonText}>Zaključi igro</Text>
         </TouchableOpacity>
       </View>
 
+      {/* SEZNAM IGRALCEV */}
       <FlatList
         data={players}
         keyExtractor={(item) => item.id}
         renderItem={renderPlayer}
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>
-            Dodaj igralce za začetek igre
-          </Text>
+          <Text style={styles.emptyText}>Dodaj igralce za začetek.</Text>
         }
       />
 
-      <Modal
-        visible={showScoreModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowScoreModal(false)}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}>
+      {/* --- MODAL: VNOS TOČK --- */}
+      <Modal visible={showScoreModal} transparent animationType="fade" onRequestClose={() => setShowScoreModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Vnesi točke</Text>
             
+            {/* Input Row: Kvadratni gumb +/- in Raztegnjen Input */}
             <View style={styles.inputRow}>
-              <TouchableOpacity 
-                style={styles.signButton} 
-                onPress={toggleSign}
-                activeOpacity={0.7}
-              >
+              <TouchableOpacity style={styles.signButton} onPress={toggleSign} activeOpacity={0.7}>
                 <Text style={styles.signButtonText}>+/-</Text>
               </TouchableOpacity>
               
@@ -501,14 +441,10 @@ export default function ActiveGame() {
             </View>
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setShowScoreModal(false)}>
+              <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowScoreModal(false)}>
                 <Text style={styles.modalButtonText}>Prekliči</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.submitButton]}
-                onPress={submitScore}>
+              <TouchableOpacity style={[styles.modalButton, styles.submitButton]} onPress={submitScore}>
                 <Text style={styles.modalButtonText}>Potrdi</Text>
               </TouchableOpacity>
             </View>
@@ -516,79 +452,44 @@ export default function ActiveGame() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal
-        visible={showHistoryModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowHistoryModal(false)}>
+      {/* --- MODAL: ZGODOVINA --- */}
+      <Modal visible={showHistoryModal} transparent animationType="slide" onRequestClose={() => setShowHistoryModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
-            <Text style={styles.modalTitle}>Zgodovina točk</Text>
+            <Text style={styles.modalTitle}>Zgodovina</Text>
             <ScrollView style={styles.historyList}>
-              {playerHistory.length === 0 ? (
-                <View style={styles.emptyHistoryContainer}>
-                  <Text style={styles.emptyHistoryText}>
-                    Ni še nobenih vnosov točk
-                  </Text>
-                </View>
-              ) : (
-                playerHistory.map((entry, index) => {
-                  let runningTotal = 0;
-                  for (let i = 0; i <= index; i++) {
-                    runningTotal += playerHistory[i].points;
-                  }
-
-                  return (
-                    <View key={entry.id} style={styles.historyItem}>
-                      <Text
-                        style={[
-                          styles.historyPoints,
-                          entry.points > 0
-                            ? styles.positivePoints
-                            : styles.negativePoints,
-                        ]}>
-                        {entry.points > 0 ? '+' : ''}
-                        {entry.points}
-                      </Text>
-                      <Text style={styles.historyTotal}>= {runningTotal}</Text>
-                      <Text style={styles.historyDate}>
-                        {new Date(entry.created_at).toLocaleTimeString('sl-SI')}
-                      </Text>
-                    </View>
-                  );
-                })
-              )}
+              {playerHistory.map((entry, index) => {
+                let runningTotal = 0;
+                for (let i = 0; i <= index; i++) runningTotal += playerHistory[i].points;
+                return (
+                  <View key={entry.id} style={styles.historyItem}>
+                    <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>
+                      {entry.points > 0 ? '+' : ''}{entry.points}
+                    </Text>
+                    <Text style={styles.historyTotal}>= {runningTotal}</Text>
+                    <Text style={styles.historyDate}>{new Date(entry.created_at).toLocaleTimeString('sl-SI', {hour:'2-digit', minute:'2-digit'})}</Text>
+                  </View>
+                );
+              })}
             </ScrollView>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowHistoryModal(false)}>
+            <TouchableOpacity style={styles.closeButton} onPress={() => setShowHistoryModal(false)}>
               <Text style={styles.modalButtonText}>Zapri</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      <Modal
-        visible={showNewGameModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowNewGameModal(false)}>
+      {/* --- MODAL: ZAKLJUČI IGRO --- */}
+      <Modal visible={showFinishGameModal} transparent animationType="fade" onRequestClose={() => setShowFinishGameModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Zaključi igro</Text>
-            <Text style={styles.confirmText}>
-              Ali želiš zaključiti trenutno igro? Igra bo shranjena v
-              zgodovino in lahko začneš novo igro.
-            </Text>
+            <Text style={styles.modalTitle}>Zaključi igro?</Text>
+            <Text style={styles.confirmText}>Igra bo shranjena v zgodovino in umaknjena iz seznama aktivnih iger.</Text>
             <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setShowNewGameModal(false)}>
+              <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowFinishGameModal(false)}>
                 <Text style={styles.modalButtonText}>Prekliči</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.submitButton]}
-                onPress={finishGame}>
+              <TouchableOpacity style={[styles.modalButton, styles.submitButton]} onPress={finishGame}>
                 <Text style={styles.modalButtonText}>Zaključi</Text>
               </TouchableOpacity>
             </View>
@@ -596,17 +497,12 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      <Modal
-        visible={showKlopModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowKlopModal(false)}>
+      {/* --- MODAL: KLOP --- */}
+      <Modal visible={showKlopModal} transparent animationType="fade" onRequestClose={() => setShowKlopModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.klopTitle}>Obvezen klop!</Text>
-            <TouchableOpacity
-              style={styles.klopButton}
-              onPress={() => setShowKlopModal(false)}>
+            <TouchableOpacity style={styles.klopButton} onPress={() => setShowKlopModal(false)}>
               <Text style={styles.modalButtonText}>Zapri</Text>
             </TouchableOpacity>
           </View>
@@ -617,194 +513,77 @@ export default function ActiveGame() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0f0f0f',
-  },
-  // Nov stil za centriranje vsebine (ko ni igre)
-  centerContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
+  container: { flex: 1, backgroundColor: '#0f0f0f' },
+  centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+
+  // STILI ZA LOBBY
+  lobbyTitle: { fontSize: 32, fontWeight: '800', color: '#fff', padding: 20, paddingTop: 60 },
+  gameCard: {
+    backgroundColor: '#1a1a1a',
     padding: 20,
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#333',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  welcomeTitle: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  welcomeSubtitle: {
-    fontSize: 18,
-    color: '#888',
-    marginBottom: 40,
-  },
-  // Stil za VELIK gumb "Začni novo igro"
+  gameName: { fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 4 },
+  gameDate: { fontSize: 14, color: '#888' },
   bigStartButton: {
     backgroundColor: '#4a9eff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 32,
+    paddingVertical: 18,
     borderRadius: 16,
     gap: 12,
-    elevation: 5,
-    shadowColor: '#4a9eff',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
   },
-  bigStartButtonText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  // --- Obstoječi stili ---
-  header: {
-    padding: 16,
-    gap: 12,
-  },
-  addButton: {
-    backgroundColor: '#4a9eff',
+  bigStartButtonText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+
+  // STILI ZA HEADER IGRE
+  gameHeaderBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 14,
-    borderRadius: 12,
-    gap: 8,
+    paddingTop: 50,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    backgroundColor: '#0f0f0f',
   },
-  addRadelcButton: {
-    backgroundColor: '#7c3aed',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 14,
-    borderRadius: 12,
-    gap: 8,
-  },
-  finishGameButton: {
-    backgroundColor: '#22c55e',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 14,
-    borderRadius: 12,
-    gap: 8,
-  },
-  addButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  confirmText: {
-    color: '#ccc',
-    fontSize: 15,
-    textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 22,
-  },
-  listContainer: {
-    padding: 16,
-    gap: 16,
-  },
-  playerCard: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  playerHeader: {
-    marginBottom: 12,
-  },
-  playerNameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  playerNameInput: {
-    flex: 1,
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-    padding: 8,
-    backgroundColor: '#2a2a2a',
-    borderRadius: 8,
-  },
-  infoButton: {
-    padding: 8,
-  },
-  deleteButton: {
-    padding: 8,
-  },
-  scoreContainer: {
-    alignItems: 'center',
-    paddingVertical: 20,
-    backgroundColor: '#2a2a2a',
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  scoreText: {
-    color: '#fff',
-    fontSize: 48,
-    fontWeight: '700',
-  },
-  scoreTapHint: {
-    color: '#666',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  radelciContainer: {
-    flexDirection: 'row',
-    paddingVertical: 8,
-  },
-  radelc: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginHorizontal: 4,
-  },
-  radelcUnused: {
-    backgroundColor: 'transparent',
-    borderWidth: 3,
-    borderColor: '#4a9eff',
-  },
-  radelcUsed: {
-    backgroundColor: '#000',
-    borderWidth: 0,
-  },
-  emptyText: {
-    color: '#666',
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 40,
-  },
-  loadingText: {
-    color: '#fff',
-    fontSize: 18,
-    textAlign: 'center',
-    marginTop: 20,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 16,
-    padding: 24,
-    width: '80%',
-    maxWidth: 400,
-  },
-  modalTitle: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
+  backButton: { flexDirection: 'row', alignItems: 'center', marginRight: 10 },
+  backButtonText: { color: '#4a9eff', fontSize: 16, fontWeight: '600' },
+  headerGameTitle: { color: '#fff', fontSize: 18, fontWeight: '700', flex: 1 },
+
+  // STILI ZA BUTTON ROW
+  header: { padding: 16, gap: 8, flexDirection: 'row' },
+  addButton: { flex: 2, backgroundColor: '#4a9eff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, gap: 4 },
+  addRadelcButton: { flex: 2, backgroundColor: '#7c3aed', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, gap: 4 },
+  newGameSmallButton: { flex: 1, backgroundColor: '#4a9eff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12 },
+  finishGameButton: { flex: 1, backgroundColor: '#22c55e', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12 },
+  addButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+
+  // IGRALEC LIST
+  listContainer: { padding: 16, gap: 16 },
+  playerCard: { backgroundColor: '#1a1a1a', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#333' },
+  playerHeader: { marginBottom: 12 },
+  playerNameContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  playerNameInput: { flex: 1, color: '#fff', fontSize: 18, fontWeight: '600', padding: 8, backgroundColor: '#2a2a2a', borderRadius: 8 },
+  infoButton: { padding: 8 },
+  deleteButton: { padding: 8 },
+  scoreContainer: { alignItems: 'center', paddingVertical: 20, backgroundColor: '#2a2a2a', borderRadius: 12, marginBottom: 12 },
+  scoreText: { color: '#fff', fontSize: 48, fontWeight: '700' },
+  radelciContainer: { flexDirection: 'row', paddingVertical: 8 },
+  radelc: { width: 32, height: 32, borderRadius: 16, marginHorizontal: 4 },
+  radelcUnused: { backgroundColor: 'transparent', borderWidth: 3, borderColor: '#4a9eff' },
+  radelcUsed: { backgroundColor: '#000', borderWidth: 0 },
+  emptyText: { color: '#666', fontSize: 16, textAlign: 'center', marginTop: 40 },
+
+  // MODAL STYLES (SQUARE BUTTON & STRETCHED INPUT)
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { backgroundColor: '#1a1a1a', borderRadius: 16, padding: 24, width: '80%', maxWidth: 400 },
+  modalTitle: { color: '#fff', fontSize: 20, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
+  
   inputRow: {
     flexDirection: 'row',
     width: '100%',
@@ -812,8 +591,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   signButton: {
-    backgroundColor: '#333',
-    width: 60,
+    backgroundColor: '#333', // Temno siva
+    width: 60,               // Kvadrat
     height: 60,
     borderRadius: 12,
     justifyContent: 'center',
@@ -825,7 +604,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   scoreInputWrapper: {
-    flex: 1,
+    flex: 1,                 // RAZTEGNI SE
     height: 60,
     backgroundColor: '#2a2a2a',
     borderRadius: 12,
@@ -838,95 +617,27 @@ const styles = StyleSheet.create({
     fontSize: 24,
     textAlign: 'center',
   },
-  modalButtons: {
-    flexDirection: 'row',
-    width: '100%',
-    gap: 12,
-  },
-  modalButton: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#444',
-  },
-  submitButton: {
-    backgroundColor: '#4a9eff',
-  },
-  modalButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  historyModal: {
-    height: '70%',
-  },
-  historyList: {
-    flex: 1,
-    marginBottom: 16,
-  },
-  historyItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#2a2a2a',
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  historyPoints: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  positivePoints: {
-    color: '#22c55e',
-  },
-  negativePoints: {
-    color: '#ef4444',
-  },
-  historyTotal: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-    flex: 1,
-    textAlign: 'center',
-  },
-  historyDate: {
-    color: '#666',
-    fontSize: 12,
-    flex: 1,
-    textAlign: 'right',
-  },
-  closeButton: {
-    backgroundColor: '#4a9eff',
-    padding: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  emptyHistoryContainer: {
-    paddingVertical: 40,
-    alignItems: 'center',
-  },
-  emptyHistoryText: {
-    color: '#666',
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  klopTitle: {
-    color: '#ffd700',
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  klopButton: {
-    backgroundColor: '#4a9eff',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
+
+  modalButtons: { flexDirection: 'row', width: '100%', gap: 12 },
+  modalButton: { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center' },
+  cancelButton: { backgroundColor: '#444' },
+  submitButton: { backgroundColor: '#4a9eff' },
+  modalButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+
+  confirmText: { color: '#ccc', fontSize: 15, textAlign: 'center', marginBottom: 20, lineHeight: 22 },
+  
+  historyModal: { height: '70%' },
+  historyList: { flex: 1, marginBottom: 16 },
+  historyItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 16, backgroundColor: '#2a2a2a', borderRadius: 8, marginBottom: 8 },
+  historyPoints: { flex: 1, fontSize: 20, fontWeight: '700' },
+  positivePoints: { color: '#22c55e' },
+  negativePoints: { color: '#ef4444' },
+  historyTotal: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1, textAlign: 'center' },
+  historyDate: { color: '#666', fontSize: 12, flex: 1, textAlign: 'right' },
+  closeButton: { backgroundColor: '#4a9eff', padding: 14, borderRadius: 12, alignItems: 'center' },
+  emptyHistoryContainer: { paddingVertical: 40, alignItems: 'center' },
+  emptyHistoryText: { color: '#666', fontSize: 16, textAlign: 'center' },
+  
+  klopTitle: { color: '#ffd700', fontSize: 28, fontWeight: '800', marginBottom: 24, textAlign: 'center' },
+  klopButton: { backgroundColor: '#4a9eff', padding: 16, borderRadius: 12, alignItems: 'center' },
 });
