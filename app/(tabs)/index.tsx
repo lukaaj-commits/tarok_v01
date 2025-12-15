@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { Plus, Info, Trash2, RotateCcw, Play, ChevronLeft, Check } from 'lucide-react-native';
+import { Plus, Info, Trash2, RotateCcw, Play, ChevronLeft, Check, ListOrdered, Trophy } from 'lucide-react-native';
 
 // --- TIPI ---
 type Player = {
@@ -36,7 +36,7 @@ type ScoreEntry = {
   id: string;
   points: number;
   created_at: string;
-  played: boolean; // Mora biti, ker smo dodali stolpec
+  played?: boolean; 
   player_id?: string;
 };
 
@@ -65,16 +65,15 @@ export default function ActiveGame() {
   
   const [showScoreModal, setShowScoreModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false); 
-  const [showGameHistoryModal, setShowGameHistoryModal] = useState(false);
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false); // NOVO: Lestvica
   const [showFinishGameModal, setShowFinishGameModal] = useState(false);
   const [showKlopModal, setShowKlopModal] = useState(false);
   
   const [playerHistory, setPlayerHistory] = useState<ScoreEntry[]>([]);
-  const [gameHistory, setGameHistory] = useState<ScoreEntry[]>([]);
   
   const scoreInputRef = useRef<TextInput>(null);
 
-  // --- LOBBY ---
+  // --- LOBBY & INIT ---
   useFocusEffect(
     useCallback(() => {
       fetchActiveGamesList();
@@ -225,7 +224,7 @@ export default function ActiveGame() {
 
     setSubmitting(true);
     try {
-      // Shranjevanje v bazo (vključno s 'played')
+      // 1. Poskus z 'played'
       const { error } = await supabase.from('score_entries').insert({
         player_id: selectedPlayerId, 
         game_id: gameId, 
@@ -234,7 +233,7 @@ export default function ActiveGame() {
       });
 
       if (error) {
-         // Če baza še vedno nima stolpca, poskusi brez njega (fallback)
+         // 2. Fallback
          await supabase.from('score_entries').insert({
             player_id: selectedPlayerId,
             game_id: gameId,
@@ -242,7 +241,6 @@ export default function ActiveGame() {
         });
       }
 
-      // Posodobitev seštevka igralca
       const player = players.find(p => p.id === selectedPlayerId);
       if (player) {
         const newScore = player.total_score + points;
@@ -257,36 +255,28 @@ export default function ActiveGame() {
       setIsPlayed(false);
 
     } catch (e: any) { 
-      console.error(e);
       Alert.alert("Napaka", "Prišlo je do napake pri shranjevanju.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // --- ZGODOVINA (POSAMEZNIK) ---
+  // --- ZGODOVINA POSAMEZNIK ---
   const loadPlayerHistory = async (pid: string) => {
-    // Eksplicitno zahtevamo '*', da dobimo tudi 'played'
     const { data } = await supabase.from('score_entries').select('*').eq('player_id', pid).order('created_at');
     setPlayerHistory(data || []);
     setSelectedPlayerId(pid);
     setShowHistoryModal(true);
   };
 
-  // --- ZGODOVINA (CELA IGRA - POTEK IGRE) ---
-  const loadGameHistory = async () => {
-    if (!gameId) return;
-    try {
-      // Dobimo vse vnose za igro
-      const { data } = await supabase
-        .from('score_entries')
-        .select('*')
-        .eq('game_id', gameId)
-        .order('created_at', { ascending: false }); // Najnovejši na vrhu
+  // --- NOVO: ODPRI LESTVICO (LEADERBOARD) ---
+  const openLeaderboard = () => {
+    setShowLeaderboardModal(true);
+  };
 
-      setGameHistory(data || []);
-      setShowGameHistoryModal(true);
-    } catch (e) { console.error(e); }
+  // Pomožna funkcija za sortiranje
+  const getSortedPlayers = () => {
+    return [...players].sort((a, b) => b.total_score - a.total_score);
   };
 
   const finishGame = async () => {
@@ -402,6 +392,7 @@ export default function ActiveGame() {
         </Text>
       </View>
 
+      {/* ORODNA VRSTICA */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.addButton} onPress={addPlayer}>
           <Plus size={20} color="#fff" />
@@ -411,9 +402,12 @@ export default function ActiveGame() {
           <Plus size={20} color="#fff" />
           <Text style={styles.addButtonText}>Radelc</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.infoGameButton} onPress={loadGameHistory}>
-          <Info size={24} color="#fff" />
+        
+        {/* --- NOVO: LESTVICA (Trophy/List icon) --- */}
+        <TouchableOpacity style={styles.infoGameButton} onPress={openLeaderboard}>
+          <Trophy size={24} color="#fff" />
         </TouchableOpacity>
+
         <TouchableOpacity style={styles.finishGameButtonOrange} onPress={() => setShowFinishGameModal(true)}>
           <RotateCcw size={24} color="#fff" />
         </TouchableOpacity>
@@ -429,6 +423,7 @@ export default function ActiveGame() {
         }
       />
 
+      {/* MODAL: VNOS TOČK */}
       <Modal visible={showScoreModal} transparent animationType="fade" onRequestClose={() => setShowScoreModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -479,7 +474,7 @@ export default function ActiveGame() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* --- ZGODOVINA POSAMEZNIK --- */}
+      {/* MODAL: ZGODOVINA (POSAMEZNIK) - Z RUMENO PIKO */}
       <Modal visible={showHistoryModal} transparent animationType="slide" onRequestClose={() => setShowHistoryModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -488,13 +483,17 @@ export default function ActiveGame() {
               {playerHistory.map((entry, index) => {
                 let runningTotal = 0;
                 for (let i = 0; i <= index; i++) runningTotal += playerHistory[i].points;
-                const didPlay = entry.played === true;
+                
+                // Preverjanje za rumeno piko (robustno)
+                const didPlay = !!entry.played; // Pretvori null/undefined/true v boolean
+
                 return (
                   <View key={entry.id} style={styles.historyItem}>
                     <View style={styles.pointsWrapper}>
                       <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>
                         {entry.points > 0 ? '+' : ''}{entry.points}
                       </Text>
+                      {/* Rumena pika - mora biti vidna! */}
                       {didPlay && <View style={styles.yellowDot} />} 
                     </View>
                     <Text style={styles.historyTotal}>= {runningTotal}</Text>
@@ -510,50 +509,43 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      {/* --- POTEK IGRE (GLOBALNO) --- */}
-      <Modal visible={showGameHistoryModal} transparent animationType="slide" onRequestClose={() => setShowGameHistoryModal(false)}>
+      {/* --- NOVO: MODAL LESTVICA (LEADERBOARD) --- */}
+      <Modal visible={showLeaderboardModal} transparent animationType="slide" onRequestClose={() => setShowLeaderboardModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
-            <Text style={styles.modalTitle}>Potek igre</Text>
+            <Text style={styles.modalTitle}>Trenutna lestvica 🏆</Text>
             <ScrollView style={styles.historyList}>
-              {gameHistory.length === 0 ? (
-                 <Text style={styles.emptyText}>Ni vnosov.</Text>
-              ) : (
-                gameHistory.map((entry) => {
-                  const playerName = players.find(p => p.id === entry.player_id)?.name || 'Neznan';
-                  const didPlay = entry.played === true;
-                  
-                  // IZRAČUN TEKOČEGA SEŠTEVKA ZA IGRALCA V TEM TRENUTKU
-                  // (Seštejemo vse točke tega igralca, ki so bile vpisane pred ali ob tem času)
-                  const playerEntries = gameHistory.filter(
-                      e => e.player_id === entry.player_id && 
-                      new Date(e.created_at) <= new Date(entry.created_at)
-                  );
-                  const runningTotal = playerEntries.reduce((sum, e) => sum + e.points, 0);
-
-                  return (
-                    <View key={entry.id} style={styles.historyItem}>
-                      <Text style={styles.historyPlayerName} numberOfLines={1}>{playerName}</Text>
-                      
-                      <View style={styles.pointsWrapper}>
-                         <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>
-                          {entry.points > 0 ? '+' : ''}{entry.points}
-                        </Text>
-                        {didPlay && <View style={styles.yellowDot} />}
-                      </View>
-
-                      {/* TUKAJ JE POPRAVEK: Izpis tekočega seštevka */}
-                      <Text style={styles.historyTotal}>= {runningTotal}</Text>
-                      
-                      <Text style={styles.historyDate}>
-                        {new Date(entry.created_at).toLocaleTimeString('sl-SI', {hour:'2-digit', minute:'2-digit'})}
-                      </Text>
+              {getSortedPlayers().map((player, index) => {
+                 // Poišči radelce za tega igralca
+                 const pRadelci = radelci.filter(r => r.player_id === player.id);
+                 
+                 return (
+                  <View key={player.id} style={styles.leaderboardItem}>
+                    {/* MESTO */}
+                    <Text style={styles.rankText}>{index + 1}.</Text>
+                    
+                    {/* IME */}
+                    <Text style={styles.leaderboardName} numberOfLines={1}>{player.name || 'Brez imena'}</Text>
+                    
+                    {/* RADELCI V LESTVICI */}
+                    <View style={styles.miniRadelciContainer}>
+                      {pRadelci.map(r => (
+                        <View 
+                          key={r.id} 
+                          style={[styles.miniRadelc, r.is_used ? styles.radelcUsed : styles.radelcUnused]} 
+                        />
+                      ))}
                     </View>
-                  );
-                })
-              )}
+
+                    {/* TOČKE */}
+                    <Text style={[styles.leaderboardScore, player.total_score >= 0 ? styles.positivePoints : styles.negativePoints]}>
+                      {player.total_score}
+                    </Text>
+                  </View>
+                 );
+              })}
             </ScrollView>
-            <TouchableOpacity style={styles.closeButton} onPress={() => setShowGameHistoryModal(false)}>
+            <TouchableOpacity style={styles.closeButton} onPress={() => setShowLeaderboardModal(false)}>
               <Text style={styles.modalButtonText}>Zapri</Text>
             </TouchableOpacity>
           </View>
@@ -688,13 +680,31 @@ const styles = StyleSheet.create({
   historyPlayerName: { color: '#fff', fontSize: 16, fontWeight: '600', width: 80, marginRight: 8 },
   
   pointsWrapper: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'center', gap: 6 },
-  yellowDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#f59e0b' },
+  // RUMENA PIKA ZDAJ Z ROBOM (Bolj vidna)
+  yellowDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#f59e0b', borderWidth: 1, borderColor: '#fff' },
 
   historyPoints: { fontSize: 20, fontWeight: '700' },
   positivePoints: { color: '#22c55e' },
   negativePoints: { color: '#ef4444' },
   historyTotal: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1, textAlign: 'center' },
   historyDate: { color: '#666', fontSize: 12, flex: 1, textAlign: 'right' },
+  
+  // LEADERBOARD (LESTVICA) STILI
+  leaderboardItem: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingVertical: 14, 
+    paddingHorizontal: 16, 
+    backgroundColor: '#2a2a2a', 
+    borderRadius: 8, 
+    marginBottom: 8,
+    gap: 10,
+  },
+  rankText: { color: '#888', fontSize: 18, fontWeight: '700', width: 30 },
+  leaderboardName: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1 },
+  leaderboardScore: { fontSize: 22, fontWeight: '800', width: 60, textAlign: 'right' },
+  miniRadelciContainer: { flexDirection: 'row', gap: 2 },
+  miniRadelc: { width: 12, height: 12, borderRadius: 6 }, // Manjši krogci za lestvico
   
   closeButton: { backgroundColor: '#4a9eff', padding: 14, borderRadius: 12, alignItems: 'center' },
   emptyHistoryContainer: { paddingVertical: 40, alignItems: 'center' },
