@@ -89,6 +89,7 @@ export default function ActiveGame() {
   );
 
   useEffect(() => {
+    // Tiho nalaganje profilov ob zagonu
     fetchProfiles(false);
   }, []);
 
@@ -109,33 +110,40 @@ export default function ActiveGame() {
     }
   };
 
-  // --- NALAGANJE PROFILOV ---
-  const fetchProfiles = async (showDiagnosticAlert = false) => {
+  // --- NALAGANJE PROFILOV (Z DIAGNOSTIKO) ---
+  const fetchProfiles = async (showDebugAlert = false) => {
     try {
-      console.log("Začenjam nalaganje profilov...");
+      // Izrecno izberemo ID in NAME
       const { data, error } = await supabase
         .from('player_profiles')
-        .select('*')
+        .select('id, name')
         .order('name');
         
       if (error) {
-        console.error("Napaka baze:", error);
-        if (showDiagnosticAlert) Alert.alert("Napaka pri bazi", error.message);
+        console.error("Supabase Error:", error);
+        if (showDebugAlert) {
+            Alert.alert("NAPAKA BAZE", JSON.stringify(error));
+        }
         return;
       }
       
       const list = data || [];
-      console.log("Naloženi profili:", list.length);
       setAllProfiles(list);
       
-      if (showDiagnosticAlert) {
-          // TOLE TI BO POVEDALO, ČE DELUJE
-          Alert.alert("Status baze", `Povezava: OK\nŠtevilo najdenih igralcev: ${list.length}`);
+      if (showDebugAlert) {
+          // Pokaži uporabniku, kaj je dobil
+          if (list.length === 0) {
+              Alert.alert("BAZA PRAZNA", "Tabela 'player_profiles' ne vsebuje nobenega zapisa.");
+          } else {
+              // Če tole vidiš, pomeni da dela
+              // (Zakomentiraj to vrstico, ko bo delalo, da ne bo tečno)
+              Alert.alert("BAZA POVEZANA", `Našel sem ${list.length} igralcev.\nPrvi: ${list[0].name}`);
+          }
       }
 
     } catch (error: any) {
-      console.error('Sistemska napaka:', error);
-      if (showDiagnosticAlert) Alert.alert("Sistemska napaka", error.message);
+      console.error('System Error:', error);
+      if (showDebugAlert) Alert.alert("SISTEMSKA NAPAKA", error.message);
     }
   };
 
@@ -199,7 +207,7 @@ export default function ActiveGame() {
   const openAddPlayerModal = () => {
     setSearchQuery('');
     setShowAddPlayerModal(true);
-    // Ko odpreš modal, sproži diagnostiko
+    // Ko odpremo modal, sprožimo poizvedbo z alertom, da vidimo stanje
     fetchProfiles(true); 
   };
 
@@ -498,6 +506,7 @@ export default function ActiveGame() {
             
             <View style={styles.searchContainer}>
                 <Search size={24} color="#666" style={{ marginRight: 12 }} />
+                {/* POPRAVLJEN INPUT - BREZ ROBA */}
                 <TextInput
                     style={styles.searchInput}
                     placeholder="Išči ali ustvari novega..."
@@ -505,14 +514,15 @@ export default function ActiveGame() {
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                     autoFocus
-                    // POPRAVEK ZA BELI ROB
+                    // Ključno za Android
                     underlineColorAndroid="transparent"
-                    selectionColor="#4a9eff"
-                    cursorColor="#4a9eff"
+                    // Ključno za Web
+                    // @ts-ignore
+                    style={[styles.searchInput, { outlineStyle: 'none' }]} 
                 />
             </View>
 
-            {/* Diagnostično sporočilo */}
+            {/* Diagnostika */}
             {allProfiles.length === 0 && searchQuery.length === 0 && (
                 <Text style={{color: '#666', textAlign: 'center', marginBottom: 10}}>
                     Nalagam imenik...
@@ -550,7 +560,7 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      {/* Ostali modali... (nespremenjeni) */}
+      {/* Ostali modali... (nespremenjeni, a vključeni) */}
       <Modal visible={showScoreModal} transparent animationType="fade" onRequestClose={() => setShowScoreModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -785,7 +795,7 @@ const styles = StyleSheet.create({
   klopTitle: { color: '#ffd700', fontSize: 28, fontWeight: '800', marginBottom: 24, textAlign: 'center' },
   klopButton: { backgroundColor: '#4a9eff', padding: 16, borderRadius: 12, alignItems: 'center' },
 
-  // --- STILI ZA ISKALNIK (BREZ ROBA) ---
+  // --- STILI ZA ISKALNIK ---
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -799,9 +809,8 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#fff',
     fontSize: 20,
-    borderWidth: 0,
+    borderWidth: 0, // Eksplicitno
     borderColor: 'transparent',
-    backgroundColor: 'transparent',
   },
   profileItem: {
     flexDirection: 'row',
