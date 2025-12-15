@@ -1,20 +1,23 @@
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
-import Constants from 'expo-constants';
 
-const supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl || process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = Constants.expoConfig?.extra?.supabaseAnonKey || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+// --- TVOJI PRAVI PODATKI (Prepisani iz tvojih slik) ---
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
-}
+// 1. Project URL (iz tvoje slike .env.local)
+const supabaseUrl = 'https://skzwyzrbctrgfwyljilw.supabase.co';
+
+// 2. API Key (iz tvoje slike .env.local - sb_publishable...)
+const supabaseAnonKey = 'sb_publishable_1KgDO8xo2IcyT76urJNDlw_EXSvH-7d';
+
+// -----------------------------------------------------
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: false,
+    persistSession: false, // Pustimo false, kot si imel v originalu
   },
 });
 
+// --- TIPI (Pustimo jih, da ostala koda deluje) ---
 export type Database = {
   public: {
     Tables: {
@@ -46,6 +49,7 @@ export type Database = {
           position: number;
           total_score: number;
           created_at: string;
+          profile_id?: string; // Dodan profile_id
         };
         Insert: {
           id?: string;
@@ -54,6 +58,7 @@ export type Database = {
           position: number;
           total_score?: number;
           created_at?: string;
+          profile_id?: string; // Dodan profile_id
         };
         Update: {
           id?: string;
@@ -62,6 +67,7 @@ export type Database = {
           position?: number;
           total_score?: number;
           created_at?: string;
+          profile_id?: string; // Dodan profile_id
         };
       };
       score_entries: {
@@ -113,6 +119,24 @@ export type Database = {
           game_id?: string;
           is_used?: boolean;
           position?: number;
+          created_at?: string;
+        };
+      };
+      // Dodana definicija za player_profiles, da bo TS zadovoljen
+      player_profiles: {
+        Row: {
+          id: string;
+          name: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
           created_at?: string;
         };
       };
