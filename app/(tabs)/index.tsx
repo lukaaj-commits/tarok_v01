@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { Plus, Info, Trash2, RotateCcw, Play, ChevronLeft, Check } from 'lucide-react-native'; // Dodana Check ikona
+import { Plus, Info, Trash2, RotateCcw, Play, ChevronLeft, Check } from 'lucide-react-native';
 
 // --- TIPI ---
 type Player = {
@@ -36,7 +36,7 @@ type ScoreEntry = {
   id: string;
   points: number;
   created_at: string;
-  played: boolean; // To polje zdaj nujno rabimo
+  played: boolean; 
   player_id?: string;
 };
 
@@ -62,7 +62,7 @@ export default function ActiveGame() {
   // --- STANJA ZA VNOSE IN MODALE ---
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [scoreInput, setScoreInput] = useState('');
-  const [isPlayed, setIsPlayed] = useState(false); // NOVO: Checkbox stanje
+  const [isPlayed, setIsPlayed] = useState(false);
   
   const [showScoreModal, setShowScoreModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false); 
@@ -201,7 +201,7 @@ export default function ActiveGame() {
   const openScoreInput = (playerId: string) => {
     setSelectedPlayerId(playerId);
     setScoreInput('');
-    setIsPlayed(false); // Resetiraj checkbox na false ob odprtju
+    setIsPlayed(false);
     setShowScoreModal(true);
   };
 
@@ -220,12 +220,15 @@ export default function ActiveGame() {
   };
 
   const submitScore = async () => {
-    if (!selectedPlayerId || !gameId || !scoreInput) return;
+    if (!selectedPlayerId || !scoreInput) return; // Popravljeno: odstranjen !gameId in omogočen vnos tudi pri 0
+    
     const points = parseInt(scoreInput, 10);
-    if (isNaN(points)) return;
+    if (isNaN(points)) {
+        Alert.alert("Napaka", "Prosimo vnesite veljavno število točk.");
+        return;
+    }
 
     try {
-      // --- SPREMEMBA: Dodan 'played: isPlayed' ---
       const { error } = await supabase.from('score_entries').insert({
         player_id: selectedPlayerId, 
         game_id: gameId, 
@@ -336,6 +339,7 @@ export default function ActiveGame() {
       <View style={[styles.container, styles.centerContent]}>
         <Text style={styles.welcomeTitle}>Tarok</Text>
         <Text style={styles.welcomeSubtitle}>Ni aktivne igre</Text>
+        
         <TouchableOpacity style={styles.bigStartButton} onPress={handleStartNewGame}>
           <Play size={32} color="#fff" fill="#fff" />
           <Text style={styles.bigStartButtonText}>Začni novo igro</Text>
@@ -441,14 +445,14 @@ export default function ActiveGame() {
               </View>
             </View>
 
-            {/* --- NOVO: CHECKBOX "IGRAL JE" --- */}
+            {/* POPRAVLJENO BESEDILO */}
             <TouchableOpacity style={styles.checkboxContainer} onPress={() => setIsPlayed(!isPlayed)}>
               <View style={[styles.checkbox, isPlayed && styles.checkboxChecked]}>
                 {isPlayed && <Check size={16} color="#fff" />}
               </View>
-              <Text style={styles.checkboxLabel}>Igral je (Rufer)</Text>
+              <Text style={styles.checkboxLabel}>Igralec je igral igro</Text>
             </TouchableOpacity>
-            {/* ---------------------------------- */}
+            {/* ----------------------- */}
 
             <View style={styles.modalButtons}>
               <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowScoreModal(false)}>
@@ -473,7 +477,6 @@ export default function ActiveGame() {
                 for (let i = 0; i <= index; i++) runningTotal += playerHistory[i].points;
                 return (
                   <View key={entry.id} style={styles.historyItem}>
-                    {/* TOČKE + RUMENA PIKICA */}
                     <View style={styles.pointsWrapper}>
                       <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>
                         {entry.points > 0 ? '+' : ''}{entry.points}
@@ -509,7 +512,6 @@ export default function ActiveGame() {
                     <View key={entry.id} style={styles.historyItem}>
                       <Text style={styles.historyPlayerName} numberOfLines={1}>{playerName}</Text>
                       
-                      {/* TOČKE + RUMENA PIKICA */}
                       <View style={styles.pointsWrapper}>
                          <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>
                           {entry.points > 0 ? '+' : ''}{entry.points}
@@ -643,7 +645,6 @@ const styles = StyleSheet.create({
   scoreInputWrapper: { flex: 1, height: 60, backgroundColor: '#2a2a2a', borderRadius: 12, justifyContent: 'center' },
   scoreInputField: { width: '100%', height: '100%', color: '#fff', fontSize: 24, textAlign: 'center' },
   
-  // CHECKBOX STYLES
   checkboxContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20, gap: 10 },
   checkbox: { width: 24, height: 24, borderWidth: 2, borderColor: '#666', borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   checkboxChecked: { backgroundColor: '#4a9eff', borderColor: '#4a9eff' },
@@ -660,7 +661,6 @@ const styles = StyleSheet.create({
   historyItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 16, backgroundColor: '#2a2a2a', borderRadius: 8, marginBottom: 8 },
   historyPlayerName: { color: '#fff', fontSize: 16, fontWeight: '600', width: 80, marginRight: 8 },
   
-  // WRAPPER ZA PIKICO IN TOČKE
   pointsWrapper: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'center', gap: 6 },
   yellowDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#f59e0b' },
 
