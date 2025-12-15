@@ -48,7 +48,7 @@ type Game = {
 };
 
 export default function ActiveGame() {
-  // --- STANJA ZA LOBBY (SEZNAM IGER) ---
+  // --- STANJA ZA LOBBY ---
   const [activeGamesList, setActiveGamesList] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,14 +64,17 @@ export default function ActiveGame() {
   const [scoreInput, setScoreInput] = useState('');
   
   const [showScoreModal, setShowScoreModal] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false); // Za posameznika
+  const [showGameHistoryModal, setShowGameHistoryModal] = useState(false); // NOVO: Za celo igro
   const [showFinishGameModal, setShowFinishGameModal] = useState(false);
   const [showKlopModal, setShowKlopModal] = useState(false);
   
-  const [playerHistory, setPlayerHistory] = useState<ScoreEntry[]>([]);
+  const [playerHistory, setPlayerHistory] = useState<ScoreEntry[]>([]); // Za posameznika
+  const [gameHistory, setGameHistory] = useState<ScoreEntry[]>([]);   // NOVO: Za celo igro
+  
   const scoreInputRef = useRef<TextInput>(null);
 
-  // --- 1. LOBBY LOGIKA: Naloži seznam aktivnih iger ---
+  // --- 1. LOBBY LOGIKA ---
   useFocusEffect(
     useCallback(() => {
       fetchActiveGamesList();
@@ -79,9 +82,7 @@ export default function ActiveGame() {
   );
 
   const fetchActiveGamesList = async () => {
-    // Če smo že v igri, ne kažemo loading spinnerja čez cel ekran
     if (!gameId) setLoading(true);
-    
     try {
       const { data } = await supabase
         .from('games')
@@ -103,7 +104,6 @@ export default function ActiveGame() {
     try {
       setGameId(selectedGame.id);
       setGameName(selectedGame.name);
-      // Naloži podatke za to specifično igro
       await loadPlayers(selectedGame.id);
       await loadRadelci(selectedGame.id);
     } catch (error) {
@@ -117,24 +117,12 @@ export default function ActiveGame() {
     setGameId(null);
     setPlayers([]);
     setRadelci([]);
-    fetchActiveGamesList(); // Osveži seznam
+    fetchActiveGamesList();
   };
 
   // --- 3. NOVA IGRA ---
   const handleStartNewGame = async () => {
-    // Če smo že v igri, vprašaj za potrditev
-    if (gameId) {
-      Alert.alert(
-        "Nova igra",
-        "Ali želiš začeti novo igro? Trenutna igra bo ostala shranjena med aktivnimi.",
-        [
-          { text: "Prekliči", style: "cancel" },
-          { text: "Začni novo", onPress: () => createGameInDb() }
-        ]
-      );
-    } else {
-      createGameInDb();
-    }
+    createGameInDb();
   };
 
   const createGameInDb = async () => {
@@ -149,7 +137,6 @@ export default function ActiveGame() {
 
       if (error) throw error;
       
-      // Osveži seznam in takoj vstopi
       await fetchActiveGamesList();
       await enterGame(newGame);
     } catch (error) {
@@ -159,7 +146,7 @@ export default function ActiveGame() {
     }
   };
 
-  // --- LOGIKA IGRE (Supabase klici) ---
+  // --- LOGIKA IGRE ---
 
   const loadPlayers = async (gId: string) => {
     const { data } = await supabase.from('players').select('*').eq('game_id', gId).order('position');
@@ -216,7 +203,6 @@ export default function ActiveGame() {
     setShowScoreModal(true);
   };
 
-  // Fokusiranje inputa ko se odpre modal
   useEffect(() => {
     if (showScoreModal) {
       setTimeout(() => scoreInputRef.current?.focus(), 100);
@@ -255,12 +241,30 @@ export default function ActiveGame() {
     } catch (e) { console.error(e); }
   };
 
-  // --- ZGODOVINA IN ZAKLJUČEK ---
+  // --- ZGODOVINA (POSAMEZNIK) ---
   const loadPlayerHistory = async (pid: string) => {
     const { data } = await supabase.from('score_entries').select('*').eq('player_id', pid).order('created_at');
     setPlayerHistory(data || []);
     setSelectedPlayerId(pid);
     setShowHistoryModal(true);
+  };
+
+  // --- NOVO: ZGODOVINA (CELA IGRA) ---
+  const loadGameHistory = async () => {
+    if (!gameId) return;
+    try {
+      // Dobimo vse vnose za to igro, razvrščene od najnovejšega
+      const { data } = await supabase
+        .from('score_entries')
+        .select('*')
+        .eq('game_id', gameId)
+        .order('created_at', { ascending: false }); // Najnovejši na vrhu
+
+      setGameHistory(data || []);
+      setShowGameHistoryModal(true);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const finishGame = async () => {
@@ -271,7 +275,6 @@ export default function ActiveGame() {
     exitToLobby();
   };
 
-  // --- RENDER FUNKCIJA ZA IGRALCA ---
   const renderPlayer = ({ item }: { item: Player }) => {
     const pRadelci = radelci.filter(r => r.player_id === item.id);
     return (
@@ -309,10 +312,10 @@ export default function ActiveGame() {
   };
 
   // ==========================================
-  // GLAVNI RENDER (POGLED)
+  // RENDER
   // ==========================================
 
-  // 1. Loading stanje (samo če nalagamo lobby in nimamo podatkov)
+  // 1. Loading
   if (loading && !gameId && activeGamesList.length === 0) {
     return (
       <View style={[styles.container, styles.centerContent]}>
@@ -321,55 +324,58 @@ export default function ActiveGame() {
     );
   }
 
-  // 2. POGLED: LOBBY (Seznam iger) - Če ni izbrana nobena igra
-  if (!gameId) {
+  // 2. LOBBY: Če ni iger -> VELIK GUMB
+  if (!gameId && activeGamesList.length === 0) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.lobbyTitle}>Aktivne igre</Text>
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.welcomeTitle}>Tarok</Text>
+        <Text style={styles.welcomeSubtitle}>Ni aktivne igre</Text>
         
-        {activeGamesList.length === 0 ? (
-           <View style={styles.centerContent}>
-             <Text style={styles.emptyText}>Ni aktivnih iger.</Text>
-             <TouchableOpacity style={styles.bigStartButton} onPress={handleStartNewGame}>
-               <Play size={32} color="#fff" fill="#fff" />
-               <Text style={styles.bigStartButtonText}>Nova igra</Text>
-             </TouchableOpacity>
-           </View>
-        ) : (
-          <View style={{ flex: 1 }}>
-             <FlatList
-              data={activeGamesList}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.listContainer}
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.gameCard} onPress={() => enterGame(item)}>
-                  <View>
-                    <Text style={styles.gameName}>{item.name}</Text>
-                    <Text style={styles.gameDate}>
-                      {new Date(item.created_at).toLocaleDateString('sl-SI')} • {new Date(item.created_at).toLocaleTimeString('sl-SI', {hour: '2-digit', minute:'2-digit'})}
-                    </Text>
-                  </View>
-                  <Play size={24} color="#4a9eff" fill="#4a9eff" />
-                </TouchableOpacity>
-              )}
-            />
-            {/* Gumb za novo igro pod seznamom */}
-            <View style={{ padding: 16 }}>
-              <TouchableOpacity style={styles.bigStartButton} onPress={handleStartNewGame}>
-                <Plus size={24} color="#fff" />
-                <Text style={styles.bigStartButtonText}>Začni še eno igro</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+        <TouchableOpacity style={styles.bigStartButton} onPress={handleStartNewGame}>
+          <Play size={32} color="#fff" fill="#fff" />
+          <Text style={styles.bigStartButtonText}>Začni novo igro</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
-  // 3. POGLED: AKTIVNA IGRA (Če je gameId nastavljen)
+  // 3. LOBBY: Če so igre -> SEZNAM
+  if (!gameId) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.lobbyTitle}>Aktivne igre</Text>
+        <View style={{ flex: 1 }}>
+            <FlatList
+            data={activeGamesList}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContainer}
+            renderItem={({ item }) => (
+              <TouchableOpacity style={styles.gameCard} onPress={() => enterGame(item)}>
+                <View>
+                  <Text style={styles.gameName}>{item.name}</Text>
+                  <Text style={styles.gameDate}>
+                    {new Date(item.created_at).toLocaleDateString('sl-SI')} • {new Date(item.created_at).toLocaleTimeString('sl-SI', {hour: '2-digit', minute:'2-digit'})}
+                  </Text>
+                </View>
+                <Play size={24} color="#4a9eff" fill="#4a9eff" />
+              </TouchableOpacity>
+            )}
+          />
+          <View style={{ padding: 16 }}>
+            <TouchableOpacity style={styles.bigStartButton} onPress={handleStartNewGame}>
+              <Plus size={24} color="#fff" />
+              <Text style={styles.bigStartButtonText}>Začni še eno igro</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // 4. IGRA
   return (
     <View style={styles.container}>
-      {/* ZGORNJA VRSTICA: Nazaj + Naslov */}
+      {/* Header Bar */}
       <View style={styles.gameHeaderBar}>
         <TouchableOpacity onPress={exitToLobby} style={styles.backButton}>
           <ChevronLeft size={28} color="#4a9eff" />
@@ -380,7 +386,7 @@ export default function ActiveGame() {
         </Text>
       </View>
 
-      {/* ORODNA VRSTICA (Gumbi za akcijo) */}
+      {/* ORODNA VRSTICA */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.addButton} onPress={addPlayer}>
           <Plus size={20} color="#fff" />
@@ -392,18 +398,17 @@ export default function ActiveGame() {
           <Text style={styles.addButtonText}>Radelc</Text>
         </TouchableOpacity>
 
-        {/* Gumb za NOVO IGRO znotraj igre (+) */}
-        <TouchableOpacity style={styles.newGameSmallButton} onPress={handleStartNewGame}>
-          <Plus size={24} color="#fff" />
+        {/* --- SPREMEMBA: GUMB INFO (Namesto +) --- */}
+        <TouchableOpacity style={styles.infoGameButton} onPress={loadGameHistory}>
+          <Info size={24} color="#fff" />
         </TouchableOpacity>
 
-        {/* Gumb za ZAKLJUČEK igre */}
-        <TouchableOpacity style={styles.finishGameButton} onPress={() => setShowFinishGameModal(true)}>
+        {/* --- SPREMEMBA: ORANŽEN GUMB ZAKLJUČI --- */}
+        <TouchableOpacity style={styles.finishGameButtonOrange} onPress={() => setShowFinishGameModal(true)}>
           <RotateCcw size={24} color="#fff" />
         </TouchableOpacity>
       </View>
 
-      {/* SEZNAM IGRALCEV */}
       <FlatList
         data={players}
         keyExtractor={(item) => item.id}
@@ -414,18 +419,15 @@ export default function ActiveGame() {
         }
       />
 
-      {/* --- MODAL: VNOS TOČK --- */}
+      {/* MODAL: VNOS TOČK */}
       <Modal visible={showScoreModal} transparent animationType="fade" onRequestClose={() => setShowScoreModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Vnesi točke</Text>
-            
-            {/* Input Row: Kvadratni gumb +/- in Raztegnjen Input */}
             <View style={styles.inputRow}>
               <TouchableOpacity style={styles.signButton} onPress={toggleSign} activeOpacity={0.7}>
                 <Text style={styles.signButtonText}>+/-</Text>
               </TouchableOpacity>
-              
               <View style={styles.scoreInputWrapper}>
                 <TextInput
                   ref={scoreInputRef}
@@ -439,7 +441,6 @@ export default function ActiveGame() {
                 />
               </View>
             </View>
-
             <View style={styles.modalButtons}>
               <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowScoreModal(false)}>
                 <Text style={styles.modalButtonText}>Prekliči</Text>
@@ -452,11 +453,11 @@ export default function ActiveGame() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* --- MODAL: ZGODOVINA --- */}
+      {/* MODAL: ZGODOVINA (POSAMEZNIK) */}
       <Modal visible={showHistoryModal} transparent animationType="slide" onRequestClose={() => setShowHistoryModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
-            <Text style={styles.modalTitle}>Zgodovina</Text>
+            <Text style={styles.modalTitle}>Zgodovina igralca</Text>
             <ScrollView style={styles.historyList}>
               {playerHistory.map((entry, index) => {
                 let runningTotal = 0;
@@ -479,17 +480,55 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      {/* --- MODAL: ZAKLJUČI IGRO --- */}
+      {/* --- NOVO: MODAL ZGODOVINA (CELA IGRA) --- */}
+      <Modal visible={showGameHistoryModal} transparent animationType="slide" onRequestClose={() => setShowGameHistoryModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, styles.historyModal]}>
+            <Text style={styles.modalTitle}>Potek igre</Text>
+            <ScrollView style={styles.historyList}>
+              {gameHistory.length === 0 ? (
+                 <Text style={styles.emptyText}>Ni vnosov.</Text>
+              ) : (
+                gameHistory.map((entry) => {
+                  // Poiščemo ime igralca
+                  const playerName = players.find(p => p.id === entry.player_id)?.name || 'Neznan';
+                  return (
+                    <View key={entry.id} style={styles.historyItem}>
+                       {/* Ime igralca levo */}
+                      <Text style={styles.historyPlayerName} numberOfLines={1}>{playerName}</Text>
+                      
+                      {/* Točke na sredini */}
+                      <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints, { textAlign: 'center' }]}>
+                        {entry.points > 0 ? '+' : ''}{entry.points}
+                      </Text>
+                      
+                      {/* Čas desno */}
+                      <Text style={styles.historyDate}>
+                        {new Date(entry.created_at).toLocaleTimeString('sl-SI', {hour:'2-digit', minute:'2-digit'})}
+                      </Text>
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+            <TouchableOpacity style={styles.closeButton} onPress={() => setShowGameHistoryModal(false)}>
+              <Text style={styles.modalButtonText}>Zapri</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL: ZAKLJUČEK */}
       <Modal visible={showFinishGameModal} transparent animationType="fade" onRequestClose={() => setShowFinishGameModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Zaključi igro?</Text>
-            <Text style={styles.confirmText}>Igra bo shranjena v zgodovino in umaknjena iz seznama aktivnih iger.</Text>
+            <Text style={styles.confirmText}>Igra bo arhivirana.</Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowFinishGameModal(false)}>
                 <Text style={styles.modalButtonText}>Prekliči</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButton, styles.submitButton]} onPress={finishGame}>
+              <TouchableOpacity style={[styles.modalButton, styles.finishGameButtonOrange]} onPress={finishGame}>
                 <Text style={styles.modalButtonText}>Zaključi</Text>
               </TouchableOpacity>
             </View>
@@ -497,7 +536,7 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      {/* --- MODAL: KLOP --- */}
+      {/* MODAL: KLOP */}
       <Modal visible={showKlopModal} transparent animationType="fade" onRequestClose={() => setShowKlopModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -515,8 +554,8 @@ export default function ActiveGame() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f0f0f' },
   centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-
-  // STILI ZA LOBBY
+  
+  // LOBBY
   lobbyTitle: { fontSize: 32, fontWeight: '800', color: '#fff', padding: 20, paddingTop: 60 },
   gameCard: {
     backgroundColor: '#1a1a1a',
@@ -531,18 +570,27 @@ const styles = StyleSheet.create({
   },
   gameName: { fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 4 },
   gameDate: { fontSize: 14, color: '#888' },
+  
+  // VELIK GUMB (ZAČNI NOVO)
   bigStartButton: {
     backgroundColor: '#4a9eff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
+    paddingVertical: 20,     // Povečano
+    paddingHorizontal: 32,   // Povečano
     borderRadius: 16,
     gap: 12,
+    width: '100%',           // Raztegne se
+    maxWidth: 400,
   },
-  bigStartButtonText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  bigStartButtonText: { color: '#fff', fontSize: 20, fontWeight: '700' }, // Povečan font
 
-  // STILI ZA HEADER IGRE
+  // EMPTY STATE TEXTS
+  welcomeTitle: { fontSize: 48, fontWeight: '800', color: '#fff', marginBottom: 8 },
+  welcomeSubtitle: { fontSize: 18, color: '#888', marginBottom: 40 },
+
+  // GAME HEADER BAR
   gameHeaderBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -555,15 +603,18 @@ const styles = StyleSheet.create({
   backButtonText: { color: '#4a9eff', fontSize: 16, fontWeight: '600' },
   headerGameTitle: { color: '#fff', fontSize: 18, fontWeight: '700', flex: 1 },
 
-  // STILI ZA BUTTON ROW
+  // BUTTON ROW (TOOLBAR)
   header: { padding: 16, gap: 8, flexDirection: 'row' },
   addButton: { flex: 2, backgroundColor: '#4a9eff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, gap: 4 },
   addRadelcButton: { flex: 2, backgroundColor: '#7c3aed', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, gap: 4 },
-  newGameSmallButton: { flex: 1, backgroundColor: '#4a9eff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12 },
-  finishGameButton: { flex: 1, backgroundColor: '#22c55e', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12 },
+  // Novi gumb INFO
+  infoGameButton: { flex: 1, backgroundColor: '#4a9eff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12 },
+  // Oranžen gumb ZAKLJUČI
+  finishGameButtonOrange: { flex: 1, backgroundColor: '#f59e0b', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12 },
+  
   addButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 
-  // IGRALEC LIST
+  // LIST
   listContainer: { padding: 16, gap: 16 },
   playerCard: { backgroundColor: '#1a1a1a', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#333' },
   playerHeader: { marginBottom: 12 },
@@ -579,64 +630,40 @@ const styles = StyleSheet.create({
   radelcUsed: { backgroundColor: '#000', borderWidth: 0 },
   emptyText: { color: '#666', fontSize: 16, textAlign: 'center', marginTop: 40 },
 
-  // MODAL STYLES (SQUARE BUTTON & STRETCHED INPUT)
+  // MODAL
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#1a1a1a', borderRadius: 16, padding: 24, width: '80%', maxWidth: 400 },
   modalTitle: { color: '#fff', fontSize: 20, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
   
-  inputRow: {
-    flexDirection: 'row',
-    width: '100%',
-    gap: 12,
-    marginBottom: 20,
-  },
-  signButton: {
-    backgroundColor: '#333', // Temno siva
-    width: 60,               // Kvadrat
-    height: 60,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  signButtonText: {
-    color: '#4a9eff',
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  scoreInputWrapper: {
-    flex: 1,                 // RAZTEGNI SE
-    height: 60,
-    backgroundColor: '#2a2a2a',
-    borderRadius: 12,
-    justifyContent: 'center',
-  },
-  scoreInputField: {
-    width: '100%',
-    height: '100%',
-    color: '#fff',
-    fontSize: 24,
-    textAlign: 'center',
-  },
-
+  // INPUT ROW (Popravljeno)
+  inputRow: { flexDirection: 'row', width: '100%', gap: 12, marginBottom: 20 },
+  signButton: { backgroundColor: '#333', width: 60, height: 60, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  signButtonText: { color: '#4a9eff', fontSize: 20, fontWeight: '700' },
+  scoreInputWrapper: { flex: 1, height: 60, backgroundColor: '#2a2a2a', borderRadius: 12, justifyContent: 'center' },
+  scoreInputField: { width: '100%', height: '100%', color: '#fff', fontSize: 24, textAlign: 'center' },
+  
   modalButtons: { flexDirection: 'row', width: '100%', gap: 12 },
   modalButton: { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center' },
   cancelButton: { backgroundColor: '#444' },
   submitButton: { backgroundColor: '#4a9eff' },
   modalButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-
-  confirmText: { color: '#ccc', fontSize: 15, textAlign: 'center', marginBottom: 20, lineHeight: 22 },
   
+  // HISTORY ITEM
   historyModal: { height: '70%' },
   historyList: { flex: 1, marginBottom: 16 },
   historyItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 16, backgroundColor: '#2a2a2a', borderRadius: 8, marginBottom: 8 },
+  historyPlayerName: { color: '#fff', fontSize: 16, fontWeight: '600', flex: 1.5, marginRight: 8 }, // Novo za globalno zgodovino
   historyPoints: { flex: 1, fontSize: 20, fontWeight: '700' },
   positivePoints: { color: '#22c55e' },
   negativePoints: { color: '#ef4444' },
   historyTotal: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1, textAlign: 'center' },
   historyDate: { color: '#666', fontSize: 12, flex: 1, textAlign: 'right' },
+  
   closeButton: { backgroundColor: '#4a9eff', padding: 14, borderRadius: 12, alignItems: 'center' },
   emptyHistoryContainer: { paddingVertical: 40, alignItems: 'center' },
   emptyHistoryText: { color: '#666', fontSize: 16, textAlign: 'center' },
+  
+  confirmText: { color: '#ccc', fontSize: 15, textAlign: 'center', marginBottom: 20, lineHeight: 22 },
   
   klopTitle: { color: '#ffd700', fontSize: 28, fontWeight: '800', marginBottom: 24, textAlign: 'center' },
   klopButton: { backgroundColor: '#4a9eff', padding: 16, borderRadius: 12, alignItems: 'center' },
