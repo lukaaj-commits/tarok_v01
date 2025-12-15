@@ -41,7 +41,7 @@ type ScoreEntry = {
   id: string;
   points: number;
   created_at: string;
-  played: boolean;
+  played: boolean; // Pomembno za rumeno piko
   player_id?: string;
 };
 
@@ -397,7 +397,7 @@ export default function History() {
             </Text>
             <ScrollView style={styles.historyList}>
               {gamePlayers
-                // Tudi tukaj potrebujemo razvrščanje, čeprav bi moralo biti že urejeno iz DB
+                // Tudi tukaj potrebujemo razvrščanje
                 .sort((a, b) => b.total_score - a.total_score)
                 .map((player, playerIndex, array) => {
                   const playerEntries = playerHistory.filter(
@@ -445,19 +445,29 @@ export default function History() {
 
                         return (
                           <View key={entry.id} style={styles.historyItem}>
-                            <Text
-                              style={[
-                                styles.historyPoints,
-                                entry.points > 0
-                                  ? styles.positivePoints
-                                  : styles.negativePoints,
-                              ]}>
-                              {entry.points > 0 ? '+' : ''}
-                              {entry.points}
-                            </Text>
+                            {/* --- POPRAVLJENO: PORAVNAVA IN RUMENA PIKA --- */}
+                            <View style={styles.pointsWrapper}>
+                                <View style={styles.fixedPointsBox}>
+                                    <Text
+                                    style={[
+                                        styles.historyPoints,
+                                        entry.points > 0
+                                        ? styles.positivePoints
+                                        : styles.negativePoints,
+                                    ]}>
+                                    {entry.points > 0 ? '+' : ''}
+                                    {entry.points}
+                                    </Text>
+                                </View>
+                                <View style={styles.dotBox}>
+                                    {entry.played && <View style={styles.playedDot} />}
+                                </View>
+                            </View>
+                            {/* --------------------------------------------- */}
+
                             <Text style={styles.historyTotal}>= {runningTotal}</Text>
                             <Text style={styles.historyDate}>
-                              {new Date(entry.created_at).toLocaleTimeString('sl-SI')}
+                              {new Date(entry.created_at).toLocaleTimeString('sl-SI', {hour: '2-digit', minute:'2-digit'})}
                             </Text>
                           </View>
                         );
@@ -742,8 +752,25 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 8,
   },
+  // --- POSODOBLJENI STILI ZA PORAVNAVO ---
+  pointsWrapper: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    flex: 1, 
+    justifyContent: 'center' 
+  },
+  fixedPointsBox: {
+    width: 60,        // Fiksna širina za točke
+    alignItems: 'flex-end',
+    paddingRight: 5
+  },
+  dotBox: {
+    width: 20,        // Prostor za piko
+    alignItems: 'flex-start'
+  },
+  // ---------------------------------------
+  
   historyPoints: {
-    flex: 1,
     fontSize: 20,
     fontWeight: '700',
   },
@@ -768,5 +795,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     flex: 1,
     textAlign: 'right',
+  },
+  // --- STIL RUMENE PIKE ---
+  playedDot: { 
+    width: 8, 
+    height: 8, 
+    borderRadius: 4, 
+    backgroundColor: '#ffd700' 
   },
 });
