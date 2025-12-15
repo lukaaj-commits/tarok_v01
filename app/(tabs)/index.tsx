@@ -89,7 +89,7 @@ export default function ActiveGame() {
   );
 
   useEffect(() => {
-    fetchProfiles(false); // Naloži tiho ob zagonu
+    fetchProfiles(false);
   }, []);
 
   const fetchActiveGamesList = async () => {
@@ -109,8 +109,8 @@ export default function ActiveGame() {
     }
   };
 
-  // --- DIAGNOSTIKA NALAGANJA PROFILOV ---
-  const fetchProfiles = async (showAlert = false) => {
+  // --- NALAGANJE PROFILOV ---
+  const fetchProfiles = async (showDiagnistics = false) => {
     try {
       const { data, error } = await supabase
         .from('player_profiles')
@@ -118,22 +118,25 @@ export default function ActiveGame() {
         .order('name');
         
       if (error) {
-        console.error("Napaka baze:", error);
-        if (showAlert) Alert.alert("Napaka pri bazi", error.message);
+        if (showDiagnistics) Alert.alert("Napaka pri bazi", error.message);
         return;
       }
       
-      const count = data ? data.length : 0;
-      setAllProfiles(data || []);
+      const list = data || [];
+      setAllProfiles(list);
       
-      // DIAGNOSTIKA: Povej uporabniku, kaj se dogaja, ko odpre okno
-      if (showAlert) {
-          Alert.alert("Diagnostika baze", `Uspešno sem se povezal!\nNašel sem ${count} igralcev v imeniku.`);
+      if (showDiagnistics) {
+          if (list.length === 0) {
+              Alert.alert("Baza je prazna", "Povezava deluje, ampak v tabeli 'player_profiles' ni nobenega zapisa.");
+          } else {
+              // Če tole vidiš, pomeni da dela!
+              // Alert.alert("Uspeh!", `Naložil sem ${list.length} igralcev.`); 
+              // (Zakomentirano, da ne teži vsakič, odkomentiraj če še vedno ne dela)
+          }
       }
 
     } catch (error: any) {
-      console.error('Sistemska napaka:', error);
-      if (showAlert) Alert.alert("Sistemska napaka", error.message);
+      if (showDiagnistics) Alert.alert("Sistemska napaka", error.message);
     }
   };
 
@@ -197,8 +200,7 @@ export default function ActiveGame() {
   const openAddPlayerModal = () => {
     setSearchQuery('');
     setShowAddPlayerModal(true);
-    // Ko odpremo modal, eksplicitno osvežimo IN pokažemo alert
-    fetchProfiles(true); 
+    fetchProfiles(true); // Pokaži alert če je kaj narobe
   };
 
   const addExistingProfileToGame = async (profile: PlayerProfile) => {
@@ -249,7 +251,7 @@ export default function ActiveGame() {
       }
 
       await addExistingProfileToGame(newProfile);
-      fetchProfiles(false); // Osveži seznam tiho
+      fetchProfiles(false);
 
     } catch (e) { console.error(e); }
   };
@@ -503,7 +505,10 @@ export default function ActiveGame() {
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                     autoFocus
-                    underlineColorAndroid="transparent" // Odstrani belo črto
+                    // FIX ZA BELI ROB
+                    underlineColorAndroid="transparent"
+                    selectionColor="#4a9eff"
+                    cursorColor="#4a9eff"
                 />
             </View>
 
@@ -773,7 +778,7 @@ const styles = StyleSheet.create({
   klopTitle: { color: '#ffd700', fontSize: 28, fontWeight: '800', marginBottom: 24, textAlign: 'center' },
   klopButton: { backgroundColor: '#4a9eff', padding: 16, borderRadius: 12, alignItems: 'center' },
 
-  // --- STILI ZA ISKALNIK (BREZ ROBA) ---
+  // --- POPRAVLJEN STIL ZA ISKALNIK (BREZ ROBA) ---
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -787,12 +792,15 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#fff',
     fontSize: 20,
+    borderWidth: 0,
+    // TypeScript hack za web (ignoriraj napako v editorju)
+    outlineStyle: 'none' as any, 
   },
   profileItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 20,
+    paddingVertical: 20, 
     paddingHorizontal: 16,
     backgroundColor: '#2a2a2a',
     borderRadius: 16,
@@ -800,7 +808,7 @@ const styles = StyleSheet.create({
   },
   profileName: {
     color: '#fff',
-    fontSize: 20,
+    fontSize: 20, 
     fontWeight: '600',
   },
   createNewButton: {
