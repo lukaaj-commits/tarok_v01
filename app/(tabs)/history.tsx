@@ -9,26 +9,25 @@ import {
   ScrollView,
   Alert,
   Platform,
-  ActivityIndicator,
-  Dimensions
+  ActivityIndicator
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { ChevronRight, Trophy, Trash2, CheckCircle, Info } from 'lucide-react-native';
 import { useIsFocused } from '@react-navigation/native';
-import { LineChart } from 'react-native-chart-kit';
 
 type Game = { id: string; name: string; created_at: string; is_active: boolean; radelci_active: number; radelci_used: number; };
 type GamePlayer = { id: string; name: string; total_score: number; position: number; };
 type Radelc = { id: string; player_id: string; is_used: boolean; position: number; };
 type ScoreEntry = { id: string; points: number; created_at: string; played: boolean; player_id?: string; };
 
-type PlayerStats = { name: string; wins: number; second: number; third: number; total_games: number; total_points: number; };
-
-type PlayerDetailStats = {
-    name: string;
-    bestGame: number;
-    worstGame: number;
-    gameHistory: number[]; 
+// Dodan array za zgodovino uvrstitev (recent_ranks)
+type PlayerStats = { 
+    name: string; 
+    wins: number; 
+    second: number; 
+    third: number; 
+    total_games: number; 
+    recent_ranks: { rank: number, date: string }[]; // Hranimo uvrstitev in datum igre
 };
 
 export default function History() {
@@ -45,9 +44,6 @@ export default function History() {
   const [showGlobalStatsModal, setShowGlobalStatsModal] = useState(false);
   const [globalStats, setGlobalStats] = useState<PlayerStats[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
-
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [selectedPlayerStats, setSelectedPlayerStats] = useState<PlayerDetailStats | null>(null);
 
   const isFocused = useIsFocused();
   useEffect(() => { if (isFocused) loadGames(); }, [isFocused]);
@@ -114,46 +110,83 @@ export default function History() {
     } catch (error) { console.error(error); }
   };
 
+  // --- POSODOBITEV: LOGIKA GLOBALNE STATISTIKE Z UVRSTITVAMI ---
   const loadGlobalStats = async () => {
     setStatsLoading(true);
     setShowGlobalStatsModal(true);
     try {
-        const { data: finishedGames } = await supabase.from('games').select('id').eq('is_active', false);
+        // Pridobimo igre urejene po datumu, da vemo katera je bila kdaj
+        const { data: finishedGames } = await supabase
+            .from('games')
+            .select('id, created_at')
+            .eq('is_active', false)
+            .order('created_at', { ascending: false });
+            
         const gameIds = finishedGames?.map(g => g.id) || [];
+        
+        // Mapa za hiter dostop do datuma igre
+        const gameDates = new Map<string, string>();
+        finishedGames?.forEach(g => gameDates.set(g.id, g.created_at));
+
         if (gameIds.length === 0) { setGlobalStats([]); setStatsLoading(false); return; }
 
-        const { data: allPlayers } = await supabase.from('players').select('name, game_id, total_score, created_at').in('game_id', gameIds);
+        const { data: allPlayers } = await supabase.from('players').select('name, game_id, total_score').in('game_id', gameIds);
         if (!allPlayers) { setGlobalStats([]); return; }
 
         const statsMap = new Map<string, PlayerStats>();
+        
+        // Grupiramo igralce po igrah
         const playersByGame = allPlayers.reduce((acc, p) => {
             if (!acc[p.game_id]) acc[p.game_id] = [];
             acc[p.game_id].push(p);
             return acc;
         }, {} as Record<string, typeof allPlayers>);
 
-        Object.values(playersByGame).forEach(gameP => {
+        // Obdelamo vsako igro posebej, da določimo uvrstitve
+        Object.keys(playersByGame).forEach(gameId => {
+            const gameP = playersByGame[gameId];
+            // Sortiramo igralce v tej igri po točkah (padajoče)
             gameP.sort((a, b) => b.total_score - a.total_score);
-            gameP.forEach((p, index) => {
+            
+            const date = gameDates.get(gameId) || '';
+
+            gameP.forEach((p) => {
                 const name = p.name; 
                 if (!statsMap.has(name)) {
-                    statsMap.set(name, { name, wins: 0, second: 0, third: 0, total_games: 0, total_points: 0 });
+                    statsMap.set(name, { 
+                        name, 
+                        wins: 0, second: 0, third: 0, 
+                        total_games: 0, 
+                        recent_ranks: [] // Prazno na začetku
+                    });
                 }
                 const stat = statsMap.get(name)!;
                 stat.total_games += 1;
-                stat.total_points += p.total_score;
                 
+                // Izračunamo uvrstitev v tej konkretni igri
+                // (upoštevamo, da ima lahko več ljudi enake točke)
                 const myScore = p.total_score;
-                const peopleBetter = gameP.filter(gp => gp.total_score > myScore).length;
-                const myRank = peopleBetter + 1;
+                const betterPlayers = gameP.filter(gp => gp.total_score > myScore).length;
+                const myRank = betterPlayers + 1;
 
                 if (myRank === 1) stat.wins += 1;
                 if (myRank === 2) stat.second += 1;
                 if (myRank === 3) stat.third += 1;
+
+                // Dodamo uvrstitev v zgodovino
+                stat.recent_ranks.push({ rank: myRank, date: date });
             });
         });
 
-        const sortedStats = Array.from(statsMap.values()).sort((a, b) => {
+        // Pripravimo končni array in sortiramo "recent_ranks" po datumu
+        const processedStats = Array.from(statsMap.values()).map(stat => {
+            // Sortiraj ranke po datumu (najnovejši prvi)
+            stat.recent_ranks.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            return stat;
+        });
+
+        // Glavno sortiranje lestvice (Zlate, Srebrne, Bronaste)
+        const sortedStats = processedStats.sort((a, b) => {
             if (b.wins !== a.wins) return b.wins - a.wins;
             if (b.second !== a.second) return b.second - a.second;
             return b.third - a.third;
@@ -165,44 +198,20 @@ export default function History() {
     finally { setStatsLoading(false); }
   };
 
-  const openPlayerDetails = async (playerName: string) => {
-      setStatsLoading(true);
-      try {
-          const { data: finishedGames } = await supabase.from('games').select('id, created_at').eq('is_active', false).order('created_at', { ascending: true });
-          const gameIds = finishedGames?.map(g => g.id) || [];
-          
-          if (gameIds.length === 0) { setStatsLoading(false); return; }
+  // Pomožna funkcija za izračun forme
+  const getFormStatus = (ranks: { rank: number }[]) => {
+      if (ranks.length === 0) return { text: '-', color: '#666' };
+      
+      // Vzamemo zadnjih 5 (ali manj)
+      const last5 = ranks.slice(0, 5);
+      const sum = last5.reduce((acc, curr) => acc + curr.rank, 0);
+      const avg = sum / last5.length;
 
-          const { data: playerResults } = await supabase.from('players')
-            .select('total_score, game_id')
-            .eq('name', playerName)
-            .in('game_id', gameIds);
-
-          if (!playerResults || playerResults.length === 0) {
-              Alert.alert("Info", "Ni podatkov za tega igralca.");
-              setStatsLoading(false);
-              return;
-          }
-
-          const scores = playerResults.map(p => p.total_score);
-          const best = Math.max(...scores);
-          const worst = Math.min(...scores);
-          
-          const sortedScores = finishedGames!
-            .map(g => playerResults.find(p => p.game_id === g.id)?.total_score)
-            .filter(s => s !== undefined) as number[];
-
-          setSelectedPlayerStats({
-              name: playerName,
-              bestGame: best,
-              worstGame: worst,
-              gameHistory: sortedScores
-          });
-          
-          setShowDetailModal(true);
-
-      } catch (e) { console.error(e); }
-      finally { setStatsLoading(false); }
+      if (avg <= 1.8) return { text: 'Vroče 🔥', color: '#ff4500' }; // Skoraj vedno 1. ali 2.
+      if (avg <= 2.8) return { text: 'Odlična 🚀', color: '#22c55e' };
+      if (avg <= 4.0) return { text: 'Dobra 👍', color: '#4a9eff' };
+      if (avg <= 6.0) return { text: 'Srednja 😐', color: '#fbbf24' };
+      return { text: 'Hladna ❄️', color: '#94a3b8' };
   };
 
   const getPlayerRadelci = (playerId: string) => radelci.filter((r) => r.player_id === playerId);
@@ -244,26 +253,61 @@ export default function History() {
          <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, styles.historyModal]}>
                 <Text style={styles.modalTitle}>Večna lestvica 🏆</Text>
-                <Text style={styles.subTitle}>(Klikni na igralca za podrobnosti)</Text>
+                <Text style={styles.subTitle}>(Statistika uvrstitev)</Text>
                 
                 {statsLoading ? (
                     <ActivityIndicator size="large" color="#4a9eff" style={{marginTop: 20}} />
                 ) : (
                     <ScrollView style={styles.historyList}>
-                        {globalStats.map((stat, index) => (
-                            <TouchableOpacity key={stat.name} style={styles.leaderboardItem} onPress={() => openPlayerDetails(stat.name)}>
-                                <Text style={styles.rankText}>{index + 1}.</Text>
-                                <View style={{flex: 1, paddingLeft: 8}}>
-                                    <Text style={styles.leaderboardName}>{stat.name}</Text>
-                                    <Text style={{color: '#666', fontSize: 12}}>{stat.total_games} iger • {stat.total_points} točk</Text>
+                        {globalStats.map((stat, index) => {
+                            const rank = globalStats.findIndex(s => 
+                                s.wins === stat.wins && 
+                                s.second === stat.second && 
+                                s.third === stat.third
+                            ) + 1;
+                            
+                            const form = getFormStatus(stat.recent_ranks);
+                            const last5Ranks = stat.recent_ranks.slice(0, 5).map(r => r.rank).join('. ');
+
+                            return (
+                                <View key={stat.name} style={styles.leaderboardItem}>
+                                    {/* Levi del: Mesto na lestvici */}
+                                    <View style={{width: 30, alignItems: 'center', alignSelf: 'flex-start', paddingTop: 4}}>
+                                        {rank === 1 ? <Trophy size={18} color="#ffd700" /> :
+                                         rank === 2 ? <Trophy size={18} color="#c0c0c0" /> :
+                                         rank === 3 ? <Trophy size={18} color="#cd7f32" /> :
+                                         <Text style={styles.rankText}>{rank}.</Text>
+                                        }
+                                    </View>
+                                    
+                                    {/* Srednji del: Podatki */}
+                                    <View style={{flex: 1, paddingLeft: 12}}>
+                                        {/* Ime z večjim odmikom spodaj */}
+                                        <Text style={[styles.leaderboardName, { marginBottom: 6 }]}>{stat.name}</Text>
+                                        
+                                        {/* Zadnjih 5 uvrstitev */}
+                                        <Text style={styles.statLabel}>
+                                            Zadnjih 5: <Text style={{color: '#fff', fontWeight: 'bold'}}>{last5Ranks}{last5Ranks ? '.' : ''}</Text>
+                                        </Text>
+
+                                        {/* Forma */}
+                                        <Text style={styles.statLabel}>
+                                            Forma: <Text style={{color: form.color, fontWeight: 'bold'}}>{form.text}</Text>
+                                        </Text>
+                                        
+                                        {/* Število iger */}
+                                        <Text style={[styles.statLabel, {marginTop: 2}]}>{stat.total_games} iger</Text>
+                                    </View>
+
+                                    {/* Desni del: Medalje */}
+                                    <View style={{flexDirection: 'column', gap: 4, alignItems: 'flex-end'}}>
+                                        <View style={styles.medalRow}><Text style={styles.medalCount}>{stat.wins}</Text><Trophy size={14} color="#ffd700" /></View>
+                                        <View style={styles.medalRow}><Text style={styles.medalCount}>{stat.second}</Text><Trophy size={14} color="#c0c0c0" /></View>
+                                        <View style={styles.medalRow}><Text style={styles.medalCount}>{stat.third}</Text><Trophy size={14} color="#cd7f32" /></View>
+                                    </View>
                                 </View>
-                                <View style={{flexDirection: 'row', gap: 6}}>
-                                    <View style={styles.medalBox}><Trophy size={14} color="#ffd700" /><Text style={styles.medalText}>{stat.wins}</Text></View>
-                                    <View style={styles.medalBox}><Trophy size={14} color="#c0c0c0" /><Text style={styles.medalText}>{stat.second}</Text></View>
-                                    <View style={styles.medalBox}><Trophy size={14} color="#cd7f32" /><Text style={styles.medalText}>{stat.third}</Text></View>
-                                </View>
-                            </TouchableOpacity>
-                        ))}
+                            );
+                        })}
                     </ScrollView>
                 )}
                 <TouchableOpacity style={styles.closeButton} onPress={() => setShowGlobalStatsModal(false)}>
@@ -273,59 +317,7 @@ export default function History() {
          </View>
       </Modal>
 
-      {/* --- MODAL: PODROBNOSTI IGRALCA --- */}
-      <Modal visible={showDetailModal} transparent animationType="slide" onRequestClose={() => setShowDetailModal(false)}>
-        <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, styles.historyModal]}>
-                {selectedPlayerStats && (
-                    <>
-                        <Text style={styles.modalTitle}>{selectedPlayerStats.name}</Text>
-                        
-                        {/* REKORDI */}
-                        <View style={styles.statsGrid}>
-                            <View style={[styles.statBox, {backgroundColor: 'rgba(34, 197, 94, 0.1)'}]}>
-                                <Text style={[styles.statLabel, {color: '#22c55e'}]}>Najboljša igra</Text>
-                                <Text style={[styles.statValue, {color: '#22c55e'}]}>+{selectedPlayerStats.bestGame}</Text>
-                            </View>
-                            <View style={[styles.statBox, {backgroundColor: 'rgba(239, 68, 68, 0.1)'}]}>
-                                <Text style={[styles.statLabel, {color: '#ef4444'}]}>Najslabša igra</Text>
-                                <Text style={[styles.statValue, {color: '#ef4444'}]}>{selectedPlayerStats.worstGame}</Text>
-                            </View>
-                        </View>
-
-                        {/* GRAF KARIERE */}
-                        <Text style={styles.chartTitle}>Potek kariere (Točke po igrah)</Text>
-                        <View style={{alignItems: 'center'}}>
-                            <LineChart
-                                data={{
-                                    labels: selectedPlayerStats.gameHistory.map((_, i) => i % 2 === 0 ? (i+1).toString() : ''), 
-                                    datasets: [{ data: selectedPlayerStats.gameHistory }]
-                                }}
-                                width={Dimensions.get("window").width - 60}
-                                height={220}
-                                chartConfig={{
-                                    backgroundColor: "#1a1a1a",
-                                    backgroundGradientFrom: "#1a1a1a",
-                                    backgroundGradientTo: "#1a1a1a",
-                                    decimalPlaces: 0,
-                                    color: (opacity = 1) => `rgba(74, 158, 255, ${opacity})`,
-                                    labelColor: (opacity = 1) => `rgba(150, 150, 150, ${opacity})`,
-                                    propsForDots: { r: "4", strokeWidth: "2", stroke: "#4a9eff" }
-                                }}
-                                bezier
-                                style={{ marginVertical: 8, borderRadius: 16 }}
-                            />
-                        </View>
-                    </>
-                )}
-                <TouchableOpacity style={styles.closeButton} onPress={() => setShowDetailModal(false)}>
-                    <Text style={styles.closeButtonText}>Nazaj</Text>
-                </TouchableOpacity>
-            </View>
-        </View>
-      </Modal>
-
-      {/* --- MODAL: IGRA --- */}
+      {/* --- MODAL ZA POSAMEZNO IGRO --- */}
       <Modal visible={showGameModal} transparent animationType="slide" onRequestClose={() => setShowGameModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -372,6 +364,7 @@ export default function History() {
         </View>
       </Modal>
 
+      {/* --- MODAL ZA ZGODOVINO IGRALCA (Lokalno) --- */}
       <Modal visible={showPlayerHistoryModal} transparent animationType="slide" onRequestClose={() => setShowPlayerHistoryModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -403,7 +396,6 @@ export default function History() {
                                 <View style={styles.fixedPointsBox}>
                                     <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
                                 </View>
-                                {/* BREZ MODRE PIKE */}
                                 <View style={styles.dotBox}>
                                     {entry.played && <View style={styles.playedDot} />}
                                 </View>
@@ -444,8 +436,6 @@ const styles = StyleSheet.create({
       borderColor: '#444'
   },
   subTitle: { color: '#666', fontSize: 14, textAlign: 'center', marginBottom: 15 },
-  medalBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#222', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6 },
-  medalText: { color: '#fff', fontWeight: '700', marginLeft: 2, fontSize: 12 },
   listContainer: { padding: 16, gap: 12 },
   gameCard: { backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#333' },
   gameHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
@@ -458,7 +448,7 @@ const styles = StyleSheet.create({
   emptyText: { color: '#666', fontSize: 18, marginBottom: 8 },
   loadingText: { color: '#fff', fontSize: 18, textAlign: 'center', marginTop: 40 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#1a1a1a', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '85%' },
+  modalContent: { backgroundColor: '#1a1a1a', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '80%' },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20, gap: 12 },
   modalTitle: { color: '#fff', fontSize: 22, fontWeight: '700', textAlign: 'center' },
   headerInfoButton: { padding: 4 },
@@ -484,8 +474,7 @@ const styles = StyleSheet.create({
   radelc: { width: 14, height: 14, borderRadius: 7 },
   radelcUnused: { backgroundColor: 'transparent', borderWidth: 2, borderColor: '#4a9eff' },
   radelcUsed: { backgroundColor: '#000', borderWidth: 0 },
-  infoButton: { padding: 8, marginLeft: 8 },
-  historyModal: { height: '70%', maxHeight: '70%' },
+  historyModal: { height: '80%', maxHeight: '80%' }, // Povečana višina za več podatkov
   historyList: { flex: 1, marginBottom: 16 },
   playerHistorySection: { marginBottom: 24 },
   playerHistoryHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#333', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, marginBottom: 8, gap: 12 },
@@ -500,19 +489,24 @@ const styles = StyleSheet.create({
   historyPoints: { fontSize: 20, fontWeight: '700' },
   positivePoints: { color: '#22c55e' },
   negativePoints: { color: '#ef4444' },
-  neutralScore: { color: '#fff' },
   historyTotal: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1, textAlign: 'center' },
   historyDate: { color: '#666', fontSize: 12, flex: 1, textAlign: 'right' },
   playedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ffd700' },
-  leaderboardItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: '#2a2a2a', borderRadius: 8, marginBottom: 8, gap: 10 },
-  rankText: { color: '#888', fontSize: 18, fontWeight: '700', width: 30 },
-  leaderboardName: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1 },
-  leaderboardScore: { fontSize: 22, fontWeight: '800', width: 60, textAlign: 'right' },
   
-  // --- NOVI STILI ---
-  statsGrid: { flexDirection: 'row', gap: 12, marginBottom: 20 },
-  statBox: { flex: 1, padding: 16, borderRadius: 12, alignItems: 'center' },
-  statLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 4 },
-  statValue: { fontSize: 24, fontWeight: '800' },
-  chartTitle: { color: '#aaa', fontSize: 14, marginBottom: 10, textAlign: 'center', textTransform: 'uppercase', fontWeight: '700' },
+  // Novi in popravljeni stili za leaderborad
+  leaderboardItem: { 
+      flexDirection: 'row', 
+      alignItems: 'center', // Sedaj center po vertikali, ker je item višji
+      paddingVertical: 16, 
+      paddingHorizontal: 16, 
+      backgroundColor: '#2a2a2a', 
+      borderRadius: 10, 
+      marginBottom: 10, 
+      gap: 10 
+  },
+  rankText: { color: '#888', fontSize: 18, fontWeight: '700' },
+  leaderboardName: { color: '#fff', fontSize: 19, fontWeight: '700', flex: 1 },
+  statLabel: { color: '#888', fontSize: 13, marginBottom: 1 },
+  medalRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  medalCount: { color: '#fff', fontSize: 14, fontWeight: '700' },
 });
