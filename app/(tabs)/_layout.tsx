@@ -14,37 +14,33 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: '#121212',
           borderTopWidth: 1,
-          borderTopColor: '#2a2a2a',
-          // POPRAVEK: Dinamična višina glede na napravo + fiksni dodatek
-          height: Platform.OS === 'ios' ? 95 : 70, 
-          paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-          paddingTop: 8,
-          position: 'absolute', // To včasih pomaga pri layoutu
-          bottom: 0,
-          left: 0,
-          right: 0,
+          borderTopColor: '#333',
+          // POPRAVEK: Zelo varna višina, da se gumbi ne skrijejo
+          height: Platform.OS === 'ios' ? 110 : 80,
+          paddingBottom: Platform.OS === 'ios' ? 35 : 15,
+          paddingTop: 10,
           elevation: 0,
         },
         tabBarActiveTintColor: '#4a9eff',
-        tabBarInactiveTintColor: '#6b7280',
+        tabBarInactiveTintColor: '#9ca3af',
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: '600',
-          marginTop: 2,
+          marginTop: 4,
         },
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Igra',
-          tabBarIcon: ({ color, size }) => <Play size={28} color={color} fill={color === '#4a9eff' ? color : 'transparent'} />,
+          tabBarIcon: ({ color, size }) => <Play size={30} color={color} fill={color === '#4a9eff' ? color : 'transparent'} />,
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
           title: 'Zgodovina',
-          tabBarIcon: ({ color, size }) => <History size={28} color={color} />,
+          tabBarIcon: ({ color, size }) => <History size={30} color={color} />,
         }}
       />
       
