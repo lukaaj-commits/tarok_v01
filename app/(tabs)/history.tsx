@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
   Dimensions
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
-import { ChevronRight, Trophy, Trash2, CheckCircle, Info, X, TrendingUp, Calendar } from 'lucide-react-native';
+import { ChevronRight, Trophy, Trash2, CheckCircle, Info, TrendingUp, Calendar } from 'lucide-react-native';
 import { useIsFocused } from '@react-navigation/native';
 
 type Game = { id: string; name: string; created_at: string; is_active: boolean; radelci_active: number; radelci_used: number; };
@@ -21,7 +21,6 @@ type GamePlayer = { id: string; name: string; total_score: number; position: num
 type Radelc = { id: string; player_id: string; is_used: boolean; position: number; };
 type ScoreEntry = { id: string; points: number; created_at: string; played: boolean; player_id?: string; };
 
-// Statistika za večno lestvico
 type PlayerStats = { 
     name: string; 
     wins: number; 
@@ -47,9 +46,12 @@ export default function History() {
   const [globalStats, setGlobalStats] = useState<PlayerStats[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
   
-  // Podrobnosti igralca na večni lestvici
+  // Podrobnosti igralca
   const [selectedGlobalPlayer, setSelectedGlobalPlayer] = useState<PlayerStats | null>(null);
   const [showGlobalPlayerModal, setShowGlobalPlayerModal] = useState(false);
+
+  // Za izris grafa
+  const [chartWidth, setChartWidth] = useState(0);
 
   const isFocused = useIsFocused();
   useEffect(() => { if (isFocused) loadGames(); }, [isFocused]);
@@ -116,7 +118,6 @@ export default function History() {
     } catch (error) { console.error(error); }
   };
 
-  // --- IZRAČUN LESTVICE IN UVRSTITVE ---
   const loadGlobalStats = async () => {
     setStatsLoading(true);
     setShowGlobalStatsModal(true);
@@ -137,7 +138,6 @@ export default function History() {
         if (!allPlayers) { setGlobalStats([]); return; }
 
         const statsMap = new Map<string, PlayerStats>();
-        
         const playersByGame = allPlayers.reduce((acc, p) => {
             if (!acc[p.game_id]) acc[p.game_id] = [];
             acc[p.game_id].push(p);
@@ -147,18 +147,12 @@ export default function History() {
         Object.keys(playersByGame).forEach(gameId => {
             const gameP = playersByGame[gameId];
             gameP.sort((a, b) => b.total_score - a.total_score);
-            
             const gameInfo = gameMap.get(gameId) || {date: '', name: ''};
 
             gameP.forEach((p) => {
                 const name = p.name; 
                 if (!statsMap.has(name)) {
-                    statsMap.set(name, { 
-                        name, 
-                        wins: 0, second: 0, third: 0, 
-                        total_games: 0, 
-                        recent_ranks: [] 
-                    });
+                    statsMap.set(name, { name, wins: 0, second: 0, third: 0, total_games: 0, recent_ranks: [] });
                 }
                 const stat = statsMap.get(name)!;
                 stat.total_games += 1;
@@ -171,11 +165,7 @@ export default function History() {
                 if (myRank === 2) stat.second += 1;
                 if (myRank === 3) stat.third += 1;
 
-                stat.recent_ranks.push({ 
-                    rank: myRank, 
-                    date: gameInfo.date,
-                    gameName: gameInfo.name
-                });
+                stat.recent_ranks.push({ rank: myRank, date: gameInfo.date, gameName: gameInfo.name });
             });
         });
 
@@ -229,6 +219,24 @@ export default function History() {
       </TouchableOpacity>
   );
 
+  // --- KOMPONENTA ZA IZRIS ČRTE (Line Segment) ---
+  const Line = ({ x1, y1, x2, y2, color }: { x1: number, y1: number, x2: number, y2: number, color: string }) => {
+      const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+      const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
+      
+      return (
+          <View style={{
+              position: 'absolute',
+              left: (x1 + x2) / 2 - length / 2,
+              top: (y1 + y2) / 2 - 1, // debelina črte / 2
+              width: length,
+              height: 2,
+              backgroundColor: color,
+              transform: [{ rotate: `${angle}deg` }]
+          }} />
+      );
+  };
+
   if (loading) return (<View style={styles.container}><Text style={styles.loadingText}>Nalaganje...</Text></View>);
 
   return (
@@ -248,7 +256,7 @@ export default function History() {
         ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>Ni še nobene igre</Text></View>}
       />
 
-      {/* --- MODAL: VEČNA LESTVICA (Seznam) --- */}
+      {/* --- MODAL: VEČNA LESTVICA --- */}
       <Modal visible={showGlobalStatsModal} transparent animationType="slide" onRequestClose={() => setShowGlobalStatsModal(false)}>
          <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, styles.historyModal]}>
@@ -297,7 +305,7 @@ export default function History() {
          </View>
       </Modal>
 
-      {/* --- NOVO: MODAL S PODROBNOSTMI IGRALCA (Graf + Forma) --- */}
+      {/* --- MODAL S PODROBNOSTMI IGRALCA (Graf + Forma) --- */}
       <Modal visible={showGlobalPlayerModal} transparent animationType="slide" onRequestClose={() => setShowGlobalPlayerModal(false)}>
          <View style={styles.modalOverlay}>
              <View style={[styles.modalContent, styles.historyModal]}>
@@ -308,7 +316,7 @@ export default function History() {
                         </View>
 
                         <ScrollView style={styles.detailScroll}>
-                            {/* FORMA SECTION */}
+                            {/* FORMA */}
                             <View style={styles.formSection}>
                                 <Text style={styles.sectionTitle}>Trenutna forma</Text>
                                 {(() => {
@@ -325,40 +333,86 @@ export default function History() {
                                 })()}
                             </View>
 
-                            {/* GRAF UVRSTITEV (Bar Chart vizualizacija) */}
+                            {/* ČRTNI GRAF (Line Chart) */}
                             <View style={styles.chartSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:10}}>
+                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:20}}>
                                     <TrendingUp size={20} color="#4a9eff" style={{marginRight:8}} />
                                     <Text style={styles.sectionTitle}>Gibanje uvrstitev (Zadnjih 10)</Text>
                                 </View>
-                                <View style={styles.chartContainer}>
-                                    {selectedGlobalPlayer.recent_ranks.slice(0, 10).reverse().map((r, i) => {
-                                        // Višina stolpca: 1. mesto = 100%, 5. mesto = 20%
-                                        // Formula: max(10, 110 - rank*20)
-                                        let heightPercent = Math.max(10, 110 - (r.rank * 20));
-                                        if(r.rank === 1) heightPercent = 100;
+                                
+                                <View 
+                                    style={styles.chartContainer}
+                                    onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}
+                                >
+                                    {/* Mreža ozadja (Grid Lines) */}
+                                    <View style={[styles.gridLine, {top: 0}]}><Text style={styles.gridLabel}>1.</Text></View>
+                                    <View style={[styles.gridLine, {top: '50%'}]}><Text style={styles.gridLabel}>5.</Text></View>
+                                    <View style={[styles.gridLine, {top: '100%'}]}><Text style={styles.gridLabel}>10.</Text></View>
+
+                                    {/* Izris točk in črt */}
+                                    {(() => {
+                                        if (chartWidth === 0) return null;
                                         
-                                        // Barva glede na mesto
-                                        let barColor = '#333';
-                                        if(r.rank === 1) barColor = '#ffd700';
-                                        else if(r.rank === 2) barColor = '#c0c0c0';
-                                        else if(r.rank === 3) barColor = '#cd7f32';
+                                        const data = selectedGlobalPlayer.recent_ranks.slice(0, 10).reverse();
+                                        const chartHeight = 150;
+                                        const totalPoints = data.length;
+                                        // Če je samo ena točka, jo prikažemo na sredini
+                                        const stepX = totalPoints > 1 ? chartWidth / (totalPoints - 1) : chartWidth / 2;
                                         
+                                        // Priprava koordinat
+                                        const points = data.map((r, i) => {
+                                            // Y: 1. mesto = 0 (zgoraj), 10. mesto = height (spodaj)
+                                            // Omejimo na max 10. mesto za graf
+                                            const cappedRank = Math.min(r.rank, 10);
+                                            const y = ((cappedRank - 1) / 9) * chartHeight; 
+                                            const x = totalPoints > 1 ? i * stepX : chartWidth / 2;
+                                            return { x, y, rank: r.rank };
+                                        });
+
                                         return (
-                                            <View key={i} style={styles.chartBarWrapper}>
-                                                <Text style={styles.chartRankLabel}>{r.rank}.</Text>
-                                                <View style={[styles.chartBar, {height: `${heightPercent}%`, backgroundColor: barColor}]} />
+                                            <View style={{ width: '100%', height: '100%' }}>
+                                                {/* Črte */}
+                                                {points.map((p, i) => {
+                                                    if (i === points.length - 1) return null;
+                                                    const nextP = points[i+1];
+                                                    return (
+                                                        <Line key={`line-${i}`} x1={p.x} y1={p.y} x2={nextP.x} y2={nextP.y} color="#4a9eff" />
+                                                    );
+                                                })}
+                                                {/* Točke */}
+                                                {points.map((p, i) => {
+                                                    let dotColor = '#fff';
+                                                    if (p.rank === 1) dotColor = '#ffd700';
+                                                    else if (p.rank === 2) dotColor = '#c0c0c0';
+                                                    else if (p.rank === 3) dotColor = '#cd7f32';
+
+                                                    return (
+                                                        <View key={`dot-${i}`} style={{
+                                                            position: 'absolute',
+                                                            left: p.x - 5,
+                                                            top: p.y - 5,
+                                                            width: 10,
+                                                            height: 10,
+                                                            borderRadius: 5,
+                                                            backgroundColor: '#1a1a1a',
+                                                            borderWidth: 2,
+                                                            borderColor: dotColor,
+                                                            zIndex: 10
+                                                        }} />
+                                                    );
+                                                })}
                                             </View>
                                         );
-                                    })}
+                                    })()}
                                 </View>
+                                
                                 <View style={styles.chartXAxis}>
-                                    <Text style={styles.axisLabel}>Starejše ⬅️</Text>
-                                    <Text style={styles.axisLabel}>➡️ Novejše</Text>
+                                    <Text style={styles.axisLabel}>Starejše</Text>
+                                    <Text style={styles.axisLabel}>Novejše</Text>
                                 </View>
                             </View>
 
-                            {/* ZADNJIH 5 IGER LISTA */}
+                            {/* ZADNJIH 5 IGER - POPRAVEK TEXTA */}
                             <View style={styles.lastGamesSection}>
                                 <View style={{flexDirection:'row', alignItems:'center', marginBottom:10}}>
                                     <Calendar size={20} color="#4a9eff" style={{marginRight:8}} />
@@ -367,8 +421,15 @@ export default function History() {
                                 {selectedGlobalPlayer.recent_ranks.slice(0, 5).map((r, i) => (
                                     <View key={i} style={styles.rankRow}>
                                         <Text style={styles.rankRowDate}>{new Date(r.date).toLocaleDateString('sl-SI')}</Text>
-                                        <View style={styles.rankBadge}>
-                                            <Text style={[styles.rankBadgeText, r.rank <= 3 && {color: '#000', fontWeight: 'bold'}]}>
+                                        
+                                        {/* Popravek: Dodana logika za barvo roba/ozadja in BEL TEKST */}
+                                        <View style={[
+                                            styles.rankBadge, 
+                                            r.rank === 1 && {borderColor: '#ffd700', borderWidth: 1},
+                                            r.rank === 2 && {borderColor: '#c0c0c0', borderWidth: 1},
+                                            r.rank === 3 && {borderColor: '#cd7f32', borderWidth: 1}
+                                        ]}>
+                                            <Text style={styles.rankBadgeText}>
                                                 {r.rank}. mesto
                                             </Text>
                                         </View>
@@ -386,7 +447,7 @@ export default function History() {
          </View>
       </Modal>
 
-      {/* --- IGRALČEVI PODATKI ZA POSAMEZNO IGRO (Nespremenjeno) --- */}
+      {/* --- OSTALI MODALI (Igra, Zgodovina igralca) --- */}
       <Modal visible={showGameModal} transparent animationType="slide" onRequestClose={() => setShowGameModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -433,7 +494,6 @@ export default function History() {
         </View>
       </Modal>
 
-      {/* --- ZGODOVINA TOČK V POSAMEZNI IGRI --- */}
       <Modal visible={showPlayerHistoryModal} transparent animationType="slide" onRequestClose={() => setShowPlayerHistoryModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -572,12 +632,10 @@ const styles = StyleSheet.create({
       borderRadius: 10, 
       marginBottom: 10, 
   },
-  rankText: { color: '#888', fontSize: 18, fontWeight: '700' },
   leaderboardName: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1 },
   medalBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#222', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6 },
   medalText: { color: '#fff', fontWeight: '700', marginLeft: 2, fontSize: 12 },
   
-  // STYLES FOR PLAYER DETAIL MODAL
   detailHeader: { alignItems: 'center', marginBottom: 20 },
   detailScroll: { flex: 1, marginBottom: 16 },
   sectionTitle: { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 12 },
@@ -588,16 +646,15 @@ const styles = StyleSheet.create({
   formSubText: { color: '#666', marginTop: 4 },
 
   chartSection: { marginBottom: 24, backgroundColor: '#222', padding: 16, borderRadius: 16 },
-  chartContainer: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 150, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#444' },
-  chartBarWrapper: { alignItems: 'center', flex: 1 },
-  chartBar: { width: 12, borderRadius: 4, minHeight: 4 },
-  chartRankLabel: { color: '#888', fontSize: 10, marginBottom: 4 },
+  chartContainer: { height: 170, paddingBottom: 10, marginTop: 10 },
   chartXAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   axisLabel: { color: '#666', fontSize: 10 },
+  gridLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: '#333', justifyContent: 'center' },
+  gridLabel: { color: '#444', fontSize: 10, position: 'absolute', left: 0, top: -15 },
 
   lastGamesSection: { marginBottom: 20 },
   rankRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#333' },
   rankRowDate: { color: '#888', fontSize: 14 },
-  rankBadge: { backgroundColor: '#333', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  rankBadgeText: { color: '#ccc', fontSize: 14, fontWeight: '600' },
+  rankBadge: { backgroundColor: '#333', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, minWidth: 90, alignItems: 'center' },
+  rankBadgeText: { color: '#fff', fontSize: 14, fontWeight: '700' }, // VEDNO BELA
 });
