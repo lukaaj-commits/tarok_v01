@@ -41,16 +41,13 @@ export default function History() {
   const [selectedPlayerName, setSelectedPlayerName] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Globalna statistika
   const [showGlobalStatsModal, setShowGlobalStatsModal] = useState(false);
   const [globalStats, setGlobalStats] = useState<PlayerStats[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
   
-  // Podrobnosti igralca
   const [selectedGlobalPlayer, setSelectedGlobalPlayer] = useState<PlayerStats | null>(null);
   const [showGlobalPlayerModal, setShowGlobalPlayerModal] = useState(false);
 
-  // Za izris grafa
   const [chartWidth, setChartWidth] = useState(0);
 
   const isFocused = useIsFocused();
@@ -219,20 +216,13 @@ export default function History() {
       </TouchableOpacity>
   );
 
-  // --- KOMPONENTA ZA IZRIS ČRTE (Line Segment) ---
   const Line = ({ x1, y1, x2, y2, color }: { x1: number, y1: number, x2: number, y2: number, color: string }) => {
       const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
       const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
-      
       return (
           <View style={{
-              position: 'absolute',
-              left: (x1 + x2) / 2 - length / 2,
-              top: (y1 + y2) / 2 - 1, // debelina črte / 2
-              width: length,
-              height: 2,
-              backgroundColor: color,
-              transform: [{ rotate: `${angle}deg` }]
+              position: 'absolute', left: (x1 + x2) / 2 - length / 2, top: (y1 + y2) / 2 - 1,
+              width: length, height: 2, backgroundColor: color, transform: [{ rotate: `${angle}deg` }]
           }} />
       );
   };
@@ -256,7 +246,6 @@ export default function History() {
         ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>Ni še nobene igre</Text></View>}
       />
 
-      {/* --- MODAL: VEČNA LESTVICA --- */}
       <Modal visible={showGlobalStatsModal} transparent animationType="slide" onRequestClose={() => setShowGlobalStatsModal(false)}>
          <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, styles.historyModal]}>
@@ -305,7 +294,6 @@ export default function History() {
          </View>
       </Modal>
 
-      {/* --- MODAL S PODROBNOSTMI IGRALCA (Graf + Forma) --- */}
       <Modal visible={showGlobalPlayerModal} transparent animationType="slide" onRequestClose={() => setShowGlobalPlayerModal(false)}>
          <View style={styles.modalOverlay}>
              <View style={[styles.modalContent, styles.historyModal]}>
@@ -316,7 +304,6 @@ export default function History() {
                         </View>
 
                         <ScrollView style={styles.detailScroll}>
-                            {/* FORMA */}
                             <View style={styles.formSection}>
                                 <Text style={styles.sectionTitle}>Trenutna forma</Text>
                                 {(() => {
@@ -333,7 +320,6 @@ export default function History() {
                                 })()}
                             </View>
 
-                            {/* ČRTNI GRAF (Line Chart) */}
                             <View style={styles.chartSection}>
                                 <View style={{flexDirection:'row', alignItems:'center', marginBottom:20}}>
                                     <TrendingUp size={20} color="#4a9eff" style={{marginRight:8}} />
@@ -344,25 +330,18 @@ export default function History() {
                                     style={styles.chartContainer}
                                     onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}
                                 >
-                                    {/* Mreža ozadja (Grid Lines) */}
                                     <View style={[styles.gridLine, {top: 0}]}><Text style={styles.gridLabel}>1.</Text></View>
                                     <View style={[styles.gridLine, {top: '50%'}]}><Text style={styles.gridLabel}>5.</Text></View>
                                     <View style={[styles.gridLine, {top: '100%'}]}><Text style={styles.gridLabel}>10.</Text></View>
 
-                                    {/* Izris točk in črt */}
                                     {(() => {
                                         if (chartWidth === 0) return null;
-                                        
                                         const data = selectedGlobalPlayer.recent_ranks.slice(0, 10).reverse();
-                                        const chartHeight = 150;
+                                        const chartHeight = 120; // ZMANJŠANA VIŠINA GRAFA
                                         const totalPoints = data.length;
-                                        // Če je samo ena točka, jo prikažemo na sredini
                                         const stepX = totalPoints > 1 ? chartWidth / (totalPoints - 1) : chartWidth / 2;
                                         
-                                        // Priprava koordinat
                                         const points = data.map((r, i) => {
-                                            // Y: 1. mesto = 0 (zgoraj), 10. mesto = height (spodaj)
-                                            // Omejimo na max 10. mesto za graf
                                             const cappedRank = Math.min(r.rank, 10);
                                             const y = ((cappedRank - 1) / 9) * chartHeight; 
                                             const x = totalPoints > 1 ? i * stepX : chartWidth / 2;
@@ -371,35 +350,17 @@ export default function History() {
 
                                         return (
                                             <View style={{ width: '100%', height: '100%' }}>
-                                                {/* Črte */}
                                                 {points.map((p, i) => {
                                                     if (i === points.length - 1) return null;
                                                     const nextP = points[i+1];
-                                                    return (
-                                                        <Line key={`line-${i}`} x1={p.x} y1={p.y} x2={nextP.x} y2={nextP.y} color="#4a9eff" />
-                                                    );
+                                                    return (<Line key={`line-${i}`} x1={p.x} y1={p.y} x2={nextP.x} y2={nextP.y} color="#4a9eff" />);
                                                 })}
-                                                {/* Točke */}
                                                 {points.map((p, i) => {
                                                     let dotColor = '#fff';
                                                     if (p.rank === 1) dotColor = '#ffd700';
                                                     else if (p.rank === 2) dotColor = '#c0c0c0';
                                                     else if (p.rank === 3) dotColor = '#cd7f32';
-
-                                                    return (
-                                                        <View key={`dot-${i}`} style={{
-                                                            position: 'absolute',
-                                                            left: p.x - 5,
-                                                            top: p.y - 5,
-                                                            width: 10,
-                                                            height: 10,
-                                                            borderRadius: 5,
-                                                            backgroundColor: '#1a1a1a',
-                                                            borderWidth: 2,
-                                                            borderColor: dotColor,
-                                                            zIndex: 10
-                                                        }} />
-                                                    );
+                                                    return (<View key={`dot-${i}`} style={{position: 'absolute', left: p.x - 5, top: p.y - 5, width: 10, height: 10, borderRadius: 5, backgroundColor: '#1a1a1a', borderWidth: 2, borderColor: dotColor, zIndex: 10}} />);
                                                 })}
                                             </View>
                                         );
@@ -412,7 +373,6 @@ export default function History() {
                                 </View>
                             </View>
 
-                            {/* ZADNJIH 5 IGER - POPRAVEK TEXTA */}
                             <View style={styles.lastGamesSection}>
                                 <View style={{flexDirection:'row', alignItems:'center', marginBottom:10}}>
                                     <Calendar size={20} color="#4a9eff" style={{marginRight:8}} />
@@ -422,13 +382,8 @@ export default function History() {
                                     <View key={i} style={styles.rankRow}>
                                         <Text style={styles.rankRowDate}>{new Date(r.date).toLocaleDateString('sl-SI')}</Text>
                                         
-                                        {/* Popravek: Dodana logika za barvo roba/ozadja in BEL TEKST */}
-                                        <View style={[
-                                            styles.rankBadge, 
-                                            r.rank === 1 && {borderColor: '#ffd700', borderWidth: 1},
-                                            r.rank === 2 && {borderColor: '#c0c0c0', borderWidth: 1},
-                                            r.rank === 3 && {borderColor: '#cd7f32', borderWidth: 1}
-                                        ]}>
+                                        {/* POPRAVEK: ODSTRANJENE BARVNE OBROBE */}
+                                        <View style={styles.rankBadge}>
                                             <Text style={styles.rankBadgeText}>
                                                 {r.rank}. mesto
                                             </Text>
@@ -447,7 +402,6 @@ export default function History() {
          </View>
       </Modal>
 
-      {/* --- OSTALI MODALI (Igra, Zgodovina igralca) --- */}
       <Modal visible={showGameModal} transparent animationType="slide" onRequestClose={() => setShowGameModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -632,6 +586,7 @@ const styles = StyleSheet.create({
       borderRadius: 10, 
       marginBottom: 10, 
   },
+  rankText: { color: '#fff', fontSize: 18, fontWeight: '700' }, // POPRAVEK: Bela barva za 4., 5., ...
   leaderboardName: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1 },
   medalBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#222', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6 },
   medalText: { color: '#fff', fontWeight: '700', marginLeft: 2, fontSize: 12 },
@@ -646,7 +601,7 @@ const styles = StyleSheet.create({
   formSubText: { color: '#666', marginTop: 4 },
 
   chartSection: { marginBottom: 24, backgroundColor: '#222', padding: 16, borderRadius: 16 },
-  chartContainer: { height: 170, paddingBottom: 10, marginTop: 10 },
+  chartContainer: { height: 140, paddingBottom: 10, marginTop: 10 }, // POPRAVEK: Zmanjšana višina kontejnerja
   chartXAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   axisLabel: { color: '#666', fontSize: 10 },
   gridLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: '#333', justifyContent: 'center' },
@@ -656,5 +611,5 @@ const styles = StyleSheet.create({
   rankRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#333' },
   rankRowDate: { color: '#888', fontSize: 14 },
   rankBadge: { backgroundColor: '#333', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, minWidth: 90, alignItems: 'center' },
-  rankBadgeText: { color: '#fff', fontSize: 14, fontWeight: '700' }, // VEDNO BELA
+  rankBadgeText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 });
