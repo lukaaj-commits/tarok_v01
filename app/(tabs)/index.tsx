@@ -8,15 +8,13 @@ import {
   Modal,
   FlatList,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   Alert,
   Keyboard, 
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { Plus, Info, Trash2, RotateCcw, Play, ChevronLeft, Trophy, Search, UserPlus, CheckCircle2 } from 'lucide-react-native';
+import { Plus, Info, Trash2, RotateCcw, Play, ChevronLeft, Trophy, Search, UserPlus, CheckCircle2, Delete } from 'lucide-react-native';
 
 type PlayerProfile = { id: string; name: string; };
 type Player = { id: string; name: string; total_score: number; position: number; profile_id?: string; };
@@ -45,20 +43,18 @@ export default function ActiveGame() {
   const [showKlopModal, setShowKlopModal] = useState(false);
   const [playerHistory, setPlayerHistory] = useState<ScoreEntry[]>([]);
   
-  // --- JEDRSKA OPCIJA: STANJE ZA "FISHING" INPUT ---
-  // Ko je false, kažemo samo gumb (tipkovnica nemogoča).
-  // Ko je true, pokažemo pravi input.
+  // Stanje za "lažni" input pri iskanju igralcev
   const [isInputActive, setIsInputActive] = useState(false);
 
-  const scoreInputRef = useRef<TextInput>(null);
+  const searchInputRef = useRef<TextInput>(null);
 
   useFocusEffect(useCallback(() => { fetchActiveGamesList(); }, []));
   useEffect(() => { fetchProfiles(false); }, []);
 
-  // Resetiramo stanje inputa vsakič, ko odpremo modal
+  // Resetiramo stanje inputa za iskanje
   useEffect(() => {
     if (showAddPlayerModal) {
-      setIsInputActive(false); // Začnemo z "lažnim" inputom
+      setIsInputActive(false); 
       setSearchQuery('');
     }
   }, [showAddPlayerModal]);
@@ -165,20 +161,30 @@ export default function ActiveGame() {
     setRadelci(radelci.map(r => r.id === radId ? { ...r, is_used: !current } : r));
   };
 
+  // --- VNOS TOČK ---
   const openScoreInput = (playerId: string) => {
-    setSelectedPlayerId(playerId); setScoreInput(''); setScorePlayed(false); setShowScoreModal(true);
+    setSelectedPlayerId(playerId); 
+    setScoreInput(''); 
+    setScorePlayed(false); 
+    setShowScoreModal(true);
   };
 
-  useEffect(() => {
-    if (showScoreModal) { setTimeout(() => scoreInputRef.current?.focus(), 100); }
-  }, [showScoreModal]);
-
-  const toggleSign = () => {
-    setScoreInput((prev) => {
-      if (!prev) return '-';
-      if (prev.startsWith('-')) return prev.substring(1);
-      return '-' + prev;
-    });
+  // --- NUMPAD LOGIKA ---
+  const handleNumpadPress = (value: string) => {
+    if (value === 'DEL') {
+        setScoreInput(prev => prev.slice(0, -1));
+        return;
+    }
+    if (value === '-') {
+        setScoreInput(prev => {
+            if (prev.startsWith('-')) return prev.substring(1);
+            return '-' + prev;
+        });
+        return;
+    }
+    // Omejitev dolžine (da ne pišejo v neskončnost)
+    if (scoreInput.length > 5) return;
+    setScoreInput(prev => prev + value);
   };
 
   const submitScore = async () => {
@@ -214,41 +220,23 @@ export default function ActiveGame() {
   const finishGame = async () => {
     if (!gameId) return;
     setLoading(true);
-    
     try {
         const updates = players.map(async (p) => {
             const unusedRadelci = radelci.filter(r => r.player_id === p.id && !r.is_used);
-            
             if (unusedRadelci.length > 0) {
                 const penalty = unusedRadelci.length * -50;
-                
                 await supabase.from('score_entries').insert({
-                    game_id: gameId,
-                    player_id: p.id,
-                    points: penalty,
-                    played: false 
+                    game_id: gameId, player_id: p.id, points: penalty, played: false 
                 });
-
-                await supabase.from('players').update({ 
-                    total_score: p.total_score + penalty 
-                }).eq('id', p.id);
-
+                await supabase.from('players').update({ total_score: p.total_score + penalty }).eq('id', p.id);
                 const radelcIds = unusedRadelci.map(r => r.id);
                 await supabase.from('radelci').update({ is_used: true }).in('id', radelcIds);
             }
         });
-
         await Promise.all(updates);
         await supabase.from('games').update({ is_active: false }).eq('id', gameId);
-        
-        setShowFinishGameModal(false);
-        exitToLobby();
-
-    } catch (e) {
-        Alert.alert("Napaka", "Prišlo je do napake pri zaključevanju.");
-    } finally {
-        setLoading(false);
-    }
+        setShowFinishGameModal(false); exitToLobby();
+    } catch (e) { Alert.alert("Napaka", "Prišlo je do napake pri zaključevanju."); } finally { setLoading(false); }
   };
 
   const renderPlayer = ({ item }: { item: Player }) => {
@@ -271,11 +259,7 @@ export default function ActiveGame() {
         </TouchableOpacity>
         <ScrollView horizontal style={styles.radelciContainer} showsHorizontalScrollIndicator={false}>
           {pRadelci.map(r => (
-            <TouchableOpacity 
-                key={r.id} 
-                onPress={() => toggleRadelc(r.id, r.is_used)}
-                hitSlop={{top: 15, bottom: 15, left: 10, right: 10}}
-            >
+            <TouchableOpacity key={r.id} onPress={() => toggleRadelc(r.id, r.is_used)} hitSlop={{top: 15, bottom: 15, left: 10, right: 10}}>
               <View style={[styles.radelc, r.is_used ? styles.radelcUsed : styles.radelcUnused]} />
             </TouchableOpacity>
           ))}
@@ -304,18 +288,17 @@ export default function ActiveGame() {
 
       <FlatList data={players} keyExtractor={(item) => item.id} renderItem={renderPlayer} contentContainerStyle={styles.listContainer} ListEmptyComponent={<Text style={styles.emptyText}>Dodaj igralce za začetek.</Text>} />
 
+      {/* --- MODAL: DODAJ IGRALCA (Z "The Swap Trick") --- */}
       <Modal visible={showAddPlayerModal} animationType="slide" transparent onRequestClose={() => setShowAddPlayerModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { height: '90%', maxHeight: '90%' }]}>
             <Text style={styles.modalTitle}>Dodaj igralca</Text>
             
-            {/* --- JEDRSKA REŠITEV ZA TIPKOVNICO --- */}
             {isInputActive ? (
-                // PRAVI INPUT (Ko uporabnik klikne)
                 <View style={styles.searchContainer}>
                     <Search size={24} color="#666" style={{ marginRight: 12 }} />
                     <TextInput
-                        autoFocus={true} // Ko se to prikaže, naj se TAKOJ odpre tipkovnica
+                        autoFocus={true} 
                         style={[styles.searchInput, { outlineStyle: 'none', borderWidth: 0 } as any]}
                         placeholder="Išči ali ustvari novega..."
                         placeholderTextColor="#666"
@@ -327,17 +310,11 @@ export default function ActiveGame() {
                     />
                 </View>
             ) : (
-                // LAŽNI INPUT (Samo gumb - tipkovnica se NE more odpreti)
-                <TouchableOpacity 
-                    style={styles.searchContainer} 
-                    activeOpacity={1} 
-                    onPress={() => setIsInputActive(true)} // Ob kliku zamenjaj s pravim
-                >
+                <TouchableOpacity style={styles.searchContainer} activeOpacity={1} onPress={() => setIsInputActive(true)}>
                     <Search size={24} color="#666" style={{ marginRight: 12 }} />
                     <Text style={{color: '#666', fontSize: 20}}>Išči ali ustvari novega...</Text>
                 </TouchableOpacity>
             )}
-            {/* ----------------------------------- */}
 
             {allProfiles.length === 0 && searchQuery.length === 0 && (<Text style={{color: '#666', textAlign: 'center', marginBottom: 10}}>Nalagam imenik...</Text>)}
             <FlatList
@@ -362,16 +339,54 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
+      {/* --- MODAL: VNOS TOČK (LASTNA ŠTEVILČNICA) --- */}
       <Modal visible={showScoreModal} transparent animationType="fade" onRequestClose={() => setShowScoreModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+        <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Vnesi točke</Text>
-            <View style={styles.inputRow}>
-              <TouchableOpacity style={styles.signButton} onPress={toggleSign} activeOpacity={0.7}><Text style={styles.signButtonText}>+/-</Text></TouchableOpacity>
-              <View style={styles.scoreInputWrapper}>
-                <TextInput ref={scoreInputRef} style={styles.scoreInputField} value={scoreInput} onChangeText={setScoreInput} keyboardType="numeric" returnKeyType="done" placeholder="20" placeholderTextColor="#666" />
-              </View>
+            
+            {/* ZASLON ZA TOČKE */}
+            <View style={styles.scoreDisplay}>
+                <Text style={styles.scoreDisplayText}>{scoreInput || '0'}</Text>
             </View>
+
+            {/* --- LASTNA ŠTEVILČNICA --- */}
+            <View style={styles.numpadContainer}>
+                <View style={styles.numpadRow}>
+                    {[1, 2, 3].map(n => (
+                        <TouchableOpacity key={n} style={styles.numpadButton} onPress={() => handleNumpadPress(n.toString())}>
+                            <Text style={styles.numpadText}>{n}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+                <View style={styles.numpadRow}>
+                    {[4, 5, 6].map(n => (
+                        <TouchableOpacity key={n} style={styles.numpadButton} onPress={() => handleNumpadPress(n.toString())}>
+                            <Text style={styles.numpadText}>{n}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+                <View style={styles.numpadRow}>
+                    {[7, 8, 9].map(n => (
+                        <TouchableOpacity key={n} style={styles.numpadButton} onPress={() => handleNumpadPress(n.toString())}>
+                            <Text style={styles.numpadText}>{n}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+                <View style={styles.numpadRow}>
+                    <TouchableOpacity style={[styles.numpadButton, styles.numpadActionButton]} onPress={() => handleNumpadPress('-')}>
+                        <Text style={styles.numpadText}>-</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.numpadButton} onPress={() => handleNumpadPress('0')}>
+                        <Text style={styles.numpadText}>0</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.numpadButton, styles.numpadActionButton]} onPress={() => handleNumpadPress('DEL')}>
+                        <Delete size={28} color="#fff" />
+                    </TouchableOpacity>
+                </View>
+            </View>
+            {/* ----------------------------- */}
+
             <TouchableOpacity style={styles.playedToggleContainer} onPress={() => setScorePlayed(!scorePlayed)} activeOpacity={0.8}>
                 <View style={[styles.checkboxBase, scorePlayed && styles.checkboxChecked]}>{scorePlayed && <CheckCircle2 size={20} color="#000" />}</View>
                 <Text style={styles.playedLabel}>Igralec je igral?</Text>
@@ -381,7 +396,7 @@ export default function ActiveGame() {
               <TouchableOpacity style={[styles.modalButton, styles.submitButton]} onPress={submitScore} disabled={submitting}>{submitting ? (<ActivityIndicator size="small" color="#fff" />) : (<Text style={styles.modalButtonText}>Potrdi</Text>)}</TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       <Modal visible={showHistoryModal} transparent animationType="slide" onRequestClose={() => setShowHistoryModal(false)}>
@@ -399,9 +414,7 @@ export default function ActiveGame() {
                           <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
                       </View>
                       <View style={styles.dotContainer}>
-                          {/* RUMENA PIKA (igral) */}
                           {entry.played && <View style={styles.playedDot} />}
-                          {/* MODRA PIKA (kazen: ni igral in negativne točke) */}
                           {!entry.played && entry.points < 0 && <View style={styles.radelcDot} />}
                       </View>
                     </View>
@@ -550,4 +563,46 @@ const styles = StyleSheet.create({
   checkboxBase: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: '#4a9eff', alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' },
   checkboxChecked: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   playedLabel: { color: '#fff', fontSize: 16, fontWeight: '600' },
+
+  // --- STILI ZA NUMPAD ---
+  scoreDisplay: {
+    backgroundColor: '#2a2a2a',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  scoreDisplayText: {
+    color: '#fff',
+    fontSize: 48,
+    fontWeight: '700',
+  },
+  numpadContainer: {
+    width: '100%',
+    gap: 8,
+    marginBottom: 20,
+  },
+  numpadRow: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  numpadButton: {
+    flex: 1,
+    backgroundColor: '#333',
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  numpadActionButton: {
+    backgroundColor: '#444',
+  },
+  numpadText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '600',
+  },
 });
