@@ -45,20 +45,20 @@ export default function ActiveGame() {
   const [showKlopModal, setShowKlopModal] = useState(false);
   const [playerHistory, setPlayerHistory] = useState<ScoreEntry[]>([]);
   
-  // FIX ZA ANDROID TIPKOVNICO: Stanje, ki dovoli odprtje tipkovnice šele na klik
-  const [allowKeyboard, setAllowKeyboard] = useState(false);
-
   const scoreInputRef = useRef<TextInput>(null);
   const searchInputRef = useRef<TextInput>(null);
 
   useFocusEffect(useCallback(() => { fetchActiveGamesList(); }, []));
   useEffect(() => { fetchProfiles(false); }, []);
 
-  // Resetiramo dovoljenje za tipkovnico, ko se odpre modal
+  // --- POPRAVEK: SAMO ENKRAT ZAPREMO OB ODPIRANJU ---
   useEffect(() => {
     if (showAddPlayerModal) {
-      setAllowKeyboard(false); 
-      Keyboard.dismiss();
+      // Počakamo trenutek in zapremo, da preprečimo auto-popup na Androidu
+      const timer = setTimeout(() => {
+        Keyboard.dismiss();
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [showAddPlayerModal]);
 
@@ -209,7 +209,7 @@ export default function ActiveGame() {
     setPlayerHistory(data || []); setSelectedPlayerId(pid); setShowHistoryModal(true);
   };
 
-  // --- ZAKLJUČEK IGRE ---
+  // --- ZAKLJUČEK IGRE (KAZNI + MODRA PIKA) ---
   const finishGame = async () => {
     if (!gameId) return;
     setLoading(true);
@@ -225,7 +225,9 @@ export default function ActiveGame() {
                     game_id: gameId,
                     player_id: p.id,
                     points: penalty,
-                    played: false // To pomeni, da je kazen (za modro piko)
+                    // MODRA PIKA TRIK:
+                    // played: false pomeni "ni igral runde"
+                    played: false 
                 });
 
                 await supabase.from('players').update({ 
@@ -309,7 +311,12 @@ export default function ActiveGame() {
             <Text style={styles.modalTitle}>Dodaj igralca</Text>
             <View style={styles.searchContainer}>
                 <Search size={24} color="#666" style={{ marginRight: 12 }} />
-                {/* FIX ZA ANDROID: Uporaba onTouchStart za aktivacijo tipkovnice */}
+                
+                {/* POPRAVEK: 
+                   - autoFocus={false}
+                   - Brez "showSoftInputOnFocus" blokad
+                   - Uporabnik lahko klikne in piše
+                */}
                 <TextInput
                     ref={searchInputRef}
                     style={[styles.searchInput, { outlineStyle: 'none', borderWidth: 0 } as any]}
@@ -318,8 +325,6 @@ export default function ActiveGame() {
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                     autoFocus={false} 
-                    showSoftInputOnFocus={allowKeyboard} // Tipkovnica se pokaže SAMO če dovolimo
-                    onPressIn={() => setAllowKeyboard(true)} // Dovolimo šele na klik
                     underlineColorAndroid="transparent"
                     selectionColor="#4a9eff"
                     cursorColor="#4a9eff"
@@ -385,9 +390,10 @@ export default function ActiveGame() {
                           <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
                       </View>
                       <View style={styles.dotContainer}>
-                          {/* RUMENA PIKA (igral) */}
+                          {/* RUMENA PIKA (Če je igral) */}
                           {entry.played && <View style={styles.playedDot} />}
-                          {/* MODRA PIKA (kazen: ni igral in negativne točke) */}
+                          
+                          {/* MODRA PIKA (Če ni igral, ampak ima negativne točke -> Radelc kazen) */}
                           {!entry.played && entry.points < 0 && <View style={styles.radelcDot} />}
                       </View>
                     </View>
@@ -402,7 +408,7 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      {/* Ostali modali (Leaderboard, Finish, Klop) brez sprememb ... */}
+      {/* Ostali modali... */}
       <Modal visible={showLeaderboardModal} transparent animationType="slide" onRequestClose={() => setShowLeaderboardModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -454,6 +460,7 @@ export default function ActiveGame() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f0f0f' },
   centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  
   lobbyTitle: { fontSize: 32, fontWeight: '800', color: '#fff', padding: 20, paddingTop: 60 },
   gameCard: { backgroundColor: '#1a1a1a', padding: 20, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: '#333', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   gameName: { fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 4 },
@@ -511,6 +518,8 @@ const styles = StyleSheet.create({
   negativePoints: { color: '#ef4444' },
   historyTotal: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1, textAlign: 'center' },
   historyDate: { color: '#666', fontSize: 12, flex: 1, textAlign: 'right' },
+  playedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ffd700', marginLeft: 6 },
+  radelcDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4a9eff', marginLeft: 6 },
   leaderboardItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: '#2a2a2a', borderRadius: 8, marginBottom: 8, gap: 10 },
   rankText: { color: '#888', fontSize: 18, fontWeight: '700', width: 30 },
   leaderboardName: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1 },
@@ -533,6 +542,4 @@ const styles = StyleSheet.create({
   checkboxBase: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: '#4a9eff', alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' },
   checkboxChecked: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
   playedLabel: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  playedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ffd700', marginLeft: 6 },
-  radelcDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4a9eff', marginLeft: 6 },
 });
