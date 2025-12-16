@@ -51,12 +51,18 @@ export default function ActiveGame() {
   useFocusEffect(useCallback(() => { fetchActiveGamesList(); }, []));
   useEffect(() => { fetchProfiles(false); }, []);
 
-  // --- POPRAVEK: SAMO ENKRAT ZAPREMO OB ODPIRANJU ---
+  // --- POPRAVEK TIPKOVNICE ---
+  // Odstranil sem 'showSoftInputOnFocus' blokado, ki je preprečevala pisanje.
+  // Pustil sem samo tole, kar zapre tipkovnico ob odprtju modala.
   useEffect(() => {
     if (showAddPlayerModal) {
-      // Počakamo trenutek in zapremo, da preprečimo auto-popup na Androidu
+      // Počakamo kratek trenutek in zapremo tipkovnico
       const timer = setTimeout(() => {
-        Keyboard.dismiss();
+        if (searchInputRef.current) {
+            // Ne naredimo blur(), ker to včasih nagaja pri ponovnem kliku
+            // Samo rečemo tipkovnici, naj se skrije
+            Keyboard.dismiss();
+        }
       }, 100);
       return () => clearTimeout(timer);
     }
@@ -209,7 +215,7 @@ export default function ActiveGame() {
     setPlayerHistory(data || []); setSelectedPlayerId(pid); setShowHistoryModal(true);
   };
 
-  // --- ZAKLJUČEK IGRE (KAZNI + MODRA PIKA) ---
+  // --- ZAKLJUČEK IGRE (MODRA PIKA LOGIKA) ---
   const finishGame = async () => {
     if (!gameId) return;
     setLoading(true);
@@ -225,8 +231,7 @@ export default function ActiveGame() {
                     game_id: gameId,
                     player_id: p.id,
                     points: penalty,
-                    // MODRA PIKA TRIK:
-                    // played: false pomeni "ni igral runde"
+                    // MODRA PIKA TRIK: played: false = modra pika
                     played: false 
                 });
 
@@ -311,12 +316,7 @@ export default function ActiveGame() {
             <Text style={styles.modalTitle}>Dodaj igralca</Text>
             <View style={styles.searchContainer}>
                 <Search size={24} color="#666" style={{ marginRight: 12 }} />
-                
-                {/* POPRAVEK: 
-                   - autoFocus={false}
-                   - Brez "showSoftInputOnFocus" blokad
-                   - Uporabnik lahko klikne in piše
-                */}
+                {/* POPRAVLJEN INPUT: Brez blokad, samo autoFocus=false */}
                 <TextInput
                     ref={searchInputRef}
                     style={[styles.searchInput, { outlineStyle: 'none', borderWidth: 0 } as any]}
@@ -390,10 +390,10 @@ export default function ActiveGame() {
                           <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
                       </View>
                       <View style={styles.dotContainer}>
-                          {/* RUMENA PIKA (Če je igral) */}
+                          {/* RUMENA PIKA (igral) */}
                           {entry.played && <View style={styles.playedDot} />}
                           
-                          {/* MODRA PIKA (Če ni igral, ampak ima negativne točke -> Radelc kazen) */}
+                          {/* MODRA PIKA (kazen: ni igral in negativne točke) */}
                           {!entry.played && entry.points < 0 && <View style={styles.radelcDot} />}
                       </View>
                     </View>
@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
   playedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ffd700', marginLeft: 6 },
   radelcDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4a9eff', marginLeft: 6 },
   leaderboardItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: '#2a2a2a', borderRadius: 8, marginBottom: 8, gap: 10 },
-  rankText: { color: '#888', fontSize: 18, fontWeight: '700', width: 30 },
+  rankText: { color: '#888', fontSize: 18, fontWeight: '700' },
   leaderboardName: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1 },
   leaderboardScore: { fontSize: 22, fontWeight: '800', width: 60, textAlign: 'right' },
   miniRadelciContainer: { flexDirection: 'row', gap: 2 },
