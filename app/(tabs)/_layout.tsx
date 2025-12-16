@@ -1,18 +1,40 @@
-import { useEffect } from 'react';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { useFrameworkReady } from '@/hooks/useFrameworkReady';
+import { Tabs } from 'expo-router';
+import { Trophy, History } from 'lucide-react-native';
 
-export default function RootLayout() {
-  useFrameworkReady();
-
+export default function TabLayout() {
   return (
-    <>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
-    </>
+    <Tabs
+      screenOptions={{
+        headerShown: true,
+        headerStyle: {
+          backgroundColor: '#1a1a1a',
+        },
+        headerTintColor: '#fff',
+        tabBarStyle: {
+          backgroundColor: '#1a1a1a',
+          borderTopColor: '#333',
+        },
+        tabBarActiveTintColor: '#4a9eff',
+        tabBarInactiveTintColor: '#999',
+      }}>
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Aktivna Igra',
+          tabBarIcon: ({ size, color }) => (
+            <Trophy size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="history"
+        options={{
+          title: 'Zgodovina',
+          tabBarIcon: ({ size, color }) => (
+            <History size={size} color={color} />
+          ),
+        }}
+      />
+    </Tabs>
   );
 }
