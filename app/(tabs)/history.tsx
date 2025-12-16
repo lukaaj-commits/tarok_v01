@@ -102,7 +102,7 @@ export default function History() {
     } catch (error) { console.error(error); }
   };
 
-  // --- POPRAVLJENA LOGIKA GLOBALNE STATISTIKE (Izenačenja) ---
+  // --- LOGIKA GLOBALNE STATISTIKE ---
   const loadGlobalStats = async () => {
     setStatsLoading(true);
     setShowGlobalStatsModal(true);
@@ -122,17 +122,14 @@ export default function History() {
         }, {} as Record<string, typeof allPlayers>);
 
         Object.values(playersByGame).forEach(gameP => {
-            // 1. Sortiraj igralce v tej igri
             gameP.sort((a, b) => b.total_score - a.total_score);
-            
-            // 2. Določi rank (športno razvrščanje z izenačenji)
-            let currentRank = 1;
             gameP.forEach((p, index) => {
-                // Če ni prvi in ima manj točk kot prejšnji, se rank poveča na (index + 1)
-                if (index > 0 && p.total_score < gameP[index - 1].total_score) {
-                    currentRank = index + 1;
+                // RANKING LOGIKA ZA IZENAČENJA
+                let rank = index + 1;
+                if (index > 0 && p.total_score === gameP[index-1].total_score) {
+                    // Če ima isto kot prejšnji, poiščemo pravega
+                    // (To je poenostavljeno, za medalje rabimo pravo logiko spodaj)
                 }
-                // Če ima isto točk kot prejšnji, rank ostane enak (npr. 1, 1, 3)
 
                 const name = p.name; 
                 if (!statsMap.has(name)) {
@@ -142,10 +139,16 @@ export default function History() {
                 stat.total_games += 1;
                 stat.total_points += p.total_score;
                 
-                // Dodeljevanje medalj glede na RANK (ne index)
-                if (currentRank === 1) stat.wins += 1;
-                if (currentRank === 2) stat.second += 1;
-                if (currentRank === 3) stat.third += 1;
+                // Dodeljevanje medalj (z upoštevanjem izenačenj)
+                // Ker smo znotraj ene igre, moramo pogledati dejanske točke za določitev mesta
+                const myScore = p.total_score;
+                // Koliko ljudi ima VEČ točk od mene?
+                const peopleBetter = gameP.filter(gp => gp.total_score > myScore).length;
+                const myRank = peopleBetter + 1;
+
+                if (myRank === 1) stat.wins += 1;
+                if (myRank === 2) stat.second += 1;
+                if (myRank === 3) stat.third += 1;
             });
         });
 
@@ -195,6 +198,7 @@ export default function History() {
         ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>Ni še nobene igre</Text></View>}
       />
 
+      {/* --- MODAL ZA GLOBALNO STATISTIKO --- */}
       <Modal visible={showGlobalStatsModal} transparent animationType="slide" onRequestClose={() => setShowGlobalStatsModal(false)}>
          <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, styles.historyModal]}>
@@ -242,6 +246,7 @@ export default function History() {
          </View>
       </Modal>
 
+      {/* --- MODAL ZA POSAMEZNO IGRO --- */}
       <Modal visible={showGameModal} transparent animationType="slide" onRequestClose={() => setShowGameModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -288,6 +293,7 @@ export default function History() {
         </View>
       </Modal>
 
+      {/* --- MODAL ZA ZGODOVINO IGRALCA (Lokalno) --- */}
       <Modal visible={showPlayerHistoryModal} transparent animationType="slide" onRequestClose={() => setShowPlayerHistoryModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -319,10 +325,9 @@ export default function History() {
                                 <View style={styles.fixedPointsBox}>
                                     <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
                                 </View>
-                                {/* MODRA IN RUMENA PIKA */}
+                                {/* POPRAVEK: SAMO RUMENA PIKA, MODRA ODSTRANJENA */}
                                 <View style={styles.dotBox}>
                                     {entry.played && <View style={styles.playedDot} />}
-                                    {!entry.played && entry.points < 0 && <View style={styles.radelcDot} />}
                                 </View>
                              </View>
                             <Text style={styles.historyTotal}>= {runningTotal}</Text>
@@ -420,7 +425,6 @@ const styles = StyleSheet.create({
   historyTotal: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1, textAlign: 'center' },
   historyDate: { color: '#666', fontSize: 12, flex: 1, textAlign: 'right' },
   playedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ffd700' },
-  radelcDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4a9eff' },
   leaderboardItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: '#2a2a2a', borderRadius: 8, marginBottom: 8, gap: 10 },
   rankText: { color: '#888', fontSize: 18, fontWeight: '700' },
   leaderboardName: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1 },
