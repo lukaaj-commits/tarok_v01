@@ -12,17 +12,21 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#1a1a1a', // Malenkost svetlejše od črne, da se loči od ekrana
-          borderTopWidth: 1,          // Tanka črta za ločitev
-          borderTopColor: '#333',     // Temno siva črta
-          height: Platform.OS === 'ios' ? 85 : 65,
-          paddingBottom: Platform.OS === 'ios' ? 25 : 10,
-          paddingTop: 10,
+          backgroundColor: '#121212',
+          borderTopWidth: 1,
+          borderTopColor: '#2a2a2a',
+          // POPRAVEK: Dinamična višina glede na napravo + fiksni dodatek
+          height: Platform.OS === 'ios' ? 95 : 70, 
+          paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+          paddingTop: 8,
+          position: 'absolute', // To včasih pomaga pri layoutu
+          bottom: 0,
+          left: 0,
+          right: 0,
           elevation: 0,
-          shadowOpacity: 0,
         },
-        tabBarActiveTintColor: '#4a9eff', // Modra za aktivno
-        tabBarInactiveTintColor: '#9ca3af', // Svetlejša siva (boljša vidljivost)
+        tabBarActiveTintColor: '#4a9eff',
+        tabBarInactiveTintColor: '#6b7280',
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '600',
@@ -33,22 +37,20 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Igra',
-          tabBarIcon: ({ color, size }) => <Play size={size} color={color} fill={color === '#4a9eff' ? color : 'transparent'} />,
+          tabBarIcon: ({ color, size }) => <Play size={28} color={color} fill={color === '#4a9eff' ? color : 'transparent'} />,
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
           title: 'Zgodovina',
-          tabBarIcon: ({ color, size }) => <History size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <History size={28} color={color} />,
         }}
       />
       
       <Tabs.Screen
         name="not-found"
-        options={{
-           href: null,
-        }}
+        options={{ href: null }}
       />
     </Tabs>
   );
