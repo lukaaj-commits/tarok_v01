@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Tarok2",
-    "slug": "tarok2",
+    "slug": "tarok2-final",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
@@ -20,7 +20,7 @@
     "android": {
       "package": "com.tarok2.game",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/app-icon.png",
+        "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0f0f0f"
       }
     },
