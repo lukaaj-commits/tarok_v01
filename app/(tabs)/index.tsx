@@ -45,26 +45,21 @@ export default function ActiveGame() {
   const [showKlopModal, setShowKlopModal] = useState(false);
   const [playerHistory, setPlayerHistory] = useState<ScoreEntry[]>([]);
   
+  // --- JEDRSKA OPCIJA: STANJE ZA "FISHING" INPUT ---
+  // Ko je false, kažemo samo gumb (tipkovnica nemogoča).
+  // Ko je true, pokažemo pravi input.
+  const [isInputActive, setIsInputActive] = useState(false);
+
   const scoreInputRef = useRef<TextInput>(null);
-  const searchInputRef = useRef<TextInput>(null);
 
   useFocusEffect(useCallback(() => { fetchActiveGamesList(); }, []));
   useEffect(() => { fetchProfiles(false); }, []);
 
-  // --- POPRAVEK TIPKOVNICE ---
-  // Odstranil sem 'showSoftInputOnFocus' blokado, ki je preprečevala pisanje.
-  // Pustil sem samo tole, kar zapre tipkovnico ob odprtju modala.
+  // Resetiramo stanje inputa vsakič, ko odpremo modal
   useEffect(() => {
     if (showAddPlayerModal) {
-      // Počakamo kratek trenutek in zapremo tipkovnico
-      const timer = setTimeout(() => {
-        if (searchInputRef.current) {
-            // Ne naredimo blur(), ker to včasih nagaja pri ponovnem kliku
-            // Samo rečemo tipkovnici, naj se skrije
-            Keyboard.dismiss();
-        }
-      }, 100);
-      return () => clearTimeout(timer);
+      setIsInputActive(false); // Začnemo z "lažnim" inputom
+      setSearchQuery('');
     }
   }, [showAddPlayerModal]);
 
@@ -231,7 +226,6 @@ export default function ActiveGame() {
                     game_id: gameId,
                     player_id: p.id,
                     points: penalty,
-                    // MODRA PIKA TRIK: played: false = modra pika
                     played: false 
                 });
 
@@ -314,22 +308,37 @@ export default function ActiveGame() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { height: '90%', maxHeight: '90%' }]}>
             <Text style={styles.modalTitle}>Dodaj igralca</Text>
-            <View style={styles.searchContainer}>
-                <Search size={24} color="#666" style={{ marginRight: 12 }} />
-                {/* POPRAVLJEN INPUT: Brez blokad, samo autoFocus=false */}
-                <TextInput
-                    ref={searchInputRef}
-                    style={[styles.searchInput, { outlineStyle: 'none', borderWidth: 0 } as any]}
-                    placeholder="Išči ali ustvari novega..."
-                    placeholderTextColor="#666"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    autoFocus={false} 
-                    underlineColorAndroid="transparent"
-                    selectionColor="#4a9eff"
-                    cursorColor="#4a9eff"
-                />
-            </View>
+            
+            {/* --- JEDRSKA REŠITEV ZA TIPKOVNICO --- */}
+            {isInputActive ? (
+                // PRAVI INPUT (Ko uporabnik klikne)
+                <View style={styles.searchContainer}>
+                    <Search size={24} color="#666" style={{ marginRight: 12 }} />
+                    <TextInput
+                        autoFocus={true} // Ko se to prikaže, naj se TAKOJ odpre tipkovnica
+                        style={[styles.searchInput, { outlineStyle: 'none', borderWidth: 0 } as any]}
+                        placeholder="Išči ali ustvari novega..."
+                        placeholderTextColor="#666"
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        underlineColorAndroid="transparent"
+                        selectionColor="#4a9eff"
+                        cursorColor="#4a9eff"
+                    />
+                </View>
+            ) : (
+                // LAŽNI INPUT (Samo gumb - tipkovnica se NE more odpreti)
+                <TouchableOpacity 
+                    style={styles.searchContainer} 
+                    activeOpacity={1} 
+                    onPress={() => setIsInputActive(true)} // Ob kliku zamenjaj s pravim
+                >
+                    <Search size={24} color="#666" style={{ marginRight: 12 }} />
+                    <Text style={{color: '#666', fontSize: 20}}>Išči ali ustvari novega...</Text>
+                </TouchableOpacity>
+            )}
+            {/* ----------------------------------- */}
+
             {allProfiles.length === 0 && searchQuery.length === 0 && (<Text style={{color: '#666', textAlign: 'center', marginBottom: 10}}>Nalagam imenik...</Text>)}
             <FlatList
                 data={filteredProfiles} keyExtractor={(item) => item.id} style={{ flex: 1, marginVertical: 12 }}
@@ -392,7 +401,6 @@ export default function ActiveGame() {
                       <View style={styles.dotContainer}>
                           {/* RUMENA PIKA (igral) */}
                           {entry.played && <View style={styles.playedDot} />}
-                          
                           {/* MODRA PIKA (kazen: ni igral in negativne točke) */}
                           {!entry.played && entry.points < 0 && <View style={styles.radelcDot} />}
                       </View>
