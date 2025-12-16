@@ -44,18 +44,27 @@ export default function ActiveGame() {
   const [showFinishGameModal, setShowFinishGameModal] = useState(false);
   const [showKlopModal, setShowKlopModal] = useState(false);
   const [playerHistory, setPlayerHistory] = useState<ScoreEntry[]>([]);
+  
   const scoreInputRef = useRef<TextInput>(null);
+  const searchInputRef = useRef<TextInput>(null); // Ref za iskalnik
 
   useFocusEffect(useCallback(() => { fetchActiveGamesList(); }, []));
   useEffect(() => { fetchProfiles(false); }, []);
 
-  // --- FIX ZA TIPKOVNICO NA ANDROIDU ---
+  // --- FIX ZA ANDROID TIPKOVNICO (Advanced) ---
   useEffect(() => {
     if (showAddPlayerModal) {
-      // Počakamo 100ms, da se modal odpre, nato "ubijemo" tipkovnico
+      // 1. Takoj skrij tipkovnico
+      Keyboard.dismiss();
+      
+      // 2. Čez kratek trenutek prisilno odstrani fokus iz inputa
       const timer = setTimeout(() => {
+        if (searchInputRef.current) {
+          searchInputRef.current.blur();
+        }
         Keyboard.dismiss();
       }, 100);
+      
       return () => clearTimeout(timer);
     }
   }, [showAddPlayerModal]);
@@ -113,7 +122,6 @@ export default function ActiveGame() {
   };
 
   const openAddPlayerModal = () => {
-    Keyboard.dismiss(); // Poskusimo takoj zapreti
     setSearchQuery(''); 
     setShowAddPlayerModal(true); 
     fetchProfiles(false); 
@@ -208,42 +216,38 @@ export default function ActiveGame() {
     setPlayerHistory(data || []); setSelectedPlayerId(pid); setShowHistoryModal(true);
   };
 
-  // --- NOVA LOGIKA ZA ZAKLJUČEK IGRE (KAZNI ZA RADELCE) ---
+  // --- ZAKLJUČEK IGRE (KAZNI + MODRA PIKA) ---
   const finishGame = async () => {
     if (!gameId) return;
     setLoading(true);
     
     try {
-        // 1. Preglej vse igralce in njihove neuporabljene radelce
         const updates = players.map(async (p) => {
             const unusedRadelci = radelci.filter(r => r.player_id === p.id && !r.is_used);
             
             if (unusedRadelci.length > 0) {
                 const penalty = unusedRadelci.length * -50;
                 
-                // Vpiši kazen v zgodovino
                 await supabase.from('score_entries').insert({
                     game_id: gameId,
                     player_id: p.id,
                     points: penalty,
-                    played: true // Da bo v zgodovini pika, če želiš, ali pa false
+                    // MODRA PIKA TRIK:
+                    // played: false pomeni "ni igral runde" (kar je res, to je kazen)
+                    // V renderju bomo rekli: Če je played: false IN points < 0 -> MODRA PIKA
+                    played: false 
                 });
 
-                // Posodobi skupne točke igralca
                 await supabase.from('players').update({ 
                     total_score: p.total_score + penalty 
                 }).eq('id', p.id);
 
-                // **POMEMBNO**: Označi radelce kot PORABLJENE (črne), da bo v zgodovini prav
                 const radelcIds = unusedRadelci.map(r => r.id);
                 await supabase.from('radelci').update({ is_used: true }).in('id', radelcIds);
             }
         });
 
-        // Počakaj, da se vse kazni zapišejo
         await Promise.all(updates);
-
-        // 2. Zaključi igro
         await supabase.from('games').update({ is_active: false }).eq('id', gameId);
         
         setShowFinishGameModal(false);
@@ -276,11 +280,10 @@ export default function ActiveGame() {
         </TouchableOpacity>
         <ScrollView horizontal style={styles.radelciContainer} showsHorizontalScrollIndicator={false}>
           {pRadelci.map(r => (
-            // POVEČANO OBMOČJE DOTIKA (hitSlop)
             <TouchableOpacity 
                 key={r.id} 
                 onPress={() => toggleRadelc(r.id, r.is_used)}
-                hitSlop={{top: 15, bottom: 15, left: 10, right: 10}} // Lažje zadevanje
+                hitSlop={{top: 15, bottom: 15, left: 10, right: 10}}
             >
               <View style={[styles.radelc, r.is_used ? styles.radelcUsed : styles.radelcUnused]} />
             </TouchableOpacity>
@@ -310,14 +313,14 @@ export default function ActiveGame() {
 
       <FlatList data={players} keyExtractor={(item) => item.id} renderItem={renderPlayer} contentContainerStyle={styles.listContainer} ListEmptyComponent={<Text style={styles.emptyText}>Dodaj igralce za začetek.</Text>} />
 
-      <Modal visible={showAddPlayerModal} animationType="slide" transparent onRequestClose={() => setShowAddPlayerModal(false)}>
+      <Modal visible={showAddPlayerModal} animationType="slide" transparent onRequestClose={() => setShowAddPlayerModal(false)} onShow={() => { Keyboard.dismiss(); searchInputRef.current?.blur(); }}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { height: '90%', maxHeight: '90%' }]}>
             <Text style={styles.modalTitle}>Dodaj igralca</Text>
             <View style={styles.searchContainer}>
                 <Search size={24} color="#666" style={{ marginRight: 12 }} />
-                {/* FIX ZA ANDROID TIPKOVNICO: autoFocus je false */}
                 <TextInput
+                    ref={searchInputRef} // DODAN REF
                     style={[styles.searchInput, { outlineStyle: 'none', borderWidth: 0 } as any]}
                     placeholder="Išči ali ustvari novega..."
                     placeholderTextColor="#666"
@@ -388,7 +391,13 @@ export default function ActiveGame() {
                       <View style={styles.fixedPointsWidth}>
                           <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
                       </View>
-                      <View style={styles.dotContainer}>{entry.played && <View style={styles.playedDot} />}</View>
+                      <View style={styles.dotContainer}>
+                          {/* RUMENA PIKA (Če je igral) */}
+                          {entry.played && <View style={styles.playedDot} />}
+                          
+                          {/* MODRA PIKA (Če ni igral, ampak ima negativne točke -> Radelc kazen) */}
+                          {!entry.played && entry.points < 0 && <View style={styles.radelcDot} />}
+                      </View>
                     </View>
                     <Text style={styles.historyTotal}>= {runningTotal}</Text>
                     <Text style={styles.historyDate}>{new Date(entry.created_at).toLocaleTimeString('sl-SI', {hour:'2-digit', minute:'2-digit'})}</Text>
@@ -481,7 +490,7 @@ const styles = StyleSheet.create({
   scoreText: { color: '#fff', fontSize: 48, fontWeight: '700' },
   radelciContainer: { flexDirection: 'row', paddingVertical: 8 },
   
-  // POPRAVLJENO: Večji radelci (24px) in modri robovi
+  // POPRAVLJEN STIL RADELCA (24px, modri robovi)
   radelc: { width: 24, height: 24, borderRadius: 12, marginHorizontal: 4 },
   radelcUnused: { backgroundColor: 'transparent', borderWidth: 2, borderColor: '#4a9eff' },
   radelcUsed: { backgroundColor: '#000', borderWidth: 0 },
@@ -599,11 +608,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  // PIKE
   playedDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#ffd700', 
+    backgroundColor: '#ffd700', // Rumena
+    marginLeft: 6,
+  },
+  radelcDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4a9eff', // Modra
     marginLeft: 6,
   },
 });
