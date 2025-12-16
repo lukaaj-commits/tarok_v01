@@ -45,27 +45,20 @@ export default function ActiveGame() {
   const [showKlopModal, setShowKlopModal] = useState(false);
   const [playerHistory, setPlayerHistory] = useState<ScoreEntry[]>([]);
   
+  // FIX ZA ANDROID TIPKOVNICO: Stanje, ki dovoli odprtje tipkovnice šele na klik
+  const [allowKeyboard, setAllowKeyboard] = useState(false);
+
   const scoreInputRef = useRef<TextInput>(null);
-  const searchInputRef = useRef<TextInput>(null); // Ref za iskalnik
+  const searchInputRef = useRef<TextInput>(null);
 
   useFocusEffect(useCallback(() => { fetchActiveGamesList(); }, []));
   useEffect(() => { fetchProfiles(false); }, []);
 
-  // --- FIX ZA ANDROID TIPKOVNICO (Advanced) ---
+  // Resetiramo dovoljenje za tipkovnico, ko se odpre modal
   useEffect(() => {
     if (showAddPlayerModal) {
-      // 1. Takoj skrij tipkovnico
+      setAllowKeyboard(false); 
       Keyboard.dismiss();
-      
-      // 2. Čez kratek trenutek prisilno odstrani fokus iz inputa
-      const timer = setTimeout(() => {
-        if (searchInputRef.current) {
-          searchInputRef.current.blur();
-        }
-        Keyboard.dismiss();
-      }, 100);
-      
-      return () => clearTimeout(timer);
     }
   }, [showAddPlayerModal]);
 
@@ -216,7 +209,7 @@ export default function ActiveGame() {
     setPlayerHistory(data || []); setSelectedPlayerId(pid); setShowHistoryModal(true);
   };
 
-  // --- ZAKLJUČEK IGRE (KAZNI + MODRA PIKA) ---
+  // --- ZAKLJUČEK IGRE ---
   const finishGame = async () => {
     if (!gameId) return;
     setLoading(true);
@@ -232,10 +225,7 @@ export default function ActiveGame() {
                     game_id: gameId,
                     player_id: p.id,
                     points: penalty,
-                    // MODRA PIKA TRIK:
-                    // played: false pomeni "ni igral runde" (kar je res, to je kazen)
-                    // V renderju bomo rekli: Če je played: false IN points < 0 -> MODRA PIKA
-                    played: false 
+                    played: false // To pomeni, da je kazen (za modro piko)
                 });
 
                 await supabase.from('players').update({ 
@@ -313,20 +303,23 @@ export default function ActiveGame() {
 
       <FlatList data={players} keyExtractor={(item) => item.id} renderItem={renderPlayer} contentContainerStyle={styles.listContainer} ListEmptyComponent={<Text style={styles.emptyText}>Dodaj igralce za začetek.</Text>} />
 
-      <Modal visible={showAddPlayerModal} animationType="slide" transparent onRequestClose={() => setShowAddPlayerModal(false)} onShow={() => { Keyboard.dismiss(); searchInputRef.current?.blur(); }}>
+      <Modal visible={showAddPlayerModal} animationType="slide" transparent onRequestClose={() => setShowAddPlayerModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { height: '90%', maxHeight: '90%' }]}>
             <Text style={styles.modalTitle}>Dodaj igralca</Text>
             <View style={styles.searchContainer}>
                 <Search size={24} color="#666" style={{ marginRight: 12 }} />
+                {/* FIX ZA ANDROID: Uporaba onTouchStart za aktivacijo tipkovnice */}
                 <TextInput
-                    ref={searchInputRef} // DODAN REF
+                    ref={searchInputRef}
                     style={[styles.searchInput, { outlineStyle: 'none', borderWidth: 0 } as any]}
                     placeholder="Išči ali ustvari novega..."
                     placeholderTextColor="#666"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                     autoFocus={false} 
+                    showSoftInputOnFocus={allowKeyboard} // Tipkovnica se pokaže SAMO če dovolimo
+                    onPressIn={() => setAllowKeyboard(true)} // Dovolimo šele na klik
                     underlineColorAndroid="transparent"
                     selectionColor="#4a9eff"
                     cursorColor="#4a9eff"
@@ -392,10 +385,9 @@ export default function ActiveGame() {
                           <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
                       </View>
                       <View style={styles.dotContainer}>
-                          {/* RUMENA PIKA (Če je igral) */}
+                          {/* RUMENA PIKA (igral) */}
                           {entry.played && <View style={styles.playedDot} />}
-                          
-                          {/* MODRA PIKA (Če ni igral, ampak ima negativne točke -> Radelc kazen) */}
+                          {/* MODRA PIKA (kazen: ni igral in negativne točke) */}
                           {!entry.played && entry.points < 0 && <View style={styles.radelcDot} />}
                       </View>
                     </View>
@@ -410,6 +402,7 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
+      {/* Ostali modali (Leaderboard, Finish, Klop) brez sprememb ... */}
       <Modal visible={showLeaderboardModal} transparent animationType="slide" onRequestClose={() => setShowLeaderboardModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -489,12 +482,9 @@ const styles = StyleSheet.create({
   scoreContainer: { alignItems: 'center', paddingVertical: 20, backgroundColor: '#2a2a2a', borderRadius: 12, marginBottom: 12 },
   scoreText: { color: '#fff', fontSize: 48, fontWeight: '700' },
   radelciContainer: { flexDirection: 'row', paddingVertical: 8 },
-  
-  // POPRAVLJEN STIL RADELCA (24px, modri robovi)
   radelc: { width: 24, height: 24, borderRadius: 12, marginHorizontal: 4 },
   radelcUnused: { backgroundColor: 'transparent', borderWidth: 2, borderColor: '#4a9eff' },
   radelcUsed: { backgroundColor: '#000', borderWidth: 0 },
-
   emptyText: { color: '#666', fontSize: 16, textAlign: 'center', marginTop: 40 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#1a1a1a', borderRadius: 16, padding: 24, width: '80%', maxWidth: 400 },
@@ -533,94 +523,16 @@ const styles = StyleSheet.create({
   confirmText: { color: '#ccc', fontSize: 15, textAlign: 'center', marginBottom: 20, lineHeight: 22 },
   klopTitle: { color: '#ffd700', fontSize: 28, fontWeight: '800', marginBottom: 24, textAlign: 'center' },
   klopButton: { backgroundColor: '#4a9eff', padding: 16, borderRadius: 12, alignItems: 'center' },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2a2a2a',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 16,
-    marginBottom: 20,
-  },
-  searchInput: {
-    flex: 1,
-    color: '#fff',
-    fontSize: 20,
-    borderWidth: 0,
-    borderColor: 'transparent',
-    backgroundColor: 'transparent',
-  },
-  profileItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 20, 
-    paddingHorizontal: 16,
-    backgroundColor: '#2a2a2a',
-    borderRadius: 16,
-    marginBottom: 10,
-  },
-  profileName: {
-    color: '#fff',
-    fontSize: 20, 
-    fontWeight: '600',
-  },
-  createNewButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 20,
-    backgroundColor: '#333',
-    borderRadius: 16,
-    gap: 12,
-    marginTop: 10,
-  },
-  createNewText: {
-    color: '#4a9eff',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  playedToggleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2a2a2a',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 20,
-    gap: 12,
-  },
-  checkboxBase: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#4a9eff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-  },
-  checkboxChecked: {
-    backgroundColor: '#ffd700',
-    borderColor: '#ffd700',
-  },
-  playedLabel: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  // PIKE
-  playedDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#ffd700', // Rumena
-    marginLeft: 6,
-  },
-  radelcDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#4a9eff', // Modra
-    marginLeft: 6,
-  },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#2a2a2a', paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16, marginBottom: 20 },
+  searchInput: { flex: 1, color: '#fff', fontSize: 20, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent' },
+  profileItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 20, paddingHorizontal: 16, backgroundColor: '#2a2a2a', borderRadius: 16, marginBottom: 10 },
+  profileName: { color: '#fff', fontSize: 20, fontWeight: '600' },
+  createNewButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 20, backgroundColor: '#333', borderRadius: 16, gap: 12, marginTop: 10 },
+  createNewText: { color: '#4a9eff', fontSize: 18, fontWeight: '700' },
+  playedToggleContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#2a2a2a', padding: 12, borderRadius: 12, marginBottom: 20, gap: 12 },
+  checkboxBase: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: '#4a9eff', alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' },
+  checkboxChecked: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
+  playedLabel: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  playedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ffd700', marginLeft: 6 },
+  radelcDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4a9eff', marginLeft: 6 },
 });
