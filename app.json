@@ -12,6 +12,13 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.tarok2.game"
     },
+    "android": {
+      "package": "com.tarok2.game",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
     "web": {
       "bundler": "metro",
       "output": "single",
