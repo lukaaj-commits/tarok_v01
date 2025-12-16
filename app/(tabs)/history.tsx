@@ -16,7 +16,7 @@ import { ChevronRight, Trophy, Trash2, CheckCircle, Info, TrendingUp, Calendar, 
 import { useIsFocused } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient'; 
 
-// --- TIPOVI ---
+// --- TIPOVI (NESPREMENJENO) ---
 type Game = { id: string; name: string; created_at: string; is_active: boolean; radelci_active: number; radelci_used: number; };
 type GamePlayer = { id: string; name: string; total_score: number; position: number; };
 type Radelc = { id: string; player_id: string; is_used: boolean; position: number; };
@@ -169,7 +169,6 @@ export default function History() {
 
   const openGlobalPlayerDetails = (player: PlayerStats) => { setSelectedGlobalPlayer(player); setShowGlobalPlayerModal(true); };
 
-  // --- LOGIKA FORME (TAROK + 3 ZMAGE VROČE) ---
   const getFormStatus = (ranks: { rank: number }[]) => {
       if (ranks.length === 0) return { text: '-', color: '#666', icon: '➖' };
       const last5 = ranks.slice(0, 5);
@@ -192,7 +191,6 @@ export default function History() {
       return <View style={{ position: 'absolute', left: (x1 + x2) / 2 - length / 2, top: (y1 + y2) / 2 - 1, width: length, height: 2, backgroundColor: color, transform: [{ rotate: `${angle}deg` }] }} />;
   };
 
-  // --- RENDER GAME CARD (MODERN DESIGN) ---
   const renderGame = ({ item }: { item: Game }) => (
       <TouchableOpacity activeOpacity={0.7} onPress={() => loadGameDetails(item)} style={styles.cardWrapper}>
         <LinearGradient
@@ -226,7 +224,8 @@ export default function History() {
       <View style={styles.mainHeader}>
           <View>
               <Text style={styles.headerTitle}>Zgodovina</Text>
-              <Text style={styles.headerSubtitle}>Pregled vseh tvojih bitk</Text>
+              {/* POPRAVEK: Večji razmak in spremenjen tekst */}
+              <Text style={styles.headerSubtitle}>Pregled vseh bitk</Text>
           </View>
           <TouchableOpacity style={styles.globalStatsButton} onPress={loadGlobalStats}>
               <BarChart3 size={24} color="#fff" />
@@ -241,7 +240,7 @@ export default function History() {
         ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>Ni še nobene igre</Text></View>}
       />
 
-      {/* MODAL: VEČNA LESTVICA */}
+      {/* --- MODAL: VEČNA LESTVICA --- */}
       <Modal visible={showGlobalStatsModal} transparent animationType="fade" onRequestClose={() => setShowGlobalStatsModal(false)}>
          <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
@@ -259,9 +258,10 @@ export default function History() {
                             return (
                                 <TouchableOpacity key={stat.name} style={styles.leaderboardItem} onPress={() => openGlobalPlayerDetails(stat)}>
                                     <View style={styles.rankBox}>
-                                        {rank === 1 ? <Trophy size={20} color="#ffd700" /> :
-                                         rank === 2 ? <Trophy size={20} color="#c0c0c0" /> :
-                                         rank === 3 ? <Trophy size={20} color="#cd7f32" /> :
+                                        {/* POPRAVEK: Večji pokali (size 24) */}
+                                        {rank === 1 ? <Trophy size={24} color="#ffd700" /> :
+                                         rank === 2 ? <Trophy size={24} color="#c0c0c0" /> :
+                                         rank === 3 ? <Trophy size={24} color="#cd7f32" /> :
                                          <Text style={styles.rankText}>{rank}</Text>
                                         }
                                     </View>
@@ -283,7 +283,7 @@ export default function History() {
          </View>
       </Modal>
 
-      {/* MODAL: PODROBNOSTI IGRALCA */}
+      {/* --- MODAL: PODROBNOSTI IGRALCA --- */}
       <Modal visible={showGlobalPlayerModal} transparent animationType="slide" onRequestClose={() => setShowGlobalPlayerModal(false)}>
          <View style={styles.modalOverlay}>
              <View style={styles.modalContent}>
@@ -301,7 +301,8 @@ export default function History() {
                                 return (
                                     <LinearGradient colors={['#252525', '#151515']} style={styles.formCard}>
                                         <Text style={styles.sectionTitle}>Trenutna forma</Text>
-                                        <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 10}}>
+                                        {/* POPRAVEK: Povečan razmak (marginTop: 18) */}
+                                        <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 18}}>
                                             <Text style={{fontSize: 48, marginRight: 15}}>{form.icon}</Text>
                                             <View>
                                                 <Text style={[styles.formText, {color: form.color}]}>{form.text}</Text>
@@ -344,7 +345,6 @@ export default function History() {
                                 </View>
                             </View>
 
-                            {/* ZADNJIH 5 */}
                             <View style={styles.lastGamesSection}>
                                 <View style={{flexDirection:'row', alignItems:'center', marginBottom:10}}>
                                     <Calendar size={18} color="#666" style={{marginRight:8}} />
@@ -366,7 +366,7 @@ export default function History() {
          </View>
       </Modal>
 
-      {/* MODAL: IGRA - PODROBNOSTI (SCOREBOARD) */}
+      {/* MODAL: IGRA - PODROBNOSTI */}
       <Modal visible={showGameModal} transparent animationType="slide" onRequestClose={() => setShowGameModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -403,10 +403,12 @@ export default function History() {
               {selectedGame?.is_active ? (
                 <>
                   <TouchableOpacity style={styles.endGameButton} onPress={() => endGame(selectedGame.id)}><CheckCircle size={20} color="#fff" style={{marginRight:8}} /><Text style={styles.buttonText}>Zaključi igro</Text></TouchableOpacity>
-                  <TouchableOpacity style={styles.deleteButton} onPress={() => deleteGame(selectedGame.id)}><Trash2 size={20} color="#fff" /></TouchableOpacity>
+                  {/* POPRAVEK: Gumb za brisanje povečan (minHeight) */}
+                  <TouchableOpacity style={styles.deleteButton} onPress={() => deleteGame(selectedGame.id)}><Trash2 size={24} color="#fff" /></TouchableOpacity>
                 </>
               ) : (
-                selectedGame && <TouchableOpacity style={[styles.deleteButton, {flex: 1, backgroundColor: '#ef4444'}]} onPress={() => deleteGame(selectedGame.id)}><Trash2 size={20} color="#fff" style={{marginRight:8}}/><Text style={styles.buttonText}>Izbriši igro</Text></TouchableOpacity>
+                // POPRAVEK: Gumb za brisanje v arhivu povečan (padding)
+                selectedGame && <TouchableOpacity style={[styles.deleteButton, {flex: 1, backgroundColor: '#ef4444', minHeight: 56}]} onPress={() => deleteGame(selectedGame.id)}><Trash2 size={20} color="#fff" style={{marginRight:8}}/><Text style={styles.buttonText}>Izbriši igro</Text></TouchableOpacity>
               )}
             </View>
           </View>
@@ -436,8 +438,15 @@ export default function History() {
                         for (let i = 0; i <= index; i++) { runningTotal += playerEntries[i].points; }
                         return (
                           <View key={entry.id} style={styles.historyItem}>
-                             <View style={{width: 50, alignItems:'flex-end'}}><Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text></View>
-                             <View style={{flex:1, alignItems:'center'}}>{entry.played && <View style={styles.playedDot} />}</View>
+                             {/* POPRAVEK: PIKA PRESTAVLJENA OB TOČKE */}
+                             <View style={styles.historyPointsContainer}>
+                                <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>
+                                    {entry.points > 0 ? '+' : ''}{entry.points}
+                                </Text>
+                                {entry.played && <View style={styles.playedDotSmall} />}
+                             </View>
+                             
+                             <View style={{flex: 1}} />
                              <Text style={styles.historyTotal}>{runningTotal}</Text>
                           </View>
                         );
@@ -457,7 +466,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f0f0f' },
   mainHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingTop: 70, paddingBottom: 20 },
   headerTitle: { fontSize: 34, fontWeight: '800', color: '#fff', letterSpacing: -0.5 },
-  headerSubtitle: { fontSize: 14, color: '#666', marginTop: -4 },
+  headerSubtitle: { fontSize: 14, color: '#888', marginTop: 8 }, // Povečan marginTop
   globalStatsButton: { backgroundColor: '#1f1f1f', padding: 12, borderRadius: 16, borderWidth: 1, borderColor: '#333' },
   
   listContainer: { padding: 20, paddingBottom: 100, gap: 16 },
@@ -481,7 +490,7 @@ const styles = StyleSheet.create({
   
   // LEADERBOARD STYLES
   leaderboardItem: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#1a1a1a', borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: '#252525' },
-  rankBox: { width: 32, alignItems: 'center', justifyContent: 'center' },
+  rankBox: { width: 40, alignItems: 'center', justifyContent: 'center' }, // Malo širši box za večje pokale
   rankText: { color: '#fff', fontSize: 18, fontWeight: '700' },
   leaderboardInfo: { flex: 1, paddingLeft: 12 },
   leaderboardName: { color: '#fff', fontSize: 17, fontWeight: '700' },
@@ -526,20 +535,23 @@ const styles = StyleSheet.create({
   radelcUsed: { backgroundColor: '#ef4444' },
 
   modalButtons: { flexDirection: 'row', gap: 12, marginTop: 10 },
-  endGameButton: { flex: 1, backgroundColor: '#4a9eff', padding: 18, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
-  deleteButton: { width: 60, backgroundColor: '#333', borderRadius: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
+  endGameButton: { flex: 1, backgroundColor: '#4a9eff', padding: 18, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', minHeight: 60 },
+  deleteButton: { width: 70, backgroundColor: '#333', borderRadius: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', minHeight: 60 }, // Povečan gumb
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
-  // HISTORY LOG
+  // HISTORY LOG - NEW STYLES
   historyList: { flex: 1 },
   playerHistorySection: { marginBottom: 24, backgroundColor: '#1a1a1a', borderRadius: 16, padding: 16 },
   playerHistoryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#333', paddingBottom: 8 },
   playerHistorySectionTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
   playerTotalScore: { fontSize: 20, fontWeight: '700' },
   historyItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
+  
+  historyPointsContainer: { flexDirection: 'row', alignItems: 'center', width: 80, justifyContent: 'flex-end' },
   historyPoints: { fontSize: 16, fontWeight: '600', textAlign: 'right' },
+  playedDotSmall: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ffd700', marginLeft: 8 }, // Pika takoj ob točkah
+  
   historyTotal: { color: '#888', fontSize: 14, width: 40, textAlign: 'right' },
-  playedDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ffd700' },
   positivePoints: { color: '#4ade80' },
   negativePoints: { color: '#f87171' },
 });
