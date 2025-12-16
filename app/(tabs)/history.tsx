@@ -12,7 +12,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
-import { ChevronRight, Trophy, Trash2, CheckCircle, Info, TrendingUp, Calendar, Clock, BarChart3 } from 'lucide-react-native';
+import { Trophy, Trash2, CheckCircle, Info, TrendingUp, Calendar, Clock, BarChart3, Medal } from 'lucide-react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient'; 
 
@@ -224,7 +224,6 @@ export default function History() {
       <View style={styles.mainHeader}>
           <View>
               <Text style={styles.headerTitle}>Zgodovina</Text>
-              {/* POPRAVEK: Večji razmak in spremenjen tekst */}
               <Text style={styles.headerSubtitle}>Pregled vseh bitk</Text>
           </View>
           <TouchableOpacity style={styles.globalStatsButton} onPress={loadGlobalStats}>
@@ -258,10 +257,10 @@ export default function History() {
                             return (
                                 <TouchableOpacity key={stat.name} style={styles.leaderboardItem} onPress={() => openGlobalPlayerDetails(stat)}>
                                     <View style={styles.rankBox}>
-                                        {/* POPRAVEK: Večji pokali (size 24) */}
-                                        {rank === 1 ? <Trophy size={24} color="#ffd700" /> :
-                                         rank === 2 ? <Trophy size={24} color="#c0c0c0" /> :
-                                         rank === 3 ? <Trophy size={24} color="#cd7f32" /> :
+                                        {/* TUKAJ SEM POVEČAL POKALE ZA RANKING */}
+                                        {rank === 1 ? <Trophy size={26} color="#ffd700" /> :
+                                         rank === 2 ? <Trophy size={26} color="#c0c0c0" /> :
+                                         rank === 3 ? <Trophy size={26} color="#cd7f32" /> :
                                          <Text style={styles.rankText}>{rank}</Text>
                                         }
                                     </View>
@@ -269,10 +268,20 @@ export default function History() {
                                         <Text style={styles.leaderboardName}>{stat.name}</Text>
                                         <Text style={styles.leaderboardSub}>{stat.total_games} iger</Text>
                                     </View>
+                                    {/* POPRAVEK: TUKAJ SEM DODAL POKALE POLEG ŠTEVILK ZMAG/DRUGIH/TRETJIH MEST */}
                                     <View style={styles.medalRow}>
-                                        <View style={[styles.medalTag, {borderColor: '#ffd70033'}]}><Text style={[styles.medalText, {color: '#ffd700'}]}>{stat.wins}</Text></View>
-                                        <View style={[styles.medalTag, {borderColor: '#c0c0c033'}]}><Text style={[styles.medalText, {color: '#c0c0c0'}]}>{stat.second}</Text></View>
-                                        <View style={[styles.medalTag, {borderColor: '#cd7f3233'}]}><Text style={[styles.medalText, {color: '#cd7f32'}]}>{stat.third}</Text></View>
+                                        <View style={[styles.medalTag, {borderColor: '#ffd70033'}]}>
+                                            <Trophy size={10} color="#ffd700" style={{marginRight: 2}}/>
+                                            <Text style={[styles.medalText, {color: '#ffd700'}]}>{stat.wins}</Text>
+                                        </View>
+                                        <View style={[styles.medalTag, {borderColor: '#c0c0c033'}]}>
+                                            <Trophy size={10} color="#c0c0c0" style={{marginRight: 2}}/>
+                                            <Text style={[styles.medalText, {color: '#c0c0c0'}]}>{stat.second}</Text>
+                                        </View>
+                                        <View style={[styles.medalTag, {borderColor: '#cd7f3233'}]}>
+                                            <Trophy size={10} color="#cd7f32" style={{marginRight: 2}}/>
+                                            <Text style={[styles.medalText, {color: '#cd7f32'}]}>{stat.third}</Text>
+                                        </View>
                                     </View>
                                 </TouchableOpacity>
                             );
@@ -295,13 +304,16 @@ export default function History() {
                         </View>
 
                         <ScrollView style={styles.detailScroll}>
-                            {/* FORMA */}
+                            {/* FORMA - NOVI GRADIENT */}
                             {(() => {
                                 const form = getFormStatus(selectedGlobalPlayer.recent_ranks);
                                 return (
-                                    <LinearGradient colors={['#252525', '#151515']} style={styles.formCard}>
+                                    <LinearGradient 
+                                        colors={['#1e293b', '#0f172a']} // POPRAVEK: Lepši gradient (Slate Blue)
+                                        start={{x:0, y:0}} end={{x:1, y:1}}
+                                        style={styles.formCard}
+                                    >
                                         <Text style={styles.sectionTitle}>Trenutna forma</Text>
-                                        {/* POPRAVEK: Povečan razmak (marginTop: 18) */}
                                         <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 18}}>
                                             <Text style={{fontSize: 48, marginRight: 15}}>{form.icon}</Text>
                                             <View>
@@ -313,8 +325,11 @@ export default function History() {
                                 );
                             })()}
 
-                            {/* GRAF */}
-                            <View style={styles.chartSection}>
+                            {/* GRAF - NOVI GRADIENT */}
+                            <LinearGradient 
+                                colors={['#172554', '#0a0a0a']} // POPRAVEK: Lepši gradient za graf
+                                style={styles.chartSection}
+                            >
                                 <View style={{flexDirection:'row', alignItems:'center', marginBottom:15}}>
                                     <TrendingUp size={18} color="#4a9eff" style={{marginRight:8}} />
                                     <Text style={styles.sectionTitle}>Trend uvrstitev (Zadnjih 10)</Text>
@@ -343,7 +358,7 @@ export default function History() {
                                     <Text style={styles.axisLabel}>Starejše</Text>
                                     <Text style={styles.axisLabel}>Novejše</Text>
                                 </View>
-                            </View>
+                            </LinearGradient>
 
                             <View style={styles.lastGamesSection}>
                                 <View style={{flexDirection:'row', alignItems:'center', marginBottom:10}}>
@@ -403,11 +418,9 @@ export default function History() {
               {selectedGame?.is_active ? (
                 <>
                   <TouchableOpacity style={styles.endGameButton} onPress={() => endGame(selectedGame.id)}><CheckCircle size={20} color="#fff" style={{marginRight:8}} /><Text style={styles.buttonText}>Zaključi igro</Text></TouchableOpacity>
-                  {/* POPRAVEK: Gumb za brisanje povečan (minHeight) */}
                   <TouchableOpacity style={styles.deleteButton} onPress={() => deleteGame(selectedGame.id)}><Trash2 size={24} color="#fff" /></TouchableOpacity>
                 </>
               ) : (
-                // POPRAVEK: Gumb za brisanje v arhivu povečan (padding)
                 selectedGame && <TouchableOpacity style={[styles.deleteButton, {flex: 1, backgroundColor: '#ef4444', minHeight: 56}]} onPress={() => deleteGame(selectedGame.id)}><Trash2 size={20} color="#fff" style={{marginRight:8}}/><Text style={styles.buttonText}>Izbriši igro</Text></TouchableOpacity>
               )}
             </View>
@@ -438,7 +451,7 @@ export default function History() {
                         for (let i = 0; i <= index; i++) { runningTotal += playerEntries[i].points; }
                         return (
                           <View key={entry.id} style={styles.historyItem}>
-                             {/* POPRAVEK: PIKA PRESTAVLJENA OB TOČKE */}
+                             {/* POPRAVEK: PORAVNAVA LEVO */}
                              <View style={styles.historyPointsContainer}>
                                 <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>
                                     {entry.points > 0 ? '+' : ''}{entry.points}
@@ -466,7 +479,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f0f0f' },
   mainHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingTop: 70, paddingBottom: 20 },
   headerTitle: { fontSize: 34, fontWeight: '800', color: '#fff', letterSpacing: -0.5 },
-  headerSubtitle: { fontSize: 14, color: '#888', marginTop: 8 }, // Povečan marginTop
+  headerSubtitle: { fontSize: 14, color: '#888', marginTop: 8 },
   globalStatsButton: { backgroundColor: '#1f1f1f', padding: 12, borderRadius: 16, borderWidth: 1, borderColor: '#333' },
   
   listContainer: { padding: 20, paddingBottom: 100, gap: 16 },
@@ -490,22 +503,26 @@ const styles = StyleSheet.create({
   
   // LEADERBOARD STYLES
   leaderboardItem: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#1a1a1a', borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: '#252525' },
-  rankBox: { width: 40, alignItems: 'center', justifyContent: 'center' }, // Malo širši box za večje pokale
+  rankBox: { width: 40, alignItems: 'center', justifyContent: 'center' },
   rankText: { color: '#fff', fontSize: 18, fontWeight: '700' },
   leaderboardInfo: { flex: 1, paddingLeft: 12 },
   leaderboardName: { color: '#fff', fontSize: 17, fontWeight: '700' },
   leaderboardSub: { color: '#666', fontSize: 13 },
   medalRow: { flexDirection: 'row', gap: 6 },
-  medalTag: { width: 28, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: 6, borderWidth: 1, backgroundColor: '#111' },
-  medalText: { fontSize: 12, fontWeight: '700' },
+  
+  // POPRAVEK: Širši box za medalje, da paše ikona + tekst
+  medalTag: { flexDirection: 'row', paddingHorizontal: 6, height: 26, alignItems: 'center', justifyContent: 'center', borderRadius: 6, borderWidth: 1, backgroundColor: '#111' },
+  medalText: { fontSize: 13, fontWeight: '700', marginLeft: 2 },
 
   // DETAIL & CHART
   detailScroll: { flex: 1 },
-  formCard: { padding: 20, borderRadius: 20, marginBottom: 25, borderWidth: 1, borderColor: '#333' },
+  // POPRAVEK: Odstranjen border, ker imamo zdaj gradient
+  formCard: { padding: 20, borderRadius: 20, marginBottom: 25 },
   sectionTitle: { color: '#fff', fontSize: 18, fontWeight: '700', opacity: 0.9 },
   formText: { fontSize: 26, fontWeight: '800', marginBottom: 2 },
   formSubText: { color: '#888', fontSize: 13 },
-  chartSection: { marginBottom: 25, backgroundColor: '#1a1a1a', padding: 16, borderRadius: 20, borderWidth: 1, borderColor: '#333' },
+  // POPRAVEK: Odstranjen border za lepši gradient look
+  chartSection: { marginBottom: 25, padding: 16, borderRadius: 20 },
   chartContainer: { height: 120, marginVertical: 10 },
   chartXAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 },
   axisLabel: { color: '#444', fontSize: 10 },
@@ -536,7 +553,7 @@ const styles = StyleSheet.create({
 
   modalButtons: { flexDirection: 'row', gap: 12, marginTop: 10 },
   endGameButton: { flex: 1, backgroundColor: '#4a9eff', padding: 18, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', minHeight: 60 },
-  deleteButton: { width: 70, backgroundColor: '#333', borderRadius: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', minHeight: 60 }, // Povečan gumb
+  deleteButton: { width: 70, backgroundColor: '#333', borderRadius: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', minHeight: 60 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
   // HISTORY LOG - NEW STYLES
@@ -547,9 +564,10 @@ const styles = StyleSheet.create({
   playerTotalScore: { fontSize: 20, fontWeight: '700' },
   historyItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
   
-  historyPointsContainer: { flexDirection: 'row', alignItems: 'center', width: 80, justifyContent: 'flex-end' },
-  historyPoints: { fontSize: 16, fontWeight: '600', textAlign: 'right' },
-  playedDotSmall: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ffd700', marginLeft: 8 }, // Pika takoj ob točkah
+  // POPRAVEK: Leva poravnava (flex-start)
+  historyPointsContainer: { flexDirection: 'row', alignItems: 'center', width: 80, justifyContent: 'flex-start' },
+  historyPoints: { fontSize: 16, fontWeight: '600', textAlign: 'left' },
+  playedDotSmall: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ffd700', marginLeft: 8 },
   
   historyTotal: { color: '#888', fontSize: 14, width: 40, textAlign: 'right' },
   positivePoints: { color: '#4ade80' },
