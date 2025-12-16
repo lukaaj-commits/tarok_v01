@@ -20,14 +20,14 @@ type GamePlayer = { id: string; name: string; total_score: number; position: num
 type Radelc = { id: string; player_id: string; is_used: boolean; position: number; };
 type ScoreEntry = { id: string; points: number; created_at: string; played: boolean; player_id?: string; };
 
-// Dodan array za zgodovino uvrstitev (recent_ranks)
+// Dodan array za zgodovino uvrstitev (recent_ranks) za izračun forme
 type PlayerStats = { 
     name: string; 
     wins: number; 
     second: number; 
     third: number; 
     total_games: number; 
-    recent_ranks: { rank: number, date: string }[]; // Hranimo uvrstitev in datum igre
+    recent_ranks: { rank: number, date: string }[]; 
 };
 
 export default function History() {
@@ -110,21 +110,19 @@ export default function History() {
     } catch (error) { console.error(error); }
   };
 
-  // --- POSODOBITEV: LOGIKA GLOBALNE STATISTIKE Z UVRSTITVAMI ---
+  // --- LOGIKA GLOBALNE STATISTIKE (Zadnjih 5 iger in Forma) ---
   const loadGlobalStats = async () => {
     setStatsLoading(true);
     setShowGlobalStatsModal(true);
     try {
-        // Pridobimo igre urejene po datumu, da vemo katera je bila kdaj
+        // Dobimo vse zaključene igre
         const { data: finishedGames } = await supabase
             .from('games')
             .select('id, created_at')
             .eq('is_active', false)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false }); // Najnovejše prve
             
         const gameIds = finishedGames?.map(g => g.id) || [];
-        
-        // Mapa za hiter dostop do datuma igre
         const gameDates = new Map<string, string>();
         finishedGames?.forEach(g => gameDates.set(g.id, g.created_at));
 
@@ -142,10 +140,10 @@ export default function History() {
             return acc;
         }, {} as Record<string, typeof allPlayers>);
 
-        // Obdelamo vsako igro posebej, da določimo uvrstitve
+        // Obdelamo vsako igro posebej, da določimo točno uvrstitev
         Object.keys(playersByGame).forEach(gameId => {
             const gameP = playersByGame[gameId];
-            // Sortiramo igralce v tej igri po točkah (padajoče)
+            // Sortiramo igralce v TEJ igri po točkah (največ točk = 1. mesto)
             gameP.sort((a, b) => b.total_score - a.total_score);
             
             const date = gameDates.get(gameId) || '';
@@ -157,14 +155,13 @@ export default function History() {
                         name, 
                         wins: 0, second: 0, third: 0, 
                         total_games: 0, 
-                        recent_ranks: [] // Prazno na začetku
+                        recent_ranks: [] 
                     });
                 }
                 const stat = statsMap.get(name)!;
                 stat.total_games += 1;
                 
-                // Izračunamo uvrstitev v tej konkretni igri
-                // (upoštevamo, da ima lahko več ljudi enake točke)
+                // Izračun uvrstitve (upoštevamo delitev mest pri enakem št. točk)
                 const myScore = p.total_score;
                 const betterPlayers = gameP.filter(gp => gp.total_score > myScore).length;
                 const myRank = betterPlayers + 1;
@@ -173,19 +170,18 @@ export default function History() {
                 if (myRank === 2) stat.second += 1;
                 if (myRank === 3) stat.third += 1;
 
-                // Dodamo uvrstitev v zgodovino
+                // Shranimo uvrstitev in datum za kasnejši izračun forme
                 stat.recent_ranks.push({ rank: myRank, date: date });
             });
         });
 
-        // Pripravimo končni array in sortiramo "recent_ranks" po datumu
         const processedStats = Array.from(statsMap.values()).map(stat => {
-            // Sortiraj ranke po datumu (najnovejši prvi)
+            // Uredimo po datumu (najnovejše igre so na začetku arraya)
             stat.recent_ranks.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             return stat;
         });
 
-        // Glavno sortiranje lestvice (Zlate, Srebrne, Bronaste)
+        // Glavno sortiranje lestvice (Zlate > Srebrne > Bronaste)
         const sortedStats = processedStats.sort((a, b) => {
             if (b.wins !== a.wins) return b.wins - a.wins;
             if (b.second !== a.second) return b.second - a.second;
@@ -198,19 +194,32 @@ export default function History() {
     finally { setStatsLoading(false); }
   };
 
-  // Pomožna funkcija za izračun forme
+  // --- STROŽJA LOGIKA FORME ---
   const getFormStatus = (ranks: { rank: number }[]) => {
       if (ranks.length === 0) return { text: '-', color: '#666' };
       
-      // Vzamemo zadnjih 5 (ali manj)
+      // Gledamo samo zadnjih 5 iger (oziroma manj, če jih je manj)
       const last5 = ranks.slice(0, 5);
+      const wins = last5.filter(r => r.rank === 1).length;
       const sum = last5.reduce((acc, curr) => acc + curr.rank, 0);
       const avg = sum / last5.length;
 
-      if (avg <= 1.8) return { text: 'Vroče 🔥', color: '#ff4500' }; // Skoraj vedno 1. ali 2.
-      if (avg <= 2.8) return { text: 'Odlična 🚀', color: '#22c55e' };
-      if (avg <= 4.0) return { text: 'Dobra 👍', color: '#4a9eff' };
-      if (avg <= 6.0) return { text: 'Srednja 😐', color: '#fbbf24' };
+      // 1. Kriterij: VROČE 🔥 (Strogo: vsaj 3 zmage v zadnjih 5)
+      if (wins >= 3) {
+          return { text: 'Vroče 🔥', color: '#ff4500' };
+      }
+
+      // 2. Kriterij: ODLIČNA 🚀 (Večinoma pri vrhu, povprečje boljše od 3.0)
+      if (avg <= 3.0) {
+          return { text: 'Odlična 🚀', color: '#22c55e' };
+      }
+
+      // 3. Kriterij: SREDNJA 😐 (Nisi čisto pri dnu, povprečje med 3.0 in 5.0)
+      if (avg <= 5.0) {
+          return { text: 'Srednja 😐', color: '#fbbf24' };
+      }
+
+      // 4. Kriterij: HLADNA ❄️ (Povprečje slabše od 5.0 - npr. 3,3,5,7,4)
       return { text: 'Hladna ❄️', color: '#94a3b8' };
   };
 
@@ -248,18 +257,19 @@ export default function History() {
         ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>Ni še nobene igre</Text></View>}
       />
 
-      {/* --- MODAL ZA GLOBALNO STATISTIKO --- */}
+      {/* --- MODAL ZA GLOBALNO STATISTIKO (VEČNA LESTVICA) --- */}
       <Modal visible={showGlobalStatsModal} transparent animationType="slide" onRequestClose={() => setShowGlobalStatsModal(false)}>
          <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, styles.historyModal]}>
                 <Text style={styles.modalTitle}>Večna lestvica 🏆</Text>
-                <Text style={styles.subTitle}>(Statistika uvrstitev)</Text>
+                <Text style={styles.subTitle}>(Statistika uvrstitev in forme)</Text>
                 
                 {statsLoading ? (
                     <ActivityIndicator size="large" color="#4a9eff" style={{marginTop: 20}} />
                 ) : (
                     <ScrollView style={styles.historyList}>
                         {globalStats.map((stat, index) => {
+                            // Izračun globalnega ranka (glede na medalje)
                             const rank = globalStats.findIndex(s => 
                                 s.wins === stat.wins && 
                                 s.second === stat.second && 
@@ -271,7 +281,7 @@ export default function History() {
 
                             return (
                                 <View key={stat.name} style={styles.leaderboardItem}>
-                                    {/* Levi del: Mesto na lestvici */}
+                                    {/* MESTO */}
                                     <View style={{width: 30, alignItems: 'center', alignSelf: 'flex-start', paddingTop: 4}}>
                                         {rank === 1 ? <Trophy size={18} color="#ffd700" /> :
                                          rank === 2 ? <Trophy size={18} color="#c0c0c0" /> :
@@ -280,14 +290,14 @@ export default function History() {
                                         }
                                     </View>
                                     
-                                    {/* Srednji del: Podatki */}
+                                    {/* PODATKI */}
                                     <View style={{flex: 1, paddingLeft: 12}}>
-                                        {/* Ime z večjim odmikom spodaj */}
-                                        <Text style={[styles.leaderboardName, { marginBottom: 6 }]}>{stat.name}</Text>
+                                        {/* Ime z večjim odmikom */}
+                                        <Text style={[styles.leaderboardName, { marginBottom: 8 }]}>{stat.name}</Text>
                                         
-                                        {/* Zadnjih 5 uvrstitev */}
+                                        {/* Statistika zadnjih 5 iger */}
                                         <Text style={styles.statLabel}>
-                                            Zadnjih 5: <Text style={{color: '#fff', fontWeight: 'bold'}}>{last5Ranks}{last5Ranks ? '.' : ''}</Text>
+                                            Zadnjih 5: <Text style={{color: '#fff', fontWeight: 'bold'}}>{last5Ranks ? last5Ranks + '.' : '-'}</Text>
                                         </Text>
 
                                         {/* Forma */}
@@ -295,11 +305,10 @@ export default function History() {
                                             Forma: <Text style={{color: form.color, fontWeight: 'bold'}}>{form.text}</Text>
                                         </Text>
                                         
-                                        {/* Število iger */}
-                                        <Text style={[styles.statLabel, {marginTop: 2}]}>{stat.total_games} iger</Text>
+                                        <Text style={[styles.statLabel, {marginTop: 4, opacity: 0.7}]}>{stat.total_games} iger</Text>
                                     </View>
 
-                                    {/* Desni del: Medalje */}
+                                    {/* MEDALJE */}
                                     <View style={{flexDirection: 'column', gap: 4, alignItems: 'flex-end'}}>
                                         <View style={styles.medalRow}><Text style={styles.medalCount}>{stat.wins}</Text><Trophy size={14} color="#ffd700" /></View>
                                         <View style={styles.medalRow}><Text style={styles.medalCount}>{stat.second}</Text><Trophy size={14} color="#c0c0c0" /></View>
@@ -317,7 +326,7 @@ export default function History() {
          </View>
       </Modal>
 
-      {/* --- MODAL ZA POSAMEZNO IGRO --- */}
+      {/* --- MODAL ZA POSAMEZNO IGRO (Nespremenjen, razen uvoza) --- */}
       <Modal visible={showGameModal} transparent animationType="slide" onRequestClose={() => setShowGameModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -364,7 +373,7 @@ export default function History() {
         </View>
       </Modal>
 
-      {/* --- MODAL ZA ZGODOVINO IGRALCA (Lokalno) --- */}
+      {/* --- MODAL ZA ZGODOVINO IGRALCA (Lokalno - Pustil nespremenjeno) --- */}
       <Modal visible={showPlayerHistoryModal} transparent animationType="slide" onRequestClose={() => setShowPlayerHistoryModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -474,7 +483,7 @@ const styles = StyleSheet.create({
   radelc: { width: 14, height: 14, borderRadius: 7 },
   radelcUnused: { backgroundColor: 'transparent', borderWidth: 2, borderColor: '#4a9eff' },
   radelcUsed: { backgroundColor: '#000', borderWidth: 0 },
-  historyModal: { height: '80%', maxHeight: '80%' }, // Povečana višina za več podatkov
+  historyModal: { height: '80%', maxHeight: '80%' }, 
   historyList: { flex: 1, marginBottom: 16 },
   playerHistorySection: { marginBottom: 24 },
   playerHistoryHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#333', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, marginBottom: 8, gap: 12 },
@@ -493,10 +502,10 @@ const styles = StyleSheet.create({
   historyDate: { color: '#666', fontSize: 12, flex: 1, textAlign: 'right' },
   playedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ffd700' },
   
-  // Novi in popravljeni stili za leaderborad
+  // LEADERBOARD STYLES (Posodobljeno)
   leaderboardItem: { 
       flexDirection: 'row', 
-      alignItems: 'center', // Sedaj center po vertikali, ker je item višji
+      alignItems: 'center', 
       paddingVertical: 16, 
       paddingHorizontal: 16, 
       backgroundColor: '#2a2a2a', 
@@ -506,7 +515,7 @@ const styles = StyleSheet.create({
   },
   rankText: { color: '#888', fontSize: 18, fontWeight: '700' },
   leaderboardName: { color: '#fff', fontSize: 19, fontWeight: '700', flex: 1 },
-  statLabel: { color: '#888', fontSize: 13, marginBottom: 1 },
+  statLabel: { color: '#888', fontSize: 13, marginBottom: 2 },
   medalRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   medalCount: { color: '#fff', fontSize: 14, fontWeight: '700' },
 });
