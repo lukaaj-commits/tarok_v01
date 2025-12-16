@@ -43,7 +43,7 @@ export default function ActiveGame() {
   const [showKlopModal, setShowKlopModal] = useState(false);
   const [playerHistory, setPlayerHistory] = useState<ScoreEntry[]>([]);
   
-  // Stanje za "lažni" input (The Swap Trick)
+  // Stanje za "lažni" input (The Swap Trick) - to reši Android tipkovnico
   const [isInputActive, setIsInputActive] = useState(false);
 
   const searchInputRef = useRef<TextInput>(null);
@@ -164,10 +164,8 @@ export default function ActiveGame() {
   const openScoreInput = (playerId: string) => {
     setSelectedPlayerId(playerId); 
     setScoreInput(''); 
-    // POPRAVEK: Privzeto nastavimo na TRUE. 
-    // Če ročno vpisuješ točke, si verjetno igral.
-    // Če pa je to sistemska kazen (radelc), bo koda v finishGame nastavila na false.
-    setScorePlayed(true); 
+    // POPRAVEK: Privzeto FALSE (neoznačeno), kot si želel
+    setScorePlayed(false); 
     setShowScoreModal(true);
   };
 
@@ -230,7 +228,7 @@ export default function ActiveGame() {
                     game_id: gameId, 
                     player_id: p.id, 
                     points: penalty, 
-                    played: false // KLJUČNO: To sproži MODRO PIKO v zgodovini
+                    played: false 
                 });
                 await supabase.from('players').update({ total_score: p.total_score + penalty }).eq('id', p.id);
                 const radelcIds = unusedRadelci.map(r => r.id);
@@ -353,7 +351,6 @@ export default function ActiveGame() {
       <Modal visible={showScoreModal} transparent animationType="fade" onRequestClose={() => setShowScoreModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            {/* POPRAVEK: Ime igralca v naslovu */}
             <Text style={styles.modalTitle}>Vnesi točke ({getSelectedPlayerName()})</Text>
             
             <View style={styles.scoreDisplay}>
@@ -422,10 +419,9 @@ export default function ActiveGame() {
                           <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
                       </View>
                       <View style={styles.dotContainer}>
-                          {/* RUMENA: Igral (ne glede na + ali -) */}
+                          {/* RUMENA PIKA: Če je igral */}
                           {entry.played && <View style={styles.playedDot} />}
-                          {/* MODRA: Ni igral + Negativne točke = Radelc kazen */}
-                          {!entry.played && entry.points < 0 && <View style={styles.radelcDot} />}
+                          {/* MODRE PIKE NI VEČ - Kot želeno */}
                       </View>
                     </View>
                     <Text style={styles.historyTotal}>= {runningTotal}</Text>
@@ -550,7 +546,6 @@ const styles = StyleSheet.create({
   historyTotal: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1, textAlign: 'center' },
   historyDate: { color: '#666', fontSize: 12, flex: 1, textAlign: 'right' },
   playedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ffd700', marginLeft: 6 },
-  radelcDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4a9eff', marginLeft: 6 },
   leaderboardItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: '#2a2a2a', borderRadius: 8, marginBottom: 8, gap: 10 },
   rankText: { color: '#888', fontSize: 18, fontWeight: '700' },
   leaderboardName: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1 },
