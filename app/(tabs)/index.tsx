@@ -12,7 +12,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
-  Keyboard, // Uvoženo za zapiranje tipkovnice
+  Keyboard, 
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -48,6 +48,17 @@ export default function ActiveGame() {
 
   useFocusEffect(useCallback(() => { fetchActiveGamesList(); }, []));
   useEffect(() => { fetchProfiles(false); }, []);
+
+  // --- FIX ZA TIPKOVNICO NA ANDROIDU ---
+  useEffect(() => {
+    if (showAddPlayerModal) {
+      // Počakamo 100ms, da se modal odpre, nato "ubijemo" tipkovnico
+      const timer = setTimeout(() => {
+        Keyboard.dismiss();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [showAddPlayerModal]);
 
   const fetchActiveGamesList = async () => {
     if (!gameId) setLoading(true);
@@ -102,8 +113,7 @@ export default function ActiveGame() {
   };
 
   const openAddPlayerModal = () => {
-    // FIX ZA ANDROID: Prisilno zapri tipkovnico preden se modal odpre
-    Keyboard.dismiss();
+    Keyboard.dismiss(); // Poskusimo takoj zapreti
     setSearchQuery(''); 
     setShowAddPlayerModal(true); 
     fetchProfiles(false); 
@@ -198,9 +208,52 @@ export default function ActiveGame() {
     setPlayerHistory(data || []); setSelectedPlayerId(pid); setShowHistoryModal(true);
   };
 
+  // --- NOVA LOGIKA ZA ZAKLJUČEK IGRE (KAZNI ZA RADELCE) ---
   const finishGame = async () => {
-    if (gameId) { await supabase.from('games').update({ is_active: false }).eq('id', gameId); }
-    setShowFinishGameModal(false); exitToLobby();
+    if (!gameId) return;
+    setLoading(true);
+    
+    try {
+        // 1. Preglej vse igralce in njihove neuporabljene radelce
+        const updates = players.map(async (p) => {
+            const unusedRadelci = radelci.filter(r => r.player_id === p.id && !r.is_used);
+            
+            if (unusedRadelci.length > 0) {
+                const penalty = unusedRadelci.length * -50;
+                
+                // Vpiši kazen v zgodovino
+                await supabase.from('score_entries').insert({
+                    game_id: gameId,
+                    player_id: p.id,
+                    points: penalty,
+                    played: true // Da bo v zgodovini pika, če želiš, ali pa false
+                });
+
+                // Posodobi skupne točke igralca
+                await supabase.from('players').update({ 
+                    total_score: p.total_score + penalty 
+                }).eq('id', p.id);
+
+                // **POMEMBNO**: Označi radelce kot PORABLJENE (črne), da bo v zgodovini prav
+                const radelcIds = unusedRadelci.map(r => r.id);
+                await supabase.from('radelci').update({ is_used: true }).in('id', radelcIds);
+            }
+        });
+
+        // Počakaj, da se vse kazni zapišejo
+        await Promise.all(updates);
+
+        // 2. Zaključi igro
+        await supabase.from('games').update({ is_active: false }).eq('id', gameId);
+        
+        setShowFinishGameModal(false);
+        exitToLobby();
+
+    } catch (e) {
+        Alert.alert("Napaka", "Prišlo je do napake pri zaključevanju.");
+    } finally {
+        setLoading(false);
+    }
   };
 
   const renderPlayer = ({ item }: { item: Player }) => {
@@ -223,7 +276,12 @@ export default function ActiveGame() {
         </TouchableOpacity>
         <ScrollView horizontal style={styles.radelciContainer} showsHorizontalScrollIndicator={false}>
           {pRadelci.map(r => (
-            <TouchableOpacity key={r.id} onPress={() => toggleRadelc(r.id, r.is_used)}>
+            // POVEČANO OBMOČJE DOTIKA (hitSlop)
+            <TouchableOpacity 
+                key={r.id} 
+                onPress={() => toggleRadelc(r.id, r.is_used)}
+                hitSlop={{top: 15, bottom: 15, left: 10, right: 10}} // Lažje zadevanje
+            >
               <View style={[styles.radelc, r.is_used ? styles.radelcUsed : styles.radelcUnused]} />
             </TouchableOpacity>
           ))}
@@ -258,14 +316,14 @@ export default function ActiveGame() {
             <Text style={styles.modalTitle}>Dodaj igralca</Text>
             <View style={styles.searchContainer}>
                 <Search size={24} color="#666" style={{ marginRight: 12 }} />
-                {/* POPRAVEK: autoFocus je izbrisan + Keyboard.dismiss() zgoraj */}
+                {/* FIX ZA ANDROID TIPKOVNICO: autoFocus je false */}
                 <TextInput
                     style={[styles.searchInput, { outlineStyle: 'none', borderWidth: 0 } as any]}
                     placeholder="Išči ali ustvari novega..."
                     placeholderTextColor="#666"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
-                    autoFocus={false}
+                    autoFocus={false} 
                     underlineColorAndroid="transparent"
                     selectionColor="#4a9eff"
                     cursorColor="#4a9eff"
@@ -423,8 +481,8 @@ const styles = StyleSheet.create({
   scoreText: { color: '#fff', fontSize: 48, fontWeight: '700' },
   radelciContainer: { flexDirection: 'row', paddingVertical: 8 },
   
-  // POPRAVLJEN STIL RADELCA (Modri robovi)
-  radelc: { width: 14, height: 14, borderRadius: 7, marginHorizontal: 4 },
+  // POPRAVLJENO: Večji radelci (24px) in modri robovi
+  radelc: { width: 24, height: 24, borderRadius: 12, marginHorizontal: 4 },
   radelcUnused: { backgroundColor: 'transparent', borderWidth: 2, borderColor: '#4a9eff' },
   radelcUsed: { backgroundColor: '#000', borderWidth: 0 },
 
@@ -533,7 +591,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   checkboxChecked: {
-    backgroundColor: '#ffd700', // Rumen ko je obkljukan
+    backgroundColor: '#ffd700',
     borderColor: '#ffd700',
   },
   playedLabel: {
