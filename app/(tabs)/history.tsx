@@ -188,16 +188,43 @@ export default function History() {
       setShowGlobalPlayerModal(true);
   };
 
+  // --- NOVA LOGIKA FORME (STROGA ZMAGE + TAROK TOČKOVANJE) ---
   const getFormStatus = (ranks: { rank: number }[]) => {
       if (ranks.length === 0) return { text: '-', color: '#666', icon: '➖' };
       const last5 = ranks.slice(0, 5);
+      
+      // 1. Preštejemo zmage za "Vroče" kriterij
       const wins = last5.filter(r => r.rank === 1).length;
-      const sum = last5.reduce((acc, curr) => acc + curr.rank, 0);
-      const avg = sum / last5.length;
 
-      if (wins >= 3) return { text: 'Vroče', color: '#ff4500', icon: '🔥' };
-      if (avg <= 3.0) return { text: 'Odlična', color: '#22c55e', icon: '🚀' };
-      if (avg <= 5.0) return { text: 'Srednja', color: '#fbbf24', icon: '😐' };
+      // 2. Izračunamo točke za ostale kriterije
+      // 1. mesto = 10, 2. mesto = 5, 3. mesto = 2, 4.+ mesto = 0
+      let totalScore = 0;
+      last5.forEach(r => {
+          if (r.rank === 1) totalScore += 10;
+          else if (r.rank === 2) totalScore += 5;
+          else if (r.rank === 3) totalScore += 2;
+      });
+      const avgScore = totalScore / last5.length;
+
+      // --- KRITERIJI ---
+
+      // VROČE 🔥: Strogo samo, če imaš vsaj 3 zmage v zadnjih 5 igrah.
+      if (wins >= 3) {
+          return { text: 'Vroče', color: '#ff4500', icon: '🔥' };
+      }
+
+      // ODLIČNA 🚀: Visoko povprečje točk (večinoma 2. mesta ali kakšna zmaga in 3. mesta).
+      // AvgScore 3.5 pomeni npr. povprečje med 2. in 3. mestom z nagnjenostjo k 2.
+      if (avgScore >= 3.5) {
+          return { text: 'Odlična', color: '#22c55e', icon: '🚀' };
+      }
+
+      // SREDNJA 😐: Nekaj točk se nabere (večinoma 3. mesta).
+      if (avgScore >= 1.5) {
+          return { text: 'Srednja', color: '#fbbf24', icon: '😐' };
+      }
+
+      // HLADNA ❄️: Večinoma 4. mesta ali slabše.
       return { text: 'Hladna', color: '#94a3b8', icon: '❄️' };
   };
 
@@ -246,6 +273,7 @@ export default function History() {
         ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>Ni še nobene igre</Text></View>}
       />
 
+      {/* --- MODAL: VEČNA LESTVICA --- */}
       <Modal visible={showGlobalStatsModal} transparent animationType="slide" onRequestClose={() => setShowGlobalStatsModal(false)}>
          <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, styles.historyModal]}>
@@ -265,18 +293,19 @@ export default function History() {
 
                             return (
                                 <TouchableOpacity key={stat.name} style={styles.leaderboardItem} onPress={() => openGlobalPlayerDetails(stat)}>
-                                    <View style={{width: 30, alignItems: 'center'}}>
+                                    {/* Sredinska poravnava ranga/pokala */}
+                                    <View style={{width: 30, alignItems: 'center', justifyContent: 'center'}}>
                                         {rank === 1 ? <Trophy size={18} color="#ffd700" /> :
                                          rank === 2 ? <Trophy size={18} color="#c0c0c0" /> :
                                          rank === 3 ? <Trophy size={18} color="#cd7f32" /> :
                                          <Text style={styles.rankText}>{rank}.</Text>
                                         }
                                     </View>
-                                    <View style={{flex: 1, paddingLeft: 8}}>
+                                    <View style={{flex: 1, paddingLeft: 8, justifyContent: 'center'}}>
                                         <Text style={styles.leaderboardName}>{stat.name}</Text>
                                         <Text style={{color: '#666', fontSize: 12}}>{stat.total_games} iger</Text>
                                     </View>
-                                    <View style={{flexDirection: 'row', gap: 6}}>
+                                    <View style={{flexDirection: 'row', gap: 6, alignItems: 'center'}}>
                                         <View style={styles.medalBox}><Trophy size={14} color="#ffd700" /><Text style={styles.medalText}>{stat.wins}</Text></View>
                                         <View style={styles.medalBox}><Trophy size={14} color="#c0c0c0" /><Text style={styles.medalText}>{stat.second}</Text></View>
                                         <View style={styles.medalBox}><Trophy size={14} color="#cd7f32" /><Text style={styles.medalText}>{stat.third}</Text></View>
@@ -294,6 +323,7 @@ export default function History() {
          </View>
       </Modal>
 
+      {/* --- MODAL: PODROBNOSTI IGRALCA --- */}
       <Modal visible={showGlobalPlayerModal} transparent animationType="slide" onRequestClose={() => setShowGlobalPlayerModal(false)}>
          <View style={styles.modalOverlay}>
              <View style={[styles.modalContent, styles.historyModal]}>
@@ -304,6 +334,7 @@ export default function History() {
                         </View>
 
                         <ScrollView style={styles.detailScroll}>
+                            {/* FORMA */}
                             <View style={styles.formSection}>
                                 <Text style={styles.sectionTitle}>Trenutna forma</Text>
                                 {(() => {
@@ -320,6 +351,7 @@ export default function History() {
                                 })()}
                             </View>
 
+                            {/* GRAF */}
                             <View style={styles.chartSection}>
                                 <View style={{flexDirection:'row', alignItems:'center', marginBottom:20}}>
                                     <TrendingUp size={20} color="#4a9eff" style={{marginRight:8}} />
@@ -337,7 +369,7 @@ export default function History() {
                                     {(() => {
                                         if (chartWidth === 0) return null;
                                         const data = selectedGlobalPlayer.recent_ranks.slice(0, 10).reverse();
-                                        const chartHeight = 120; // ZMANJŠANA VIŠINA GRAFA
+                                        const chartHeight = 120;
                                         const totalPoints = data.length;
                                         const stepX = totalPoints > 1 ? chartWidth / (totalPoints - 1) : chartWidth / 2;
                                         
@@ -373,6 +405,7 @@ export default function History() {
                                 </View>
                             </View>
 
+                            {/* ZADNJIH 5 */}
                             <View style={styles.lastGamesSection}>
                                 <View style={{flexDirection:'row', alignItems:'center', marginBottom:10}}>
                                     <Calendar size={20} color="#4a9eff" style={{marginRight:8}} />
@@ -381,8 +414,6 @@ export default function History() {
                                 {selectedGlobalPlayer.recent_ranks.slice(0, 5).map((r, i) => (
                                     <View key={i} style={styles.rankRow}>
                                         <Text style={styles.rankRowDate}>{new Date(r.date).toLocaleDateString('sl-SI')}</Text>
-                                        
-                                        {/* POPRAVEK: ODSTRANJENE BARVNE OBROBE */}
                                         <View style={styles.rankBadge}>
                                             <Text style={styles.rankBadgeText}>
                                                 {r.rank}. mesto
@@ -402,6 +433,7 @@ export default function History() {
          </View>
       </Modal>
 
+      {/* MODAL ZA IGRO */}
       <Modal visible={showGameModal} transparent animationType="slide" onRequestClose={() => setShowGameModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -448,6 +480,7 @@ export default function History() {
         </View>
       </Modal>
 
+      {/* MODAL ZA TOČKE IGRALCA */}
       <Modal visible={showPlayerHistoryModal} transparent animationType="slide" onRequestClose={() => setShowPlayerHistoryModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -586,7 +619,7 @@ const styles = StyleSheet.create({
       borderRadius: 10, 
       marginBottom: 10, 
   },
-  rankText: { color: '#fff', fontSize: 18, fontWeight: '700' }, // POPRAVEK: Bela barva za 4., 5., ...
+  rankText: { color: '#fff', fontSize: 18, fontWeight: '700' }, // BELA ZA 4., 5....
   leaderboardName: { color: '#fff', fontSize: 18, fontWeight: '600', flex: 1 },
   medalBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#222', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6 },
   medalText: { color: '#fff', fontWeight: '700', marginLeft: 2, fontSize: 12 },
@@ -601,7 +634,7 @@ const styles = StyleSheet.create({
   formSubText: { color: '#666', marginTop: 4 },
 
   chartSection: { marginBottom: 24, backgroundColor: '#222', padding: 16, borderRadius: 16 },
-  chartContainer: { height: 140, paddingBottom: 10, marginTop: 10 }, // POPRAVEK: Zmanjšana višina kontejnerja
+  chartContainer: { height: 140, paddingBottom: 10, marginTop: 10 },
   chartXAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   axisLabel: { color: '#666', fontSize: 10 },
   gridLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: '#333', justifyContent: 'center' },
