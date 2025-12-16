@@ -43,7 +43,7 @@ export default function ActiveGame() {
   const [showKlopModal, setShowKlopModal] = useState(false);
   const [playerHistory, setPlayerHistory] = useState<ScoreEntry[]>([]);
   
-  // Stanje za "lažni" input pri iskanju igralcev
+  // Stanje za "lažni" input (The Swap Trick)
   const [isInputActive, setIsInputActive] = useState(false);
 
   const searchInputRef = useRef<TextInput>(null);
@@ -51,7 +51,6 @@ export default function ActiveGame() {
   useFocusEffect(useCallback(() => { fetchActiveGamesList(); }, []));
   useEffect(() => { fetchProfiles(false); }, []);
 
-  // Resetiramo stanje inputa za iskanje
   useEffect(() => {
     if (showAddPlayerModal) {
       setIsInputActive(false); 
@@ -165,7 +164,10 @@ export default function ActiveGame() {
   const openScoreInput = (playerId: string) => {
     setSelectedPlayerId(playerId); 
     setScoreInput(''); 
-    setScorePlayed(false); 
+    // POPRAVEK: Privzeto nastavimo na TRUE. 
+    // Če ročno vpisuješ točke, si verjetno igral.
+    // Če pa je to sistemska kazen (radelc), bo koda v finishGame nastavila na false.
+    setScorePlayed(true); 
     setShowScoreModal(true);
   };
 
@@ -182,7 +184,6 @@ export default function ActiveGame() {
         });
         return;
     }
-    // Omejitev dolžine (da ne pišejo v neskončnost)
     if (scoreInput.length > 5) return;
     setScoreInput(prev => prev + value);
   };
@@ -216,7 +217,7 @@ export default function ActiveGame() {
     setPlayerHistory(data || []); setSelectedPlayerId(pid); setShowHistoryModal(true);
   };
 
-  // --- ZAKLJUČEK IGRE (MODRA PIKA LOGIKA) ---
+  // --- ZAKLJUČEK IGRE ---
   const finishGame = async () => {
     if (!gameId) return;
     setLoading(true);
@@ -226,7 +227,10 @@ export default function ActiveGame() {
             if (unusedRadelci.length > 0) {
                 const penalty = unusedRadelci.length * -50;
                 await supabase.from('score_entries').insert({
-                    game_id: gameId, player_id: p.id, points: penalty, played: false 
+                    game_id: gameId, 
+                    player_id: p.id, 
+                    points: penalty, 
+                    played: false // KLJUČNO: To sproži MODRO PIKO v zgodovini
                 });
                 await supabase.from('players').update({ total_score: p.total_score + penalty }).eq('id', p.id);
                 const radelcIds = unusedRadelci.map(r => r.id);
@@ -237,6 +241,12 @@ export default function ActiveGame() {
         await supabase.from('games').update({ is_active: false }).eq('id', gameId);
         setShowFinishGameModal(false); exitToLobby();
     } catch (e) { Alert.alert("Napaka", "Prišlo je do napake pri zaključevanju."); } finally { setLoading(false); }
+  };
+
+  // Pomožna za prikaz imena v modalu
+  const getSelectedPlayerName = () => {
+      const p = players.find(x => x.id === selectedPlayerId);
+      return p ? p.name : '';
   };
 
   const renderPlayer = ({ item }: { item: Player }) => {
@@ -288,7 +298,7 @@ export default function ActiveGame() {
 
       <FlatList data={players} keyExtractor={(item) => item.id} renderItem={renderPlayer} contentContainerStyle={styles.listContainer} ListEmptyComponent={<Text style={styles.emptyText}>Dodaj igralce za začetek.</Text>} />
 
-      {/* --- MODAL: DODAJ IGRALCA (Z "The Swap Trick") --- */}
+      {/* --- MODAL: DODAJ IGRALCA --- */}
       <Modal visible={showAddPlayerModal} animationType="slide" transparent onRequestClose={() => setShowAddPlayerModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { height: '90%', maxHeight: '90%' }]}>
@@ -339,18 +349,17 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      {/* --- MODAL: VNOS TOČK (LASTNA ŠTEVILČNICA) --- */}
+      {/* --- MODAL: VNOS TOČK --- */}
       <Modal visible={showScoreModal} transparent animationType="fade" onRequestClose={() => setShowScoreModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Vnesi točke</Text>
+            {/* POPRAVEK: Ime igralca v naslovu */}
+            <Text style={styles.modalTitle}>Vnesi točke ({getSelectedPlayerName()})</Text>
             
-            {/* ZASLON ZA TOČKE */}
             <View style={styles.scoreDisplay}>
                 <Text style={styles.scoreDisplayText}>{scoreInput || '0'}</Text>
             </View>
 
-            {/* --- LASTNA ŠTEVILČNICA --- */}
             <View style={styles.numpadContainer}>
                 <View style={styles.numpadRow}>
                     {[1, 2, 3].map(n => (
@@ -385,7 +394,6 @@ export default function ActiveGame() {
                     </TouchableOpacity>
                 </View>
             </View>
-            {/* ----------------------------- */}
 
             <TouchableOpacity style={styles.playedToggleContainer} onPress={() => setScorePlayed(!scorePlayed)} activeOpacity={0.8}>
                 <View style={[styles.checkboxBase, scorePlayed && styles.checkboxChecked]}>{scorePlayed && <CheckCircle2 size={20} color="#000" />}</View>
@@ -414,7 +422,9 @@ export default function ActiveGame() {
                           <Text style={[styles.historyPoints, entry.points > 0 ? styles.positivePoints : styles.negativePoints]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
                       </View>
                       <View style={styles.dotContainer}>
+                          {/* RUMENA: Igral (ne glede na + ali -) */}
                           {entry.played && <View style={styles.playedDot} />}
+                          {/* MODRA: Ni igral + Negativne točke = Radelc kazen */}
                           {!entry.played && entry.points < 0 && <View style={styles.radelcDot} />}
                       </View>
                     </View>
