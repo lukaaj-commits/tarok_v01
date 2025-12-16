@@ -12,6 +12,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Keyboard, // Uvoženo za zapiranje tipkovnice
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -101,7 +102,11 @@ export default function ActiveGame() {
   };
 
   const openAddPlayerModal = () => {
-    setSearchQuery(''); setShowAddPlayerModal(true); fetchProfiles(false); 
+    // FIX ZA ANDROID: Prisilno zapri tipkovnico preden se modal odpre
+    Keyboard.dismiss();
+    setSearchQuery(''); 
+    setShowAddPlayerModal(true); 
+    fetchProfiles(false); 
   };
 
   const addExistingProfileToGame = async (profile: PlayerProfile) => {
@@ -253,14 +258,14 @@ export default function ActiveGame() {
             <Text style={styles.modalTitle}>Dodaj igralca</Text>
             <View style={styles.searchContainer}>
                 <Search size={24} color="#666" style={{ marginRight: 12 }} />
-                {/* POPRAVEK: autoFocus={false} eksplicitno nastavljen */}
+                {/* POPRAVEK: autoFocus je izbrisan + Keyboard.dismiss() zgoraj */}
                 <TextInput
                     style={[styles.searchInput, { outlineStyle: 'none', borderWidth: 0 } as any]}
                     placeholder="Išči ali ustvari novega..."
                     placeholderTextColor="#666"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
-                    autoFocus={false} 
+                    autoFocus={false}
                     underlineColorAndroid="transparent"
                     selectionColor="#4a9eff"
                     cursorColor="#4a9eff"
@@ -299,7 +304,6 @@ export default function ActiveGame() {
                 <TextInput ref={scoreInputRef} style={styles.scoreInputField} value={scoreInput} onChangeText={setScoreInput} keyboardType="numeric" returnKeyType="done" placeholder="20" placeholderTextColor="#666" />
               </View>
             </View>
-            {/* POPRAVEK: Odstranjen tekst "(za statistiko)" */}
             <TouchableOpacity style={styles.playedToggleContainer} onPress={() => setScorePlayed(!scorePlayed)} activeOpacity={0.8}>
                 <View style={[styles.checkboxBase, scorePlayed && styles.checkboxChecked]}>{scorePlayed && <CheckCircle2 size={20} color="#000" />}</View>
                 <Text style={styles.playedLabel}>Igralec je igral?</Text>
@@ -418,9 +422,12 @@ const styles = StyleSheet.create({
   scoreContainer: { alignItems: 'center', paddingVertical: 20, backgroundColor: '#2a2a2a', borderRadius: 12, marginBottom: 12 },
   scoreText: { color: '#fff', fontSize: 48, fontWeight: '700' },
   radelciContainer: { flexDirection: 'row', paddingVertical: 8 },
-  radelc: { width: 16, height: 16, borderRadius: 8, marginHorizontal: 4 },
-  radelcUnused: { backgroundColor: '#ffd700', borderWidth: 0 },
-  radelcUsed: { backgroundColor: '#333', borderWidth: 1, borderColor: '#555' },
+  
+  // POPRAVLJEN STIL RADELCA (Modri robovi)
+  radelc: { width: 14, height: 14, borderRadius: 7, marginHorizontal: 4 },
+  radelcUnused: { backgroundColor: 'transparent', borderWidth: 2, borderColor: '#4a9eff' },
+  radelcUsed: { backgroundColor: '#000', borderWidth: 0 },
+
   emptyText: { color: '#666', fontSize: 16, textAlign: 'center', marginTop: 40 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#1a1a1a', borderRadius: 16, padding: 24, width: '80%', maxWidth: 400 },
@@ -459,15 +466,86 @@ const styles = StyleSheet.create({
   confirmText: { color: '#ccc', fontSize: 15, textAlign: 'center', marginBottom: 20, lineHeight: 22 },
   klopTitle: { color: '#ffd700', fontSize: 28, fontWeight: '800', marginBottom: 24, textAlign: 'center' },
   klopButton: { backgroundColor: '#4a9eff', padding: 16, borderRadius: 12, alignItems: 'center' },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#2a2a2a', paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16, marginBottom: 20 },
-  searchInput: { flex: 1, color: '#fff', fontSize: 20, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent' },
-  profileItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 20, paddingHorizontal: 16, backgroundColor: '#2a2a2a', borderRadius: 16, marginBottom: 10 },
-  profileName: { color: '#fff', fontSize: 20, fontWeight: '600' },
-  createNewButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 20, backgroundColor: '#333', borderRadius: 16, gap: 12, marginTop: 10 },
-  createNewText: { color: '#4a9eff', fontSize: 18, fontWeight: '700' },
-  playedToggleContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#2a2a2a', padding: 12, borderRadius: 12, marginBottom: 20, gap: 12 },
-  checkboxBase: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: '#4a9eff', alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' },
-  checkboxChecked: { backgroundColor: '#ffd700', borderColor: '#ffd700' },
-  playedLabel: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  playedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ffd700', marginLeft: 6 },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2a2a2a',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    marginBottom: 20,
+  },
+  searchInput: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 20,
+    borderWidth: 0,
+    borderColor: 'transparent',
+    backgroundColor: 'transparent',
+  },
+  profileItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 20, 
+    paddingHorizontal: 16,
+    backgroundColor: '#2a2a2a',
+    borderRadius: 16,
+    marginBottom: 10,
+  },
+  profileName: {
+    color: '#fff',
+    fontSize: 20, 
+    fontWeight: '600',
+  },
+  createNewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    backgroundColor: '#333',
+    borderRadius: 16,
+    gap: 12,
+    marginTop: 10,
+  },
+  createNewText: {
+    color: '#4a9eff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  playedToggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2a2a2a',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 20,
+    gap: 12,
+  },
+  checkboxBase: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#4a9eff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  checkboxChecked: {
+    backgroundColor: '#ffd700', // Rumen ko je obkljukan
+    borderColor: '#ffd700',
+  },
+  playedLabel: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  playedDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ffd700', 
+    marginLeft: 6,
+  },
 });
