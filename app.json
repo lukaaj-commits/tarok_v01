@@ -1,10 +1,10 @@
 {
   "expo": {
     "name": "Tarok2",
-    "slug": "tarok2", 
+    "slug": "tarok2",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/app-icon.png",
     "scheme": "tarok2app",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
@@ -20,7 +20,7 @@
     "android": {
       "package": "com.tarok2.game",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/app-icon.png",
         "backgroundColor": "#0f0f0f"
       }
     },
@@ -28,7 +28,7 @@
       "bundler": "metro",
       "output": "single",
       "favicon": "./assets/images/favicon.png",
-      "icon": "./assets/images/icon.png",
+      "icon": "./assets/images/app-icon.png",
       "meta": {
         "apple": {
           "mobileWebAppCapable": "yes",
