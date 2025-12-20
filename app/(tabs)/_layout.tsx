@@ -7,15 +7,15 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: true,
         headerStyle: {
-          backgroundColor: '#1a1a1a',
+          backgroundColor: '#0f172a',
         },
         headerTintColor: '#fff',
         tabBarStyle: {
-          backgroundColor: '#1a1a1a',
-          borderTopColor: '#333',
+          backgroundColor: '#0f172a',
+          borderTopColor: '#334155',
         },
-        tabBarActiveTintColor: '#4a9eff',
-        tabBarInactiveTintColor: '#999',
+        tabBarActiveTintColor: '#556eeb', // POSODOBLJENO (Nova modra)
+        tabBarInactiveTintColor: '#94A3B8',
       }}>
       <Tabs.Screen
         name="index"
