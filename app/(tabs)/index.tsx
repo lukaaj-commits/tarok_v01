@@ -52,24 +52,15 @@ const COLORS = {
   confirmTeal: '#20B2AA'
 };
 
-// --- NOVA BARVNA PALETA (Visok kontrast) ---
-const CHART_COLORS = [
-  '#FF6B6B', // Rdeča
-  '#4ECDC4', // Turkizna
-  '#FFE66D', // Rumena
-  '#1A535C', // Temno modra/zelena
-  '#FF9F1C', // Oranžna
-  '#C7F464', // Limeta
-  '#9D4EDD', // Vijolična
-  '#F72585'  // Roza
-];
-
 // --- GRADIENTI ---
 const GRADIENT_COLORS = ['#556eeb', '#6050ea']; 
+const CHART_COLORS = [
+  '#FF6B6B', '#4ECDC4', '#FFE66D', '#1A535C', '#FF9F1C', '#C7F464', '#9D4EDD', '#F72585'
+];
 
 export default function ActiveGame() {
   const [activeGamesList, setActiveGamesList] = useState<Game[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [gameId, setGameId] = useState<string | null>(null);
   const [gameName, setGameName] = useState<string>('');
@@ -78,10 +69,7 @@ export default function ActiveGame() {
   const [allProfiles, setAllProfiles] = useState<PlayerProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // SEZNAM IZBRANIH IGRALCEV ZA DODAJANJE
   const [selectedProfileIds, setSelectedProfileIds] = useState<Set<string>>(new Set());
-
-  // NOVO STANJE ZA FILTRIRANJE GRAFA
   const [focusedPlayerId, setFocusedPlayerId] = useState<string | null>(null);
 
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
@@ -115,7 +103,6 @@ export default function ActiveGame() {
     }
   }, [showAddPlayerModal]);
 
-  // RESET FILTRA KO SE ZAPRE MODAL
   useEffect(() => {
       if (!showLeaderboardModal) {
           setFocusedPlayerId(null);
@@ -314,7 +301,6 @@ export default function ActiveGame() {
     setAllGameHistory(data || []);
   };
 
-  // --- POSODOBLJENA FUNKCIJA ZA PRIPRAVO PODATKOV ZA GRAF ---
   const prepareChartData = () => {
     if (!allGameHistory.length || !players.length) return { labels: [], datasets: [] };
     
@@ -455,7 +441,14 @@ export default function ActiveGame() {
 
   const chartData = prepareChartData();
 
-  if (loading && !gameId && activeGamesList.length === 0) return (<View style={[styles.container, styles.centerContent]}><ActivityIndicator size="large" color={COLORS.primary} /></View>);
+  if (loading && !gameId && activeGamesList.length === 0) {
+      return (
+        <View style={[styles.container, styles.centerContent]}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={{color: COLORS.textMuted, marginTop: 10}}>Nalaganje...</Text>
+        </View>
+      );
+  }
   
   if (!gameId && activeGamesList.length === 0) return (
     <View style={[styles.container, styles.centerContent]}>
@@ -691,7 +684,7 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      {/* MODAL: STANJE IGRE (LEADERBOARD + CHART) */}
+      {/* MODAL: STANJE IGRE */}
       <Modal visible={showLeaderboardModal} transparent animationType="slide" onRequestClose={() => setShowLeaderboardModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
@@ -755,7 +748,6 @@ export default function ActiveGame() {
                                 />
                             </ScrollView>
                             
-                            {/* CUSTOM LEGENDA (FILTRI) - PREMAKNJENO POD GRAF */}
                             <View style={[styles.legendContainer, { marginTop: 10 }]}>
                                 {players.map((p, index) => {
                                     const isActive = focusedPlayerId === p.id;
@@ -838,7 +830,7 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
-      {/* OSTALI MODALI SO NESPREMENJENI (Brisanje, Zaključek, Klop) */}
+      {/* MODAL: BRISANJE */}
       <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -852,6 +844,7 @@ export default function ActiveGame() {
         </View>
       </Modal>
 
+      {/* MODAL: ZAKLJUČEK */}
       <Modal visible={showFinishGameModal} transparent animationType="fade" onRequestClose={() => setShowFinishGameModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -959,13 +952,16 @@ const styles = StyleSheet.create({
   historyItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: COLORS.inputBg, borderRadius: 8, marginBottom: 12 },
   pointsWrapper: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'center', gap: 6 },
   fixedPointsWidth: { width: 60, alignItems: 'flex-end', paddingRight: 5 },
-  dotContainer: { width: 20, alignItems: 'flex-start' },
+  // POPRAVEK: Centriranje pike
+  dotContainer: { width: 20, alignItems: 'center', justifyContent: 'center' },
   historyPoints: { fontSize: 20, fontWeight: '700' },
   positivePoints: { color: COLORS.success },
   negativePoints: { color: COLORS.danger },
   neutralScore: { color: COLORS.text },
   historyTotal: { color: COLORS.text, fontSize: 18, fontWeight: '600', flex: 1, textAlign: 'center' },
   historyDate: { color: COLORS.textMuted, fontSize: 12, flex: 1, textAlign: 'right' },
+  // POPRAVEK: Brez margin-left, ker je sedaj v centru
+  playedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFFFFF' },
   
   tabContainer: { flexDirection: 'row', marginBottom: 20, backgroundColor: COLORS.inputBg, borderRadius: 12, padding: 4 },
   tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
