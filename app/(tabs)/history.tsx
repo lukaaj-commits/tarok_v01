@@ -136,7 +136,15 @@ export default function History() {
   const [chartWidth, setChartWidth] = useState(0);
 
   const viewShotRef = useRef<ViewShot>(null);
+  
+  // POPRAVEK 1: Vrnjena vrstica za ref in nov useEffect za gladek preklop na vrh
   const detailScrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (selectedGlobalPlayer && detailScrollRef.current) {
+        detailScrollRef.current.scrollTo({ y: 0, animated: false });
+    }
+  }, [selectedGlobalPlayer]);
 
   const isFocused = useIsFocused();
   useEffect(() => { if (isFocused) loadGames(); }, [isFocused]);
@@ -461,46 +469,51 @@ export default function History() {
     return null;
   };
   
-  // POPRAVLJENA FUNKCIJA (pravilna oblika)
+  // POPRAVEK 2: POPRAVLJENA IN PAMETNA FUNKCIJA ZA DELJENJE SLIKE
   const shareResults = async () => {
     try {
       if (viewShotRef.current && viewShotRef.current.capture) {
-        // 1. Naredi sliko
         const uri = await viewShotRef.current.capture();
-        
-        // 2. Preveri, kje smo
+
         if (Platform.OS === 'web') {
-          // SPLETNA STRAN: Prenesi sliko v napravo
-          const link = document.createElement('a');
-          link.download = 'tarok-rezultati.jpg';
-          link.href = uri;
-          link.click();
+          try {
+            const response = await fetch(uri);
+            const blob = await response.blob();
+            const file = new File([blob], 'tarok-rezultati.jpg', { type: 'image/jpeg' });
+            
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                files: [file],
+                title: 'Rezultati Taroka',
+              });
+            } else {
+              const link = document.createElement('a');
+              link.href = uri;
+              link.download = 'tarok-rezultati.jpg';
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }
+          } catch (webErr) {
+             console.error("Web share napaka:", webErr);
+          }
         } else {
-          // NATIVE APLIKACIJA (iPhone/Android): Odpri meni za deljenje
           const isAvailable = await Sharing.isAvailableAsync();
           if (isAvailable) {
             await Sharing.shareAsync(uri);
-          } else {
-            Alert.alert("Opozorilo", "Deljenje ni na voljo na tej napravi.");
           }
         }
       }
     } catch (error) {
       console.error("Napaka pri deljenju:", error);
-      Alert.alert("Napaka", "Slike ni bilo mogoče ustvariti.");
     }
   };
 
+  // POPRAVEK 3: IZBRISAN ZATIKLJUČUJOČ SETTIMEOUT IZ OPEN FUNKCIJE
   const openGlobalPlayerDetails = (player: PlayerStats) => {
       setSelectedGlobalPlayer(player);
       setShowAllGames(false); 
       setShowGlobalPlayerModal(true);
-      
-      setTimeout(() => {
-          if (detailScrollRef.current) {
-              detailScrollRef.current.scrollTo({ y: 0, animated: false });
-          }
-      }, 100);
   };
   
   const getFormStatus = (ranks: { rank: number }[]) => {
@@ -687,8 +700,7 @@ export default function History() {
              <View style={[styles.modalContent, styles.historyModal]}>
                 {selectedGlobalPlayer && (
                     <>
-                        {/* Zamenjan ScrollView, da deluje na iPhonu brez skakanja */}
-                        <ScrollView key={selectedGlobalPlayer?.name} style={styles.detailScroll} showsVerticalScrollIndicator={false}>
+                        <ScrollView ref={detailScrollRef} style={styles.detailScroll} showsVerticalScrollIndicator={false}>
                             <View style={styles.detailHeader}>
                                 <Image source={{ uri: getAvatarUrl(selectedGlobalPlayer.name) }} style={[styles.playerAvatar, {width: 80, height: 80, borderRadius: 40, marginRight: 0, marginBottom: 12, borderWidth: 2}]} />
                                 <Text style={styles.modalTitle}>{selectedGlobalPlayer.name}   <Text style={{ color: 'rgb(148, 163, 184)' }}>{Math.round(selectedGlobalPlayer.avg_performance)}%</Text></Text>
