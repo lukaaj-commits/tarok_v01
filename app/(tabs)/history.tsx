@@ -468,9 +468,31 @@ export default function History() {
   };
   
   const shareResults = async () => {
-    if (viewShotRef.current && viewShotRef.current.capture) {
-      const uri = await viewShotRef.current.capture();
-      await Sharing.shareAsync(uri);
+    try {
+      if (Platform.OS === 'web') {
+          let text = `🏆 Končni rezultati Taroka 🏆\n\n`;
+          const sortedPlayers = [...gamePlayers].sort((a,b) => b.total_score - a.total_score);
+          sortedPlayers.forEach((p, i) => {
+              text += `${i+1}. ${p.name} (${p.total_score} točk)\n`;
+          });
+          
+          if (navigator && navigator.share) {
+              await navigator.share({
+                  title: 'Rezultati Taroka',
+                  text: text,
+              });
+          } else {
+              Alert.alert("Rezultati", text);
+          }
+          return;
+      }
+
+      if (viewShotRef.current && viewShotRef.current.capture) {
+        const uri = await viewShotRef.current.capture();
+        await Sharing.shareAsync(uri);
+      }
+    } catch (error) {
+        console.log("Napaka pri deljenju:", error);
     }
   };
 
@@ -661,7 +683,19 @@ export default function History() {
          </View>
       </Modal>
 
-      <Modal visible={showGlobalPlayerModal} transparent animationType="slide" onRequestClose={() => setShowGlobalPlayerModal(false)}>
+      <Modal 
+          visible={showGlobalPlayerModal} 
+          transparent 
+          animationType="slide" 
+          onRequestClose={() => setShowGlobalPlayerModal(false)}
+          onShow={() => {
+              setTimeout(() => {
+                  if (detailScrollRef.current) {
+                      detailScrollRef.current.scrollTo({ y: 0, animated: false });
+                  }
+              }, 150);
+          }}
+      >
          <View style={styles.modalOverlay}>
              <View style={[styles.modalContent, styles.historyModal]}>
                 {selectedGlobalPlayer && (
