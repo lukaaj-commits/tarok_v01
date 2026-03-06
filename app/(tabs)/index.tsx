@@ -147,6 +147,10 @@ export default function ActiveGame() {
   const [scoreInput, setScoreInput] = useState('');
   const [scoreMode, setScoreMode] = useState<'none' | 'played' | 'partner' | 'beggar'>('none');
   
+  // STANJA ZA VALAT MODAL
+  const [showValatModal, setShowValatModal] = useState(false);
+  const [pendingValatPoints, setPendingValatPoints] = useState<number | null>(null);
+
   const [playerHistory, setPlayerHistory] = useState<ScoreEntry[]>([]);
   const [allGameHistory, setAllGameHistory] = useState<ScoreEntry[]>([]); 
   
@@ -351,6 +355,7 @@ export default function ActiveGame() {
     setScoreInput(prev => prev + value);
   };
 
+  // TUKAJ JE PRAVILNO POPRAVLJENA FUNKCIJA
   const submitScore = async () => {
     if (!selectedPlayerId || !scoreInput) return;
     if (scoreInput === '-') { setScoreInput(''); return; }
@@ -359,20 +364,10 @@ export default function ActiveGame() {
 
     const valatValues = [250, 500, 1000, -250, -500, -1000];
     if (valatValues.includes(points)) {
-      if (Platform.OS === 'web') {
-        // Popravek za spletno verzijo (Vercel)
-        const isValat = window.confirm("Ali je bilo to doseženo z valatom?\n\nDA - OK\nNE - Cancel");
-        performSubmit(points, isValat);
-      } else {
-        Alert.alert(
-          "Valat?",
-          `Ali je bilo to doseženo z valatom?`,
-          [
-            { text: "Ne", onPress: () => performSubmit(points, false) },
-            { text: "Da", onPress: () => performSubmit(points, true) }
-          ]
-        );
-      }
+      // Skrijemo modal s številčnico in odpremo naš po meri narejen Valat Modal
+      setShowScoreModal(false);
+      setPendingValatPoints(points);
+      setShowValatModal(true);
     } else {
       performSubmit(points, false);
     }
@@ -759,7 +754,6 @@ export default function ActiveGame() {
             </TouchableOpacity>
           </View>
           
-          {/* TUKAJ SO GUMBI ZDAJ FIKSIRANI */}
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
             <TouchableOpacity 
                 style={{ flex: 1, backgroundColor: COLORS.card, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.10)', borderTopColor: 'rgba(255, 255, 255, 0.22)', borderLeftColor: 'rgba(255, 255, 255, 0.14)', overflow: 'hidden' }} 
@@ -1051,7 +1045,6 @@ export default function ActiveGame() {
                           {rank > 3 && (<Text style={styles.playerRankText}>{rank}</Text>)}
                         </View>
                         
-                        {/* AVATAR V ZGODOVINI POSAMEZNIKA */}
                         <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 8}]} />
                         
                         <Text style={styles.playerHistorySectionTitle}>
@@ -1124,6 +1117,34 @@ export default function ActiveGame() {
           <View style={styles.modalContent}>
             <Text style={styles.klopTitle}>Obvezen klop!</Text>
             <TouchableOpacity style={styles.klopButton} onPress={() => setShowKlopModal(false)}><Text style={styles.modalButtonText}>Zapri</Text></TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* NAŠ NOV IN LEP VALAT MODAL */}
+      <Modal visible={showValatModal} transparent animationType="fade" onRequestClose={() => setShowValatModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={[styles.modalTitle, {color: COLORS.warning, fontSize: 24}]}>Valat?</Text>
+            <Text style={styles.confirmText}>Ali je bila ta igra dosežena z valatom?</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => {
+                setShowValatModal(false);
+                if (pendingValatPoints !== null) performSubmit(pendingValatPoints, false);
+              }}>
+                <Text style={styles.modalButtonText}>Ne</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={[styles.modalButton, styles.primaryModalButton, {borderColor: COLORS.warning}]} onPress={() => {
+                setShowValatModal(false);
+                if (pendingValatPoints !== null) performSubmit(pendingValatPoints, true);
+              }}>
+                <LinearGradient colors={[COLORS.warning, '#d97706']} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} />
+                <View style={styles.relativeContent}>
+                    <Text style={styles.modalButtonText}>Da</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1243,7 +1264,6 @@ const styles = StyleSheet.create({
       borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.20)', borderTopColor: 'rgba(255, 255, 255, 0.55)', borderLeftColor: 'rgba(255, 255, 255, 0.35)', overflow: 'hidden'
   },
   
-  // Zbrisani vsi "width" atributi iz stila, da pustimo flexu opraviti svoje delo!
   undoButton: { 
       backgroundColor: COLORS.card, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12,
       borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.10)', borderTopColor: 'rgba(255, 255, 255, 0.22)', borderLeftColor: 'rgba(255, 255, 255, 0.14)', overflow: 'hidden'

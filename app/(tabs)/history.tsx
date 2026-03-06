@@ -777,6 +777,7 @@ export default function History() {
                                     })()}
                                 </View>
                             </View>
+
                         </ScrollView>
                         <TouchableOpacity style={styles.closeButton} onPress={() => setShowGlobalPlayerModal(false)}><Text style={styles.closeButtonText}>Zapri</Text></TouchableOpacity>
                     </>
@@ -856,6 +857,7 @@ export default function History() {
                   const rank = array.findIndex(p => p.total_score === player.total_score) + 1;
                   return (
                     <View key={player.id} style={styles.playerHistorySection}>
+                      
                       <View style={[styles.playerHistoryHeader, {backgroundColor: COLORS.slateBlue}]}>
                         <View style={styles.playerRankBadge}>{rank === 1 && <Trophy size={16} color="#ffd700" />}{rank === 2 && <Trophy size={16} color="#c0c0c0" />}{rank === 3 && <Trophy size={16} color="#cd7f32" />}{rank > 3 && (<Text style={styles.playerRankText}>{rank}</Text>)}</View>
                         <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 8}]} />
@@ -874,10 +876,10 @@ export default function History() {
                           <View key={entry.id} style={styles.historyItem}>
                              <View style={styles.pointsWrapper}>
                                 <View style={styles.fixedPointsBox}>
-    <Text style={[styles.historyPoints, entry.is_valat ? {color: COLORS.warning} : (entry.points > 0 ? styles.positivePoints : styles.negativePoints)]}>
-        {entry.points > 0 ? '+' : ''}{entry.points}
-    </Text>
-</View>
+                                    <Text style={[styles.historyPoints, {color: pointsColor}]}>
+                                        {entry.points > 0 ? '+' : ''}{entry.points}
+                                    </Text>
+                                </View>
                                 <View style={styles.dotBox}>{renderGameIcon(entry)}</View>
                              </View>
                             <Text style={styles.historyTotal}>= {runningTotal}</Text>
