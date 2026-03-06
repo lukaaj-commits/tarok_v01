@@ -170,9 +170,6 @@ export default function History() {
     } catch (error) { console.error('Error loading game details:', error); }
   };
 
-  // --- NOVA IN NEPREBOJNA LOGIKA ZA KAZNI RADELCEV ---
-  // Aplikacija preveri zadnje vnose v igri. Če so bili ustvarjeni manj kot 5 sekund 
-  // pred samim koncem in ustrezajo kazni za radelc, jih obravnava kot kazen.
   const penaltyEntryIds = new Set<string>();
   if (!selectedGame?.is_active && playerHistory.length > 0) {
       const timestamps = playerHistory.map(e => new Date(e.created_at).getTime()).filter(t => !isNaN(t));
@@ -180,7 +177,6 @@ export default function History() {
           const maxTime = Math.max(...timestamps);
           playerHistory.forEach(e => {
               const eTime = new Date(e.created_at).getTime();
-              // Poiščemo tiste, ki so vpisani na samem koncu in so generične kazni (-50)
               if (maxTime - eTime < 5000 && e.points < 0 && !e.played && !e.is_partner && !e.is_beggar && !e.is_valat && Math.abs(e.points) % 50 === 0) {
                   penaltyEntryIds.add(e.id);
               }
@@ -198,7 +194,6 @@ export default function History() {
           return { used, total: totalCount };
       }
 
-      // Za zaključene igre preštejemo točno določene kazni iz penaltyEntryIds
       const pHistory = playerHistory.filter(e => e.player_id === playerId && penaltyEntryIds.has(e.id));
       let penaltyPoints = 0;
       pHistory.forEach(e => { penaltyPoints += Math.abs(e.points); });
@@ -231,7 +226,6 @@ export default function History() {
           </View>
       );
   };
-  // ----------------------------------------------------
 
   const endGame = async (gameId: string) => {
       if (Platform.OS === 'web') {
@@ -467,6 +461,7 @@ export default function History() {
     return null;
   };
   
+  // POPRAVLJENA FUNKCIJA (pravilna oblika)
   const shareResults = async () => {
     try {
       if (viewShotRef.current && viewShotRef.current.capture) {
@@ -478,21 +473,11 @@ export default function History() {
     }
   };
 
-      if (viewShotRef.current && viewShotRef.current.capture) {
-        const uri = await viewShotRef.current.capture();
-        await Sharing.shareAsync(uri);
-      }
-    } catch (error) {
-        console.log("Napaka pri deljenju:", error);
-    }
-  };
-
   const openGlobalPlayerDetails = (player: PlayerStats) => {
       setSelectedGlobalPlayer(player);
       setShowAllGames(false); 
       setShowGlobalPlayerModal(true);
       
-      // Zabičamo iPhonu, da ob odprtju skoči nazaj na vrh
       setTimeout(() => {
           if (detailScrollRef.current) {
               detailScrollRef.current.scrollTo({ y: 0, animated: false });
@@ -679,18 +664,12 @@ export default function History() {
           transparent 
           animationType="slide" 
           onRequestClose={() => setShowGlobalPlayerModal(false)}
-          onShow={() => {
-              setTimeout(() => {
-                  if (detailScrollRef.current) {
-                      detailScrollRef.current.scrollTo({ y: 0, animated: false });
-                  }
-              }, 150);
-          }}
       >
          <View style={styles.modalOverlay}>
              <View style={[styles.modalContent, styles.historyModal]}>
                 {selectedGlobalPlayer && (
                     <>
+                        {/* Zamenjan ScrollView, da deluje na iPhonu brez skakanja */}
                         <ScrollView key={selectedGlobalPlayer?.name} style={styles.detailScroll} showsVerticalScrollIndicator={false}>
                             <View style={styles.detailHeader}>
                                 <Image source={{ uri: getAvatarUrl(selectedGlobalPlayer.name) }} style={[styles.playerAvatar, {width: 80, height: 80, borderRadius: 40, marginRight: 0, marginBottom: 12, borderWidth: 2}]} />
