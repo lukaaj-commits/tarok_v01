@@ -469,23 +469,14 @@ export default function History() {
   
   const shareResults = async () => {
     try {
-      if (Platform.OS === 'web') {
-          let text = `🏆 Končni rezultati Taroka 🏆\n\n`;
-          const sortedPlayers = [...gamePlayers].sort((a,b) => b.total_score - a.total_score);
-          sortedPlayers.forEach((p, i) => {
-              text += `${i+1}. ${p.name} (${p.total_score} točk)\n`;
-          });
-          
-          if (navigator && navigator.share) {
-              await navigator.share({
-                  title: 'Rezultati Taroka',
-                  text: text,
-              });
-          } else {
-              Alert.alert("Rezultati", text);
-          }
-          return;
+      if (viewShotRef.current && viewShotRef.current.capture) {
+        const uri = await viewShotRef.current.capture();
+        await Sharing.shareAsync(uri);
       }
+    } catch (error) {
+      console.error("Napaka pri deljenju:", error);
+    }
+  };
 
       if (viewShotRef.current && viewShotRef.current.capture) {
         const uri = await viewShotRef.current.capture();
@@ -700,7 +691,7 @@ export default function History() {
              <View style={[styles.modalContent, styles.historyModal]}>
                 {selectedGlobalPlayer && (
                     <>
-                        <ScrollView ref={detailScrollRef} style={styles.detailScroll} showsVerticalScrollIndicator={false}>
+                        <ScrollView key={selectedGlobalPlayer?.name} style={styles.detailScroll} showsVerticalScrollIndicator={false}>
                             <View style={styles.detailHeader}>
                                 <Image source={{ uri: getAvatarUrl(selectedGlobalPlayer.name) }} style={[styles.playerAvatar, {width: 80, height: 80, borderRadius: 40, marginRight: 0, marginBottom: 12, borderWidth: 2}]} />
                                 <Text style={styles.modalTitle}>{selectedGlobalPlayer.name}   <Text style={{ color: 'rgb(148, 163, 184)' }}>{Math.round(selectedGlobalPlayer.avg_performance)}%</Text></Text>
