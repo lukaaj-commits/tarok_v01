@@ -361,7 +361,7 @@ export default function ActiveGame() {
     if (valatValues.includes(points)) {
       if (Platform.OS === 'web') {
         // Popravek za spletno verzijo (Vercel)
-        const isValat = window.confirm("Ali je bilo to doseženo z valatom?\n\n[OK] = DA\n[Prekliči] = NE");
+        const isValat = window.confirm("Ali je bilo to doseženo z valatom?\n\nDA\nNE");
         performSubmit(points, isValat);
       } else {
         Alert.alert(
