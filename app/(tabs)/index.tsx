@@ -359,14 +359,20 @@ export default function ActiveGame() {
 
     const valatValues = [250, 500, 1000, -250, -500, -1000];
     if (valatValues.includes(points)) {
-      Alert.alert(
-        "Valat?",
-        `Ali je bilo to doseženo z valatom?`,
-        [
-          { text: "Ne", onPress: () => performSubmit(points, false) },
-          { text: "Da", onPress: () => performSubmit(points, true) }
-        ]
-      );
+      if (Platform.OS === 'web') {
+        // Popravek za spletno verzijo (Vercel)
+        const isValat = window.confirm("Ali je bilo to doseženo z valatom?\n\n[OK] = DA\n[Prekliči] = NE");
+        performSubmit(points, isValat);
+      } else {
+        Alert.alert(
+          "Valat?",
+          `Ali je bilo to doseženo z valatom?`,
+          [
+            { text: "Ne", onPress: () => performSubmit(points, false) },
+            { text: "Da", onPress: () => performSubmit(points, true) }
+          ]
+        );
+      }
     } else {
       performSubmit(points, false);
     }
