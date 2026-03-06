@@ -136,15 +136,6 @@ export default function History() {
   const [chartWidth, setChartWidth] = useState(0);
 
   const viewShotRef = useRef<ViewShot>(null);
-  
-  // POPRAVEK 1: Vrnjena vrstica za ref in nov useEffect za gladek preklop na vrh
-  const detailScrollRef = useRef<ScrollView>(null);
-
-  useEffect(() => {
-    if (selectedGlobalPlayer && detailScrollRef.current) {
-        detailScrollRef.current.scrollTo({ y: 0, animated: false });
-    }
-  }, [selectedGlobalPlayer]);
 
   const isFocused = useIsFocused();
   useEffect(() => { if (isFocused) loadGames(); }, [isFocused]);
@@ -469,47 +460,38 @@ export default function History() {
     return null;
   };
   
-  // POPRAVEK 2: POPRAVLJENA IN PAMETNA FUNKCIJA ZA DELJENJE SLIKE
+  // POPRAVEK 1: PAMETNO DELJENJE (Tekst na webu, slika na telefonu)
   const shareResults = async () => {
     try {
-      if (viewShotRef.current && viewShotRef.current.capture) {
-        const uri = await viewShotRef.current.capture();
-
-        if (Platform.OS === 'web') {
-          try {
-            const response = await fetch(uri);
-            const blob = await response.blob();
-            const file = new File([blob], 'tarok-rezultati.jpg', { type: 'image/jpeg' });
-            
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      if (Platform.OS === 'web') {
+          // WEBOV FALLBACK ZARADI BLOKADE SLIK
+          let text = `🏆 KONČNI REZULTATI TAROKA 🏆\n`;
+          if (winnerData?.names) text += `Zmagovalec: ${winnerData.names} (${winnerData.score} točk)\n\n`;
+          const sortedPlayers = [...gamePlayers].sort((a,b) => b.total_score - a.total_score);
+          sortedPlayers.forEach((p, i) => {
+              text += `${i+1}. ${p.name}: ${p.total_score} točk\n`;
+          });
+          
+          if (navigator && navigator.share) {
               await navigator.share({
-                files: [file],
-                title: 'Rezultati Taroka',
+                  title: 'Rezultati Taroka',
+                  text: text,
               });
-            } else {
-              const link = document.createElement('a');
-              link.href = uri;
-              link.download = 'tarok-rezultati.jpg';
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }
-          } catch (webErr) {
-             console.error("Web share napaka:", webErr);
+          } else {
+              Alert.alert("Lestvica", text);
           }
-        } else {
-          const isAvailable = await Sharing.isAvailableAsync();
-          if (isAvailable) {
-            await Sharing.shareAsync(uri);
+      } else {
+          // NATIVE APLIKACIJA (Slikanje)
+          if (viewShotRef.current && viewShotRef.current.capture) {
+              const uri = await viewShotRef.current.capture();
+              await Sharing.shareAsync(uri);
           }
-        }
       }
     } catch (error) {
-      console.error("Napaka pri deljenju:", error);
+      console.log("Napaka pri deljenju:", error);
     }
   };
 
-  // POPRAVEK 3: IZBRISAN ZATIKLJUČUJOČ SETTIMEOUT IZ OPEN FUNKCIJE
   const openGlobalPlayerDetails = (player: PlayerStats) => {
       setSelectedGlobalPlayer(player);
       setShowAllGames(false); 
@@ -700,7 +682,8 @@ export default function History() {
              <View style={[styles.modalContent, styles.historyModal]}>
                 {selectedGlobalPlayer && (
                     <>
-                        <ScrollView ref={detailScrollRef} style={styles.detailScroll} showsVerticalScrollIndicator={false}>
+                        {/* POPRAVEK 2: Dodano za preprečitev skakanja */}
+                        <ScrollView contentOffset={{ x: 0, y: 0 }} automaticallyAdjustContentInsets={false} style={styles.detailScroll} showsVerticalScrollIndicator={false}>
                             <View style={styles.detailHeader}>
                                 <Image source={{ uri: getAvatarUrl(selectedGlobalPlayer.name) }} style={[styles.playerAvatar, {width: 80, height: 80, borderRadius: 40, marginRight: 0, marginBottom: 12, borderWidth: 2}]} />
                                 <Text style={styles.modalTitle}>{selectedGlobalPlayer.name}   <Text style={{ color: 'rgb(148, 163, 184)' }}>{Math.round(selectedGlobalPlayer.avg_performance)}%</Text></Text>
