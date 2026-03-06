@@ -88,7 +88,7 @@ type PlayerStats = {
 };
 
 const COLORS = {
-  bg: '#0d1321',
+  bg: '#0d1321', 
   card: '#1e293b',
   primary: '#556eeb',
   text: '#FFFFFF',
@@ -161,18 +161,33 @@ export default function ActiveGame() {
 
   const viewShotRef = useRef<ViewShot>(null);
 
-  const isFocused = useIsFocused();
-  useEffect(() => { if (isFocused) loadGames(); }, [isFocused]);
+  useFocusEffect(useCallback(() => { fetchActiveGamesList(); }, []));
+  useEffect(() => { fetchProfiles(false); }, []);
 
-  const loadGames = async () => {
+  useEffect(() => {
+    if (showAddPlayerModal) {
+      setIsInputActive(false); 
+      setSearchQuery('');
+      setSelectedProfileIds(new Set()); 
+    }
+  }, [showAddPlayerModal]);
+
+  useEffect(() => {
+      if (!showLeaderboardModal) {
+          setFocusedPlayerId(null);
+      }
+  }, [showLeaderboardModal]);
+
+  const fetchActiveGamesList = async () => {
+    if (!gameId) setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('games')
         .select('*, players(name, total_score)')
+        .eq('is_active', true)
         .order('created_at', { ascending: false });
         
-      if (error) throw error;
-      setGames(data as any || []);
+      setActiveGamesList(data as any || []);
     } catch (error) { console.error('Error loading games:', error); } finally { setLoading(false); }
   };
 
@@ -193,1111 +208,835 @@ export default function ActiveGame() {
     } catch (error) { console.error('Error loading game details:', error); }
   };
 
-  const endGame = async (gameId: string) => {
-      if (Platform.OS === 'web') {
-        if (!window.confirm('Ali želiš zaključiti to igro?')) return;
-      } else {
-        Alert.alert('Zaključi igro', 'Ali želiš zaključiti to igro?', [{ text: 'Prekliči', style: 'cancel' }, { text: 'Zaključi', onPress: async () => await performEndGame(gameId) }]);
-        return;
-      }
-      await performEndGame(gameId);
-  };
-  
-  const performEndGame = async (gameId: string) => {
-      try {
-          if (gamePlayers.length > 0) {
-              const maxScore = Math.max(...gamePlayers.map(p => p.total_score));
-              const winners = gamePlayers.filter(p => p.total_score === maxScore);
-              const names = winners.map(w => w.name).join(' & ');
-              setWinnerData({ names, score: maxScore });
-          }
-
-          const { error } = await supabase.from('games').update({ is_active: false }).eq('id', gameId);
-          if (error) throw error;
-
-          setShowGameModal(false); 
-          setSelectedGame(null); 
-          await loadGames();
-
-          if (gamePlayers.length > 0) {
-              setShowWinnerPopup(true);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-              setTimeout(() => {
-                  setShowWinnerPopup(false);
-              }, 5000);
-          }
-      } catch (error) { console.error(error); }
-  };
-  
-  const deleteGame = async (gameId: string) => {
-      if (Platform.OS === 'web') {
-          if(!window.confirm('Ali si prepričan?')) return;
-      } else {
-          Alert.alert('Izbriši igro', 'Ali si prepričan?', [{ text: 'Prekliči', style: 'cancel' }, { text: 'Izbriši', style: 'destructive', onPress: async () => await performDeleteGame(gameId) }]);
-          return;
-      }
-      await performDeleteGame(gameId);
-  };
-  
-  const performDeleteGame = async (gameId: string) => {
-      try { await supabase.from('games').delete().eq('id', gameId); setShowGameModal(false); await loadGames(); } catch (e) { console.error(e); }
-  };
-
-  const loadAllPlayersHistory = async () => {
-    if (!selectedGame) return;
+  const fetchProfiles = async (showDebug = false) => {
     try {
-      const playerIds = gamePlayers.map((p) => p.id);
-      const { data, error } = await supabase.from('score_entries').select('*').in('player_id', playerIds).order('created_at');
+      const { data, error } = await supabase.from('player_profiles').select('id, name').order('name');
+      if (error) { if (showDebug) Alert.alert("NAPAKA", error.message); return; }
+      setAllProfiles(data || []);
+    } catch (err: any) { if (showDebug) Alert.alert("NAPAKA", err.message); }
+  };
+
+  const enterGame = async (selectedGame: Game) => {
+    setLoading(true);
+    try {
+      setGameId(selectedGame.id);
+      setGameName(selectedGame.name);
+      await loadPlayers(selectedGame.id);
+      await loadRadelci(selectedGame.id);
+    } catch (error) { console.error(error); } finally { setLoading(false); }
+  };
+
+  const exitToLobby = () => {
+    setGameId(null); setPlayers([]); setRadelci([]); fetchActiveGamesList();
+  };
+
+  const handleStartNewGame = async () => { createGameInDb(); };
+
+  const createGameInDb = async () => {
+    setLoading(true);
+    try {
+      const newName = `${new Date().toLocaleDateString('sl-SI')} Tarok ${new Date().toLocaleTimeString('sl-SI', {hour: '2-digit', minute:'2-digit'})}`;
+      const { data: newGame, error } = await supabase.from('games').insert({ name: newName, is_active: true }).select().single();
       if (error) throw error;
-      setPlayerHistory(data || []); setSelectedPlayerName('Vsi igralci'); setShowPlayerHistoryModal(true);
-    } catch (error) { console.error(error); }
+      await fetchActiveGamesList(); await enterGame(newGame);
+    } catch (error) { Alert.alert("Napaka", "Ni bilo mogoče ustvariti igre."); } finally { setLoading(false); }
   };
 
-  const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderboard') => {
-    setStatsLoading(true);
-    if (destination === 'leaderboard') setShowGlobalStatsModal(true);
-    else setShowPlayerSelectModal(true);
+  const loadPlayers = async (gId: string) => {
+    const { data } = await supabase.from('players').select('*').eq('game_id', gId).order('position');
+    setPlayers(data || []);
+  };
+
+  const loadRadelci = async (gId: string) => {
+    const { data } = await supabase.from('radelci').select('*').eq('game_id', gId).order('position');
+    setRadelci(data || []);
+  };
+
+  const openAddPlayerModal = () => {
+    setSearchQuery(''); 
+    setShowAddPlayerModal(true); 
+    fetchProfiles(false); 
+  };
+
+  const toggleProfileSelection = (profile: PlayerProfile) => {
+    if (players.some(p => p.profile_id === profile.id || p.name === profile.name)) {
+        Alert.alert("Opozorilo", "Ta igralec je že v igri.");
+        return;
+    }
+    const newSelection = new Set(selectedProfileIds);
+    if (newSelection.has(profile.id)) {
+        newSelection.delete(profile.id);
+    } else {
+        newSelection.add(profile.id);
+    }
+    setSelectedProfileIds(newSelection);
+  };
+
+  const createNewProfileAndSelect = async () => {
+    if (!searchQuery.trim()) return;
+    const name = searchQuery.trim();
     try {
-        const { data: finishedGames } = await supabase
-            .from('games')
-            .select('id, name, created_at')
-            .eq('is_active', false)
-            .order('created_at', { ascending: false }); 
-            
-        const gameIds = finishedGames?.map(g => g.id) || [];
-        const gameMap = new Map<string, {date: string, name: string}>();
-        finishedGames?.forEach(g => gameMap.set(g.id, {date: g.created_at, name: g.name}));
-
-        if (gameIds.length === 0) { setGlobalStats([]); setStatsLoading(false); return; }
-
-        const { data: allPlayers } = await supabase.from('players').select('id, name, game_id, total_score').in('game_id', gameIds);
-        if (!allPlayers) { setGlobalStats([]); return; }
-        
-        const { data: allEntries } = await supabase.from('score_entries')
-            .select('player_id, game_id, points, is_valat, is_beggar, created_at')
-            .in('game_id', gameIds)
-            .order('created_at', { ascending: true });
-
-        const statsMap = new Map<string, PlayerStats>();
-        const playersByGame = allPlayers.reduce((acc, p) => {
-            if (!acc[p.game_id]) acc[p.game_id] = [];
-            acc[p.game_id].push(p);
-            return acc;
-        }, {} as Record<string, typeof allPlayers>);
-
-        const runningScores: any = {}; 
-        const phoenixFlags: any = {}; 
-
-        allEntries?.forEach(e => {
-            if (!runningScores[e.game_id]) runningScores[e.game_id] = {};
-            if (!phoenixFlags[e.game_id]) phoenixFlags[e.game_id] = new Set();
-            
-            const gScores = runningScores[e.game_id];
-            gScores[e.player_id] = (gScores[e.player_id] || 0) + e.points;
-            
-            if (gScores[e.player_id] < 0) {
-                phoenixFlags[e.game_id].add(e.player_id);
-            }
-        });
-
-        finishedGames?.forEach(g => {
-            const gameId = g.id;
-            const gameP = playersByGame[gameId];
-            if(!gameP) return;
-
-            gameP.sort((a, b) => b.total_score - a.total_score);
-            const gameInfo = gameMap.get(gameId) || {date: '', name: ''};
-
-            gameP.forEach((p) => {
-                const name = p.name; 
-                if (!statsMap.has(name)) {
-                    statsMap.set(name, { 
-                        name, wins: 0, second: 0, third: 0, total_games: 0, 
-                        recent_ranks: [], performance_scores: [], avg_performance: 0, 
-                        prev_performance: 0, h2h: {},
-                        best_game: null, worst_game: null, total_score_sum: 0, longest_win_streak: 0, current_win_streak: 0,
-                        valat_count: 0, beggar_wins: 0, phoenix_count: 0, dominator_count: 0
-                    });
-                }
-                const stat = statsMap.get(name)!;
-                stat.total_games += 1;
-                
-                const myScore = p.total_score;
-                const betterPlayers = gameP.filter(gp => gp.total_score > myScore).length;
-                const myRank = betterPlayers + 1;
-
-                if (myRank === 1) {
-                    stat.wins += 1;
-                    if (gameP.length > 1 && (gameP[0].total_score - gameP[1].total_score >= 300)) {
-                        stat.dominator_count += 1;
-                    }
-                    if (phoenixFlags[gameId]?.has(p.id)) {
-                        stat.phoenix_count += 1;
-                    }
-                }
-                if (myRank === 2) stat.second += 1;
-                if (myRank === 3) stat.third += 1;
-
-                stat.recent_ranks.push({ rank: myRank, date: gameInfo.date, gameName: gameInfo.name });
-                
-                stat.total_score_sum += myScore;
-                if (!stat.best_game || myScore > stat.best_game.score) {
-                    stat.best_game = { score: myScore, date: gameInfo.date };
-                }
-                if (!stat.worst_game || myScore < stat.worst_game.score) {
-                    stat.worst_game = { score: myScore, date: gameInfo.date };
-                }
-
-                const opponents = gameP.length - 1; 
-                if (opponents > 0) {
-                    const beaten = gameP.filter(op => op.total_score < myScore).length;
-                    const pct = (beaten / opponents) * 100;
-                    stat.performance_scores.push(pct);
-                }
-
-                gameP.forEach((op) => {
-                    if (p.name !== op.name) {
-                        if (!stat.h2h[op.name]) {
-                            stat.h2h[op.name] = { opponent: op.name, wins: 0, losses: 0, ties: 0, total: 0, winPct: 0, lossPct: 0 };
-                        }
-                        stat.h2h[op.name].total += 1;
-                        if (p.total_score > op.total_score) stat.h2h[op.name].wins += 1;
-                        else if (p.total_score < op.total_score) stat.h2h[op.name].losses += 1;
-                        else stat.h2h[op.name].ties += 1;
-                    }
-                });
-            });
-        });
-
-        allEntries?.forEach(e => {
-            const playerName = allPlayers.find(ap => ap.id === e.player_id)?.name;
-            if (playerName && statsMap.has(playerName)) {
-                if (e.is_valat) statsMap.get(playerName)!.valat_count += 1;
-                if (e.is_beggar && e.points > 0) statsMap.get(playerName)!.beggar_wins += 1;
-            }
-        });
-
-        const processedStats = Array.from(statsMap.values()).map(stat => {
-            stat.recent_ranks.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            
-            if (stat.performance_scores.length > 0) {
-                const sum = stat.performance_scores.reduce((acc, val) => acc + val, 0);
-                stat.avg_performance = sum / stat.performance_scores.length;
-
-                if (stat.performance_scores.length > 1) {
-                    const prevScores = stat.performance_scores.slice(1);
-                    const prevSum = prevScores.reduce((acc, val) => acc + val, 0);
-                    stat.prev_performance = prevSum / prevScores.length;
-                } else {
-                    stat.prev_performance = stat.avg_performance;
-                }
-            } else {
-                stat.avg_performance = 0;
-                stat.prev_performance = 0;
-            }
-
-            Object.values(stat.h2h).forEach(h => {
-                h.winPct = h.total > 0 ? (h.wins / h.total) * 100 : 0;
-                h.lossPct = h.total > 0 ? (h.losses / h.total) * 100 : 0;
-            });
-
-            let maxStreak = 0;
-            let currentStreak = 0;
-            const chronologicalRanks = [...stat.recent_ranks].reverse();
-            for (let r of chronologicalRanks) {
-                if (r.rank === 1) {
-                    currentStreak++;
-                    if (currentStreak > maxStreak) maxStreak = currentStreak;
-                } else {
-                    currentStreak = 0;
-                }
-            }
-            stat.longest_win_streak = maxStreak;
-            stat.current_win_streak = currentStreak; 
-
-            return stat;
-        });
-
-        setGlobalStats(processedStats);
-
+      const { data: newProfile, error } = await supabase.from('player_profiles').insert({ name }).select().single();
+      let profileToSelect = newProfile;
+      if (error) {
+        const { data: existingProfile } = await supabase.from('player_profiles').select('*').eq('name', name).single();
+        if (existingProfile) profileToSelect = existingProfile; else return;
+      }
+      if (profileToSelect) {
+          toggleProfileSelection(profileToSelect);
+          setSearchQuery(''); 
+          fetchProfiles(false); 
+      }
     } catch (e) { console.error(e); }
-    finally { setStatsLoading(false); }
   };
 
-  const calculateGameAwards = () => {
-    if (!gamePlayers.length || !playerHistory.length) return [];
+  const confirmAddPlayers = async () => {
+      if (!gameId || selectedProfileIds.size === 0) return;
+      setLoading(true);
+      try {
+          const profilesToAdd = allProfiles.filter(p => selectedProfileIds.has(p.id));
+          let startPosition = players.length;
+          const newPlayers = profilesToAdd.map((profile, index) => ({
+              game_id: gameId, name: profile.name, position: startPosition + index, profile_id: profile.id
+          }));
+          const { data, error } = await supabase.from('players').insert(newPlayers).select();
+          if (error) throw error;
+          if (data) {
+              setPlayers([...players, ...data]);
+              setShowAddPlayerModal(false);
+          }
+      } catch (e: any) { Alert.alert("Napaka", e.message); } finally { setLoading(false); }
+  };
+
+  const filteredProfiles = allProfiles.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  const promptDeletePlayer = (id: string) => {
+    setPlayerToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeletePlayer = async () => {
+    if (!playerToDelete) return;
+    await supabase.from('players').delete().eq('id', playerToDelete);
+    setPlayers(players.filter(p => p.id !== playerToDelete));
+    setRadelci(radelci.filter(r => r.player_id !== playerToDelete));
+    setShowDeleteModal(false);
+    setPlayerToDelete(null);
+  };
+
+  const addGlobalRadelc = async () => {
+    if (!gameId) return;
+    const maxPos = radelci.length > 0 ? Math.max(...radelci.map(r => r.position)) : -1;
+    const newRads = players.map(p => ({ game_id: gameId, player_id: p.id, is_used: false, position: maxPos + 1 }));
+    const { data } = await supabase.from('radelci').insert(newRads).select();
+    if (data) setRadelci([...radelci, ...data]);
+  };
+
+  const toggleRadelc = async (radId: string, current: boolean) => {
+    await supabase.from('radelci').update({ is_used: !current }).eq('id', radId);
+    setRadelci(radelci.map(r => r.id === radId ? { ...r, is_used: !current } : r));
+  };
+
+  const openScoreInput = (playerId: string) => {
+    setSelectedPlayerId(playerId); 
+    setScoreInput(''); 
+    setScoreMode('none'); 
+    setShowScoreModal(true);
+  };
+
+  const handleNumpadPress = (value: string) => {
+    if (value === 'DEL') { setScoreInput(prev => prev.slice(0, -1)); return; }
+    if (value === '-') { setScoreInput(prev => { if (prev.startsWith('-')) return prev.substring(1); return '-' + prev; }); return; }
+    if (scoreInput.length > 5) return;
+    setScoreInput(prev => prev + value);
+  };
+
+  const submitScore = async () => {
+    if (!selectedPlayerId || !scoreInput) return;
+    if (scoreInput === '-') { setScoreInput(''); return; }
+    const points = parseInt(scoreInput, 10);
+    if (isNaN(points)) { Alert.alert("Napaka", "Neveljaven vnos."); return; }
+
+    const valatValues = [250, 500, 1000, -250, -500, -1000];
+    if (valatValues.includes(points)) {
+      Alert.alert(
+        "Valat?",
+        `Ali je bilo to doseženo z valatom?`,
+        [
+          { text: "Ne", onPress: () => performSubmit(points, false) },
+          { text: "Da", onPress: () => performSubmit(points, true) }
+        ]
+      );
+    } else {
+      performSubmit(points, false);
+    }
+  };
+
+  const performSubmit = async (points: number, isValat: boolean) => {
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.from('score_entries').insert({
+        player_id: selectedPlayerId, 
+        game_id: gameId, 
+        points, 
+        played: scoreMode === 'played' || scoreMode === 'beggar', 
+        is_partner: scoreMode === 'partner',                     
+        is_beggar: scoreMode === 'beggar',
+        is_valat: isValat 
+      });
+      if (error) throw error;
+
+      const player = players.find(p => p.id === selectedPlayerId);
+      if (player) {
+        const newScore = player.total_score + points;
+        await supabase.from('players').update({ total_score: newScore }).eq('id', selectedPlayerId!);
+        setPlayers(players.map(p => p.id === selectedPlayerId ? { ...p, total_score: newScore } : p));
+        if (newScore === 0) setShowKlopModal(true);
+      }
+      setShowScoreModal(false); setScoreInput('');
+    } catch (e: any) { Alert.alert("Napaka", e.message); } finally { setSubmitting(false); }
+  };
+
+  const handleUndo = async () => {
+      if (!gameId) return;
+      setIsUndoing(true);
+      try {
+          const { data: lastScores, error: scoreErr } = await supabase
+              .from('score_entries')
+              .select('*')
+              .eq('game_id', gameId)
+              .order('created_at', { ascending: false })
+              .limit(1);
+
+          const { data: lastRadelci, error: radErr } = await supabase
+              .from('radelci')
+              .select('*')
+              .eq('game_id', gameId)
+              .order('created_at', { ascending: false })
+              .limit(1);
+
+          if (scoreErr) throw scoreErr;
+          if (radErr) throw radErr;
+
+          const lastScore = lastScores && lastScores.length > 0 ? lastScores[0] : null;
+          const lastRadelc = lastRadelci && lastRadelci.length > 0 ? lastRadelci[0] : null;
+
+          if (!lastScore && !lastRadelc) {
+              Alert.alert("Obvestilo", "Ni vnosov za razveljavitev.");
+              setIsUndoing(false);
+              return;
+          }
+
+          let undoType = '';
+          
+          if (lastScore && lastRadelc) {
+              const scoreTime = new Date(lastScore.created_at).getTime();
+              const radelcTime = new Date(lastRadelc.created_at).getTime();
+              undoType = scoreTime > radelcTime ? 'score' : 'radelc';
+          } else if (lastScore) {
+              undoType = 'score';
+          } else {
+              undoType = 'radelc';
+          }
+
+          if (undoType === 'score') {
+              const playerToUpdate = players.find(p => p.id === lastScore.player_id);
+              if (playerToUpdate) {
+                  const newScore = playerToUpdate.total_score - lastScore.points;
+                  await supabase.from('players').update({ total_score: newScore }).eq('id', playerToUpdate.id);
+                  setPlayers(players.map(p => p.id === playerToUpdate.id ? { ...p, total_score: newScore } : p));
+              }
+              await supabase.from('score_entries').delete().eq('id', lastScore.id);
+          } else {
+              const posToDelete = lastRadelc.position;
+              await supabase.from('radelci').delete().eq('game_id', gameId).eq('position', posToDelete);
+              setRadelci(radelci.filter(r => r.position !== posToDelete));
+          }
+          
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      } catch (err: any) {
+          Alert.alert("Napaka", "Prišlo je do napake pri razveljavitvi: " + err.message);
+      } finally {
+          setIsUndoing(false);
+      }
+  };
+
+  const loadPlayerHistory = async (pid: string) => {
+    const { data } = await supabase.from('score_entries').select('*').eq('player_id', pid).order('created_at');
+    setPlayerHistory(data || []); setSelectedPlayerId(pid); setShowHistoryModal(true);
+  };
+
+  const openLeaderboard = async () => {
+    setShowLeaderboardModal(true);
+    setLeaderboardTab('list');
+    if (!gameId) return;
+    const { data } = await supabase.from('score_entries').select('*').eq('game_id', gameId).order('created_at', { ascending: true });
+    setAllGameHistory(data || []);
+  };
+
+  const prepareChartData = () => {
+    if (!allGameHistory.length || !players.length) return { labels: [], datasets: [] };
     
-    const stats = gamePlayers.map(p => {
-      const entries = playerHistory.filter(e => e.player_id === p.id);
-      return {
+    let playersToShow = players;
+    if (focusedPlayerId) {
+        playersToShow = players.filter(p => p.id === focusedPlayerId);
+    }
+
+    const allPlayerCalculations = players.map(p => ({
         id: p.id,
         name: p.name,
-        playedCount: entries.filter(e => e.played && !e.is_beggar).length,
-        partnerCount: entries.filter(e => e.is_partner).length,
-        beggarCount: entries.filter(e => e.is_beggar).length,
-        actions: entries.filter(e => e.played || e.is_partner || e.is_beggar).length,
-        minus: entries.reduce((acc, e) => e.points < 0 ? acc + e.points : acc, 0)
-      };
+        score: 0,
+        history: [0],
+        colorIndex: players.indexOf(p) 
+    }));
+
+    allGameHistory.forEach(entry => {
+        const player = allPlayerCalculations.find(p => p.id === entry.player_id);
+        if (player) { player.score += entry.points; }
+        allPlayerCalculations.forEach(p => p.history.push(p.score));
     });
 
-    const awards: any[] = [];
-    const assignedIds = new Set();
+    const finalDatasets = allPlayerCalculations
+        .filter(p => focusedPlayerId ? p.id === focusedPlayerId : true)
+        .map((p) => ({
+            data: p.history,
+            color: (opacity = 1) => CHART_COLORS[p.colorIndex % CHART_COLORS.length], 
+            strokeWidth: focusedPlayerId ? 4 : 2, 
+            legend: p.name
+        }));
 
-    const pohlepnez = [...stats].sort((a, b) => b.playedCount - a.playedCount)[0];
-    if (pohlepnez && pohlepnez.playedCount > 0) {
-      awards.push({ t: "Pohlepnež", n: pohlepnez.name, i: "💰", d: `Odigral ${pohlepnez.playedCount} iger.` });
-      assignedIds.add(pohlepnez.id);
-    }
+    return {
+        labels: allPlayerCalculations[0].history.map((_, i) => i % 5 === 0 ? i.toString() : ''), 
+        datasets: finalDatasets,
+        legend: finalDatasets.map(d => d.legend)
+    };
+  };
 
-    const pijavka = [...stats].filter(s => !assignedIds.has(s.id)).sort((a, b) => b.partnerCount - a.partnerCount)[0];
-    if (pijavka && pijavka.partnerCount > 0) {
-      awards.push({ t: "Pijavka", n: pijavka.name, i: "🦟", d: `Klican ${pijavka.partnerCount}-krat.` });
-      assignedIds.add(pijavka.id);
-    }
-
-    const beggarCandidate = [...stats].filter(s => !assignedIds.has(s.id)).sort((a, b) => b.beggarCount - a.beggarCount)[0];
-    if (beggarCandidate && beggarCandidate.beggarCount >= 2) {
-      awards.push({ t: "Socialni problem", n: beggarCandidate.name, i: "🙏", d: `Berač ${beggarCandidate.beggarCount}-krat.` });
-      assignedIds.add(beggarCandidate.id);
-    } else {
-      const kamikaza = [...stats].filter(s => !assignedIds.has(s.id)).sort((a, b) => a.minus - b.minus)[0];
-      if (kamikaza && kamikaza.minus < 0) {
-        awards.push({ t: "Kamikaza", n: kamikaza.name, i: "🧨", d: `${kamikaza.minus} minus točk.` });
-        assignedIds.add(kamikaza.id);
+  const toggleFocusPlayer = (playerId: string) => {
+      if (focusedPlayerId === playerId) {
+          setFocusedPlayerId(null); 
+      } else {
+          setFocusedPlayerId(playerId); 
       }
-    }
-
-    const turist = [...stats].filter(s => !assignedIds.has(s.id)).sort((a, b) => a.actions - b.actions)[0];
-    if (turist) {
-      awards.push({ t: "Turist", n: turist.name, i: "📸", d: "Najmanj sodeloval." });
-    }
-
-    return awards.slice(0, 4);
   };
 
-  const renderGameIcon = (entry: ScoreEntry) => {
-    const iconColor = entry.is_valat ? COLORS.warning : "#fff";
-    if (entry.is_beggar) return <Triangle size={8} color={iconColor} fill={iconColor} style={{ opacity: 0.9 }} />;
-    if (entry.is_partner) return <Circle size={8} color={iconColor} style={{ opacity: 0.8 }} />;
-    if (entry.played) return <View style={[styles.playedDot, entry.is_valat && {backgroundColor: COLORS.warning}]} />;
-    return null;
-  };
-  
-  const shareResults = async () => {
+  const finishGame = async () => {
+    if (!gameId) return;
+    setLoading(true);
     try {
-      if (viewShotRef.current && viewShotRef.current.capture) {
-        const uri = await viewShotRef.current.capture();
-        const isAvailable = await Sharing.isAvailableAsync();
-        if (!isAvailable) {
-          Alert.alert("Napaka", "Deljenje na tej napravi ni na voljo.");
-          return;
+        const finalPlayers = [...players];
+        const updates = finalPlayers.map(async (p, i) => {
+            const unusedRadelci = radelci.filter(r => r.player_id === p.id && !r.is_used);
+            if (unusedRadelci.length > 0) {
+                const penalty = unusedRadelci.length * -50;
+                await supabase.from('score_entries').insert({
+                    game_id: gameId, player_id: p.id, points: penalty, played: false 
+                });
+                await supabase.from('players').update({ total_score: p.total_score + penalty }).eq('id', p.id);
+                
+                finalPlayers[i].total_score += penalty; 
+                
+                const radelcIds = unusedRadelci.map(r => r.id);
+                await supabase.from('radelci').update({ is_used: true }).in('id', radelcIds);
+            }
+        });
+        await Promise.all(updates);
+
+        const maxScore = Math.max(...finalPlayers.map(p => p.total_score));
+        const winners = finalPlayers.filter(p => p.total_score === maxScore);
+        const names = winners.map(w => w.name).join(' & ');
+        setWinnerData({ names, score: maxScore });
+
+        await supabase.from('games').update({ is_active: false }).eq('id', gameId);
+        setShowFinishGameModal(false); 
+
+        if (finalPlayers.length > 0) {
+            setShowWinnerPopup(true);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+            popupTimeoutRef.current = setTimeout(() => {
+                setShowWinnerPopup(false);
+                exitToLobby();
+            }, 5000);
+        } else {
+            exitToLobby();
         }
-        await Sharing.shareAsync(uri);
-      }
-    } catch (error) {
-      console.error("Napaka pri deljenju:", error);
-    }
+    } catch (e) { Alert.alert("Napaka", "Prišlo je do napake pri zaključevanju."); } finally { setLoading(false); }
   };
 
-  const openGlobalPlayerDetails = (player: PlayerStats) => {
-      setSelectedGlobalPlayer(player);
-      setShowAllGames(false); 
-      setShowGlobalPlayerModal(true);
-  };
-  
-  const getFormStatus = (ranks: { rank: number }[]) => {
-      if (ranks.length === 0) return { text: '-', color: '#666', icon: '➖' };
-      const last5 = ranks.slice(0, 5);
-      const wins = last5.filter(r => r.rank === 1).length;
-      let totalScore = 0;
-      last5.forEach(r => {
-          if (r.rank === 1) totalScore += 10;
-          else if (r.rank === 2) totalScore += 5;
-          else if (r.rank === 3) totalScore += 2;
-      });
-      const avgScore = totalScore / last5.length;
-
-      if (wins >= 3) return { text: 'Vroče', color: '#ff4500', icon: '🔥' };
-      if (avgScore >= 3.5) return { text: 'Odlična', color: '#22c55e', icon: '🚀' };
-      if (avgScore >= 1.5) return { text: 'Srednja', color: '#fbbf24', icon: '😐' };
-      return { text: 'Hladna', color: '#94a3b8', icon: '❄️' };
-  };
-
-  const getRivals = (h2h: Record<string, H2HStat>) => {
-      const qualified = Object.values(h2h).filter(h => h.total >= 3);
-      if (qualified.length === 0) return null;
-
-      let stranka = qualified[0];
-      let mora = qualified[0];
-
-      qualified.forEach(h => {
-          if (h.winPct > stranka.winPct) stranka = h;
-          if (h.lossPct > mora.lossPct) mora = h;
-      });
-
-      let derbi = null;
-      if (qualified.length > 2) {
-          const availableForDerbi = qualified.filter(h => h.opponent !== stranka.opponent && h.opponent !== mora.opponent);
-          if (availableForDerbi.length > 0) {
-              derbi = availableForDerbi[0];
-              let minDiff = Math.abs(derbi.winPct - 50);
-              availableForDerbi.forEach(h => {
-                  const diff = Math.abs(h.winPct - 50);
-                  if (diff < minDiff) {
-                      minDiff = diff;
-                      derbi = h;
-                  }
-              });
-          }
-      }
-
-      return { stranka, mora, derbi };
-  };
-
-  const getPlayerRadelci = (playerId: string) => radelci.filter((r) => r.player_id === playerId);
+  const getSelectedPlayerName = () => players.find(x => x.id === selectedPlayerId)?.name || '';
 
   const getFormattedTitle = (game: Game | null) => {
     if (!game) return '';
-
     const dateObj = new Date(game.created_at);
     const dateStr = dateObj.toLocaleDateString('sl-SI', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const timeStr = dateObj.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
-
     let cleanName = game.name;
     cleanName = cleanName.replace(/\d{1,2}\.\s\d{1,2}\.\s\d{4}/g, '');
     cleanName = cleanName.replace(/\d{1,2}\.\s\d{1,2}\./g, '');
     cleanName = cleanName.replace(/\d{1,2}:\d{2}/g, '');
     cleanName = cleanName.replace(/\bob\b/gi, '');
     cleanName = cleanName.trim().replace(/[,.-]+$/, '').trim();
-
     if (!cleanName) cleanName = "Tarok";
-
     return `${cleanName}, ${dateStr} (${timeStr})`;
   };
 
-  const renderGameWinner = (game: Game) => {
+  const renderListWinner = (game: Game) => {
     if (!game.players || game.players.length === 0) return null;
     const hasScore = game.players.some(p => p.total_score !== 0);
-    if (game.is_active && !hasScore) return null;
-
+    if (!hasScore) return null;
     const maxScore = Math.max(...game.players.map(p => p.total_score));
-    const winners = game.players.filter(p => p.total_score === maxScore);
-    const names = winners.map(w => w.name).join(' & ');
-
+    const leaders = game.players.filter(p => p.total_score === maxScore);
+    const names = leaders.map(l => l.name).join(' & ');
     return (
         <Text style={{ color: COLORS.winnerGrey, fontSize: 13, marginTop: 4 }}>
-            {game.is_active ? "Trenutno vodilni: " : "Zmagovalec: "}
-            <Text style={{ fontWeight: '700', color: COLORS.winnerGrey }}>
-                {names} ({maxScore})
-            </Text>
+            Trenutno vodilni: <Text style={{ fontWeight: '400', color: COLORS.winnerGrey }}>{names} ({maxScore})</Text>
         </Text>
     );
   };
 
-  const renderGame = ({ item }: { item: Game }) => {
-    return (
-      <TouchableOpacity style={styles.cardWrapper} onPress={() => loadGameDetails(item)}>
-        <View style={styles.gameCard}>
-            <View style={styles.cardHeader}>
-                <View style={[styles.cardIconBox, item.is_active && {backgroundColor: 'rgba(85, 110, 235, 0.2)'}]}>
-                    <Calendar size={18} color={item.is_active ? COLORS.primary : COLORS.textMuted} />
-                </View>
-                
-                <View style={{flex: 1, justifyContent: 'center'}}>
-                    <Text style={styles.gameTitleCombined}>{getFormattedTitle(item)}</Text>
-                    {renderGameWinner(item)}
-                </View>
+  const getLeaderText = () => {
+    if (!players || players.length === 0) return null;
+    const hasScore = players.some(p => p.total_score !== 0);
+    if (!hasScore) return null;
+    const maxScore = Math.max(...players.map(p => p.total_score));
+    const leaders = players.filter(p => p.total_score === maxScore);
+    const names = leaders.map(l => l.name).join(' & ');
+    return `Trenutno vodilni: ${names} (${maxScore} točk)`;
+  };
 
-                {item.is_active && (
-                    <View style={styles.activeBadge}>
-                        <Clock size={12} color="#fff" style={{marginRight: 4}}/>
-                        <Text style={styles.activeBadgeText}>V TEKU</Text>
-                    </View>
-                )}
-            </View>
+  const renderGameIcon = (entry: ScoreEntry) => {
+    const iconColor = entry.is_valat ? COLORS.warning : "#fff";
+    if (entry.is_beggar) {
+      return <Triangle size={8} color={iconColor} fill={iconColor} style={{ opacity: 0.9 }} />;
+    }
+    if (entry.is_partner) {
+      return <Circle size={8} color={iconColor} style={{ opacity: 0.8 }} />;
+    }
+    if (entry.played) {
+      return <View style={[styles.playedDot, entry.is_valat && { backgroundColor: COLORS.warning }]} />;
+    }
+    return null;
+  };
+
+  const renderPlayer = ({ item }: { item: Player }) => {
+    const pRadelci = radelci.filter(r => r.player_id === item.id);
+    return (
+      <View style={styles.playerCard}>
+        <View style={styles.playerHeader}>
+          <View style={styles.playerNameContainer}>
+            
+            <Image source={{ uri: getAvatarUrl(item.name) }} style={styles.playerAvatar} />
+
+            <Text style={styles.playerNameText}>{item.name}</Text>
+            <TouchableOpacity onPress={() => loadPlayerHistory(item.id)} style={styles.infoButton}>
+              <Info size={20} color={COLORS.textMuted} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => promptDeletePlayer(item.id)} style={styles.deleteButton}>
+              <Trash2 size={20} color={COLORS.danger} />
+            </TouchableOpacity>
+          </View>
         </View>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.scoreContainer} onPress={() => openScoreInput(item.id)}>
+          <Text style={styles.scoreText}>{item.total_score}</Text>
+        </TouchableOpacity>
+        <ScrollView horizontal style={styles.radelciContainer} showsHorizontalScrollIndicator={false}>
+          {pRadelci.map(r => (
+            <TouchableOpacity key={r.id} onPress={() => toggleRadelc(r.id, r.is_used)} hitSlop={{top: 15, bottom: 15, left: 10, right: 10}}>
+              <View style={[styles.radelcBase, r.is_used ? styles.radelcUsed : styles.radelcUnused]} />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
     );
   };
 
-  const Line = ({ x1, y1, x2, y2, color }: { x1: number, y1: number, x2: number, y2: number, color: string }) => {
-      const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-      const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
+  const chartData = prepareChartData();
+
+  if (loading && !gameId && activeGamesList.length === 0) {
       return (
-          <View style={{
-              position: 'absolute', left: (x1 + x2) / 2 - length / 2, top: (y1 + y2) / 2 - 1,
-              width: length, height: 2, backgroundColor: color, transform: [{ rotate: `${angle}deg` }]
-          }} />
+        <View style={[styles.container, styles.centerContent]}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={{color: COLORS.textMuted, marginTop: 10}}>Nalaganje...</Text>
+        </View>
       );
-  };
+  }
+  
+  if (!gameId && activeGamesList.length === 0) return (
+    <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.welcomeTitle}>Tarok</Text>
+        <Text style={styles.welcomeSubtitle}>Ni aktivne igre</Text>
+        <TouchableOpacity style={styles.bigStartButton} onPress={handleStartNewGame} activeOpacity={0.8}>
+            <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} />
+            <View style={[styles.relativeContent, { gap: 12 }]}>
+                <Play size={32} color="#fff" fill="#fff" />
+                <Text style={styles.bigStartButtonText}>Začni novo igro</Text>
+            </View>
+        </TouchableOpacity>
+    </View>
+  );
 
-  const classicSortedStats = [...globalStats].sort((a, b) => {
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    if (b.second !== a.second) return b.second - a.second;
-    return b.third - a.third;
-  });
-
-  const indexSortedStats = [...globalStats]
-    .filter(s => s.total_games >= 5)
-    .sort((a, b) => b.avg_performance - a.avg_performance);
-
-  if (loading) return (<View style={styles.container}><Text style={styles.loadingText}>Nalaganje...</Text></View>);
+  if (!gameId) return (
+    <View style={styles.container}>
+        <Text style={styles.lobbyTitle}>Aktivne igre</Text>
+        <View style={{ flex: 1 }}>
+            <FlatList 
+                data={activeGamesList} 
+                keyExtractor={(item) => item.id} 
+                contentContainerStyle={styles.listContainer} 
+                renderItem={({ item }) => (
+                    <TouchableOpacity style={styles.gameCard} onPress={() => enterGame(item)}>
+                        <View>
+                            <Text style={styles.gameName}>{getFormattedTitle(item)}</Text>
+                            {renderListWinner(item)}
+                        </View>
+                        <Play size={24} color={COLORS.primary} fill={COLORS.primary} />
+                    </TouchableOpacity>
+                )} 
+            />
+            <View style={{ padding: 16, alignItems: 'center' }}>
+                <TouchableOpacity style={styles.bigStartButton} onPress={handleStartNewGame} activeOpacity={0.8}>
+                    <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} />
+                    <View style={[styles.relativeContent, { gap: 12 }]}>
+                        <Plus size={24} color="#fff" />
+                        <Text style={styles.bigStartButtonText}>Začni še eno igro</Text>
+                    </View>
+                </TouchableOpacity>
+            </View>
+        </View>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
-      <View style={styles.mainHeader}>
-          <Text style={styles.headerTitle}>Pregled</Text>
-          <View style={{flexDirection: 'row', gap: 10}}>
-              
-              <TouchableOpacity style={styles.globalStatsButton} onPress={() => loadGlobalStats('select')}>
-                  <LinearGradient colors={['#334155', '#1e293b']} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} />
-                  <View style={styles.relativeContent}>
-                      <Users size={22} color="#fff" />
-                  </View>
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.globalStatsButton} onPress={() => loadGlobalStats('leaderboard')}>
-                  <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} />
-                  <View style={styles.relativeContent}>
-                      <Trophy size={22} color="#fff" />
-                  </View>
-              </TouchableOpacity>
 
-          </View>
+      <View style={styles.gameHeaderBar}>
+        <TouchableOpacity onPress={exitToLobby} style={styles.backButton}>
+            <ChevronLeft size={28} color={COLORS.textMuted} style={{ marginLeft: -8 }} />
+            <Text style={styles.backButtonText}>Seznam</Text>
+        </TouchableOpacity>
+        
+        <View style={{ flex: 1, alignItems: 'flex-end', marginLeft: 10 }}>
+            <Text style={styles.headerGameTitle} numberOfLines={1}>{getFormattedTitle({ id: gameId || '', name: gameName, created_at: activeGamesList.find(g => g.id === gameId)?.created_at || new Date().toISOString(), is_active: true })}</Text>
+        </View>
       </View>
 
-      <Modal visible={showPlayerSelectModal} transparent animationType="fade" onRequestClose={() => setShowPlayerSelectModal(false)}>
-         <View style={[styles.modalOverlay, {justifyContent: 'center', alignItems: 'center'}]}>
-            <View style={[styles.modalContent, {width: '85%', maxHeight: '70%', borderRadius: 24, padding: 20}]}>
-                <Text style={[styles.modalTitle, {marginBottom: 20}]}>Izberi igralca</Text>
-                
-                {statsLoading ? (
-                    <ActivityIndicator size="large" color={COLORS.primary} style={{marginVertical: 40}} />
-                ) : (
-                    <ScrollView style={{width: '100%'}} showsVerticalScrollIndicator={false}>
-                        {[...globalStats].sort((a, b) => a.name.localeCompare(b.name)).map(stat => (
-                            <TouchableOpacity 
-                                key={stat.name} 
-                                style={styles.selectPlayerItem}
-                                onPress={() => {
-                                    setShowPlayerSelectModal(false);
-                                    openGlobalPlayerDetails(stat);
-                                }}
-                            >
-                                <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                                    <Image source={{ uri: getAvatarUrl(stat.name) }} style={[styles.playerAvatar, {marginRight: 12}]} />
-                                    <Text style={{color: '#fff', fontSize: 18, fontWeight: '600'}}>{stat.name}</Text>
-                                </View>
-                                <ChevronRight size={20} color={COLORS.textMuted} />
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                )}
-                
-                <TouchableOpacity style={[styles.closeButton, {marginTop: 10}]} onPress={() => setShowPlayerSelectModal(false)}>
-                    <Text style={styles.closeButtonText}>Prekliči</Text>
+      <View style={styles.headerContainer}>
+          
+          <View style={styles.headerRow}>
+            <View style={styles.buttonWrapper}>
+                <TouchableOpacity style={styles.gradientHeaderBtn} onPress={openAddPlayerModal} activeOpacity={0.8}>
+                    <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} />
+                    <View style={[styles.relativeContent, { gap: 4 }]}>
+                        <Plus size={20} color="#fff" />
+                        <Text style={styles.addButtonText}>Igralec</Text>
+                    </View>
                 </TouchableOpacity>
             </View>
-         </View>
-      </Modal>
 
-      <FlatList
-        data={games}
-        keyExtractor={(item) => item.id}
-        renderItem={renderGame}
-        contentContainerStyle={styles.listContainer}
-        ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>Ni še nobene igre</Text></View>}
-      />
+            <View style={styles.buttonWrapper}>
+                <TouchableOpacity style={styles.gradientHeaderBtn} onPress={addGlobalRadelc} activeOpacity={0.8}>
+                     <LinearGradient colors={['#20B2AA', '#20B2AA']} style={styles.absoluteGradient} />
+                     <View style={[styles.relativeContent, { gap: 4 }]}>
+                         <Plus size={20} color="#fff" />
+                         <Text style={styles.addButtonText}>Radelc</Text>
+                     </View>
+                </TouchableOpacity>
+            </View>
 
-      <Modal visible={showGlobalStatsModal} transparent animationType="slide" onRequestClose={() => setShowGlobalStatsModal(false)}>
-         <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, styles.historyModal]}>
-                
-                <Text style={[styles.modalTitle, { marginBottom: 20 }]}>Lestvica 🏆</Text>
-                
-                <View style={styles.tabContainer}>
-                    <TouchableOpacity style={[styles.tabButton, globalStatsTab === 'classic' && styles.tabButtonActive]} onPress={() => setGlobalStatsTab('classic')}>
-                        <Text style={[styles.tabText, globalStatsTab === 'classic' && styles.tabTextActive]}>Po zmagah</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.tabButton, globalStatsTab === 'index' && styles.tabButtonActive]} onPress={() => setGlobalStatsTab('index')}>
-                        <Text style={[styles.tabText, globalStatsTab === 'index' && styles.tabTextActive]}>Indeks %</Text>
-                    </TouchableOpacity>
+            <TouchableOpacity style={styles.gradientIconBtn} onPress={openLeaderboard} activeOpacity={0.8}>
+                 <LinearGradient colors={['#5863ea', '#5863ea']} style={styles.absoluteGradient} />
+                 <View style={styles.relativeContent}>
+                     <Trophy size={24} color="#fff" />
+                 </View>
+            </TouchableOpacity>
+          </View>
+          
+          {/* TUKAJ SO GUMBI ZDAJ FIKSIRANI */}
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+            <TouchableOpacity 
+                style={{ flex: 1, backgroundColor: COLORS.card, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.10)', borderTopColor: 'rgba(255, 255, 255, 0.22)', borderLeftColor: 'rgba(255, 255, 255, 0.14)', overflow: 'hidden' }} 
+                onPress={handleUndo} 
+                disabled={isUndoing} 
+                activeOpacity={0.8}
+            >
+                <View style={styles.relativeContent}>
+                    {isUndoing ? <ActivityIndicator size="small" color={COLORS.textMuted} /> : <RotateCcw size={20} color={COLORS.textMuted} />}
+                    <Text style={styles.undoButtonText}>Razveljavi</Text>
                 </View>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.20)', borderTopColor: 'rgba(255, 255, 255, 0.55)', borderLeftColor: 'rgba(255, 255, 255, 0.35)', overflow: 'hidden' }} 
+                onPress={() => setShowFinishGameModal(true)} 
+                activeOpacity={0.8}
+            >
+                <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} />
+                <View style={styles.relativeContent}>
+                    <CheckCircle2 size={20} color="#fff" />
+                    <Text style={styles.finishGameText}>Zaključi igro</Text>
+                </View>
+            </TouchableOpacity>
+          </View>
 
-                {statsLoading ? (
-                    <ActivityIndicator size="large" color={COLORS.primary} style={{marginTop: 20}} />
-                ) : (
-                    <>
-                        {globalStatsTab === 'classic' ? (
-                            <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
-                                {classicSortedStats.map((stat, index) => {
-                                    const rank = classicSortedStats.findIndex(s => 
-                                        s.wins === stat.wins && 
-                                        s.second === stat.second && 
-                                        s.third === stat.third
-                                    ) + 1;
+      </View>
 
-                                    return (
-                                        <TouchableOpacity key={stat.name} style={styles.leaderboardItem} onPress={() => openGlobalPlayerDetails(stat)}>
-                                            <View style={{width: 32, alignItems: 'center', justifyContent: 'center'}}>
-                                                {rank === 1 ? <Trophy size={20} color="#ffd700" /> :
-                                                 rank === 2 ? <Trophy size={20} color="#c0c0c0" /> :
-                                                 rank === 3 ? <Trophy size={20} color="#cd7f32" /> :
-                                                 <Text style={[styles.rankText, {fontSize: 16}]}>{rank}.</Text>
-                                                }
-                                            </View>
-                                            
-                                            <Image source={{ uri: getAvatarUrl(stat.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginLeft: 4, marginRight: 8}]} />
+      <FlatList data={players} keyExtractor={(item) => item.id} renderItem={renderPlayer} contentContainerStyle={styles.listContainer} ListEmptyComponent={<Text style={styles.emptyText}>Dodaj igralce za začetek.</Text>} />
 
-                                            <View style={{flex: 1, justifyContent: 'center'}}>
-                                                <Text style={[styles.leaderboardName, {fontSize: 16}]}>{stat.name}</Text>
-                                                <Text style={{color: COLORS.textMuted, fontSize: 11}}>{stat.total_games} iger</Text>
-                                            </View>
-                                            <View style={{flexDirection: 'row', gap: 6, alignItems: 'center'}}>
-                                                <View style={styles.medalBox}><Trophy size={14} color="#ffd700" /><Text style={styles.medalText}>{stat.wins}</Text></View>
-                                                <View style={styles.medalBox}><Trophy size={14} color="#c0c0c0" /><Text style={styles.medalText}>{stat.second}</Text></View>
-                                                <View style={styles.medalBox}><Trophy size={14} color="#cd7f32" /><Text style={styles.medalText}>{stat.third}</Text></View>
-                                                <ChevronRight size={16} color={COLORS.textMuted} style={{marginLeft: 2}} />
-                                            </View>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </ScrollView>
-                        ) : (
-                            <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
-                                {indexSortedStats.length === 0 ? (
-                                    <View style={{alignItems: 'center', marginTop: 40}}>
-                                        <BarChart2 size={40} color={COLORS.textMuted} style={{marginBottom: 10}} />
-                                        <Text style={{color: COLORS.textMuted, textAlign: 'center', paddingHorizontal: 20}}>
-                                            Še noben igralec ni odigral dovolj iger za izračun indeksa.
-                                        </Text>
-                                    </View>
-                                ) : (
-                                    indexSortedStats.map((stat, index) => {
-                                        const rank = indexSortedStats.findIndex(s => s.avg_performance === stat.avg_performance) + 1;
-                                        
-                                        const showUp = stat.avg_performance > stat.prev_performance;
-                                        const showDown = stat.avg_performance < stat.prev_performance;
-
-                                        return (
-                                            <TouchableOpacity key={stat.name} style={styles.leaderboardItem} onPress={() => openGlobalPlayerDetails(stat)}>
-                                                <View style={{width: 32, alignItems: 'center', justifyContent: 'center'}}>
-                                                    {rank === 1 ? <Trophy size={20} color="#ffd700" /> :
-                                                     rank === 2 ? <Trophy size={20} color="#c0c0c0" /> :
-                                                     rank === 3 ? <Trophy size={20} color="#cd7f32" /> :
-                                                     <Text style={[styles.rankText, {fontSize: 16}]}>{rank}.</Text>
-                                                    }
-                                                </View>
-
-                                                <Image source={{ uri: getAvatarUrl(stat.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginLeft: 4, marginRight: 8}]} />
-
-                                                <View style={{flex: 1, justifyContent: 'center'}}>
-                                                    <Text style={[styles.leaderboardName, {fontSize: 16}]}>{stat.name}</Text>
-                                                    <Text style={{color: COLORS.textMuted, fontSize: 11}}>{stat.total_games} iger</Text>
-                                                </View>
-                                                
-                                                <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 4}}>
-                                                    {showUp && <TrendingUp size={14} color={COLORS.success} style={{marginRight: 8}} />}
-                                                    {showDown && <TrendingDown size={14} color={COLORS.danger} style={{marginRight: 8}} />}
-                                                    <Text style={{color: COLORS.text, fontSize: 18, fontWeight: '800'}}>
-                                                        {Math.round(stat.avg_performance)} %
-                                                    </Text>
-                                                </View>
-                                            </TouchableOpacity>
-                                        );
-                                    })
-                                )}
-                                <Text style={{color: '#64748b', fontSize: 11, textAlign: 'center', marginTop: 10, marginBottom: 10}}>
-                                    * Prikazani so le igralci z vsaj 5 odigranimi igrami. Puščica označuje spremembo po zadnji igri.
-                                </Text>
-                            </ScrollView>
-                        )}
-                    </>
-                )}
-                
-                <TouchableOpacity style={styles.closeButton} onPress={() => setShowGlobalStatsModal(false)}>
-                    <Text style={styles.closeButtonText}>Zapri</Text>
+      <Modal visible={showAddPlayerModal} animationType="slide" transparent onRequestClose={() => setShowAddPlayerModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { height: '90%', maxHeight: '90%' }]}>
+            <Text style={styles.modalTitle}>Dodaj igralce</Text>
+            {isInputActive ? (
+                <View style={styles.searchContainer}>
+                    <Search size={24} color={COLORS.textMuted} style={{ marginRight: 12 }} />
+                    <TextInput
+                        autoFocus={true} 
+                        style={[styles.searchInput, { outlineStyle: 'none', borderWidth: 0 } as any]}
+                        placeholder="Išči ali ustvari novega..."
+                        placeholderTextColor={COLORS.textMuted}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        underlineColorAndroid="transparent"
+                        selectionColor={COLORS.primary}
+                        cursorColor={COLORS.primary}
+                    />
+                </View>
+            ) : (
+                <TouchableOpacity style={styles.searchContainer} activeOpacity={1} onPress={() => setIsInputActive(true)}>
+                    <Search size={24} color={COLORS.textMuted} style={{ marginRight: 12 }} />
+                    <Text style={{color: COLORS.textMuted, fontSize: 20}}>Išči ali ustvari novega...</Text>
                 </TouchableOpacity>
-            </View>
-         </View>
-      </Modal>
-
-      <Modal visible={showGlobalPlayerModal} transparent animationType="slide" onRequestClose={() => setShowGlobalPlayerModal(false)}>
-         <View style={styles.modalOverlay}>
-             <View style={[styles.modalContent, styles.historyModal]}>
-                {selectedGlobalPlayer && (
-                    <>
-                        <ScrollView style={styles.detailScroll} showsVerticalScrollIndicator={false}>
-                            
-                            <View style={styles.detailHeader}>
-                                <Image source={{ uri: getAvatarUrl(selectedGlobalPlayer.name) }} style={[styles.playerAvatar, {width: 80, height: 80, borderRadius: 40, marginRight: 0, marginBottom: 12, borderWidth: 2}]} />
-                                
-                                <Text style={styles.modalTitle}>
-                                    {selectedGlobalPlayer.name}   <Text style={{ color: 'rgb(148, 163, 184)' }}>{Math.round(selectedGlobalPlayer.avg_performance)}%</Text>
-                                </Text>
+            )}
+            <FlatList
+                data={filteredProfiles} keyExtractor={(item) => item.id} style={{ flex: 1, marginVertical: 12 }}
+                renderItem={({ item }) => {
+                    const isSelected = selectedProfileIds.has(item.id);
+                    return (
+                        <TouchableOpacity style={styles.profileItem} onPress={() => toggleProfileSelection(item)}>
+                            <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                                <Image source={{ uri: getAvatarUrl(item.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 10}]} />
+                                <Text style={styles.profileName}>{item.name}</Text>
                             </View>
-
-                            <View style={styles.formSection}>
-                                <Text style={styles.sectionTitle}>Trenutna forma</Text>
-                                {(() => {
-                                    const form = getFormStatus(selectedGlobalPlayer.recent_ranks);
-                                    return (
-                                        <View style={styles.formCard}>
-                                            <Text style={{fontSize: 40}}>{form.icon}</Text>
-                                            <Text style={styles.formSubText}>
-                                                {selectedGlobalPlayer.recent_ranks.slice(0, 5).length} iger v analizi
-                                            </Text>
-                                        </View>
-                                    );
-                                })()}
+                            <View style={{ backgroundColor: isSelected ? COLORS.danger : COLORS.primary, padding: 8, borderRadius: 20 }}>
+                                {isSelected ? <Minus size={24} color="#fff" /> : <Plus size={24} color="#fff" />}
                             </View>
-
-                            <View style={styles.chartSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:20}}>
-                                    <TrendingUp size={20} color={COLORS.primary} style={{marginRight:8}} />
-                                    <Text style={[styles.sectionTitle, {marginBottom: 0}]}>Gibanje uvrstitev (Zadnjih 10)</Text>
-                                </View>
-                                
-                                <View 
-                                    style={styles.chartContainer}
-                                    onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}
-                                >
-                                    <View style={[styles.gridLine, {top: 0}]}><Text style={styles.gridLabel}>1.</Text></View>
-                                    <View style={[styles.gridLine, {top: '50%'}]}><Text style={styles.gridLabel}>5.</Text></View>
-                                    <View style={[styles.gridLine, {top: '100%'}]}><Text style={styles.gridLabel}>10.</Text></View>
-
-                                    {(() => {
-                                        if (chartWidth === 0) return null;
-                                        const data = selectedGlobalPlayer.recent_ranks.slice(0, 10).reverse();
-                                        const chartHeight = 120;
-                                        const totalPoints = data.length;
-                                        const stepX = totalPoints > 1 ? chartWidth / (totalPoints - 1) : chartWidth / 2;
-                                        
-                                        const points = data.map((r, i) => {
-                                            const cappedRank = Math.min(r.rank, 10);
-                                            const y = ((cappedRank - 1) / 9) * chartHeight; 
-                                            const x = totalPoints > 1 ? i * stepX : chartWidth / 2;
-                                            return { x, y, rank: r.rank };
-                                        });
-
-                                        return (
-                                            <View style={{ width: '100%', height: '100%' }}>
-                                                {points.map((p, i) => {
-                                                    if (i === points.length - 1) return null;
-                                                    const nextP = points[i+1];
-                                                    return (<Line key={`line-${i}`} x1={p.x} y1={p.y} x2={nextP.x} y2={nextP.y} color={COLORS.primary} />);
-                                                })}
-                                                {points.map((p, i) => {
-                                                    let dotColor = '#fff';
-                                                    if (p.rank === 1) dotColor = '#ffd700';
-                                                    else if (p.rank === 2) dotColor = '#c0c0c0';
-                                                    else if (p.rank === 3) dotColor = '#cd7f32';
-                                                    return (<View key={`dot-${i}`} style={{position: 'absolute', left: p.x - 5, top: p.y - 5, width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.bg, borderWidth: 2, borderColor: dotColor, zIndex: 10}} />);
-                                                })}
-                                            </View>
-                                        );
-                                    })()}
-                                </View>
-                                
-                                <View style={styles.chartXAxis}>
-                                    <Text style={styles.axisLabel}>Starejše</Text>
-                                    <Text style={styles.axisLabel}>Novejše</Text>
-                                </View>
-                            </View>
-
-                            <View style={styles.lastGamesSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', justifyContent: 'space-between', marginBottom:10}}>
-                                    <View style={{flexDirection:'row', alignItems:'center'}}>
-                                        <Calendar size={20} color={COLORS.textMuted} style={{marginRight:8}} />
-                                        <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>
-                                            {showAllGames ? 'Vse igre' : 'Zadnjih 5 iger'}
-                                        </Text>
-                                    </View>
-                                    
-                                    {selectedGlobalPlayer.recent_ranks.length > 5 && (
-                                        <TouchableOpacity onPress={() => setShowAllGames(!showAllGames)}>
-                                            <Text style={{color: COLORS.primary, fontWeight: '600', fontSize: 14}}>
-                                                {showAllGames ? 'Pokaži manj' : 'Pokaži vse'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
-                                
-                                {(showAllGames ? selectedGlobalPlayer.recent_ranks : selectedGlobalPlayer.recent_ranks.slice(0, 5)).map((r, i) => (
-                                    <View key={i} style={styles.rankRow}>
-                                        <Text style={styles.rankRowDate}>{new Date(r.date).toLocaleDateString('sl-SI')}</Text>
-                                        <View style={styles.rankBadge}>
-                                            <Text style={styles.rankBadgeText}>
-                                                {r.rank}. mesto
-                                            </Text>
-                                        </View>
-                                    </View>
-                                ))}
-                            </View>
-
-                            <View style={styles.rivalsSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:12}}>
-                                    <Swords size={20} color={COLORS.danger} style={{marginRight:8}} />
-                                    <Text style={[styles.sectionTitle, {marginBottom: 0}]}>Osebni rivali</Text>
-                                </View>
-                                
-                                {(() => {
-                                    const rivals = getRivals(selectedGlobalPlayer.h2h);
-                                    if (!rivals) {
-                                        return <Text style={styles.emptyText}>Premalo odigranih skupnih iger za izračun rivalov (vsaj 3 igre z istim nasprotnikom).</Text>;
-                                    }
-
-                                    return (
-                                        <View>
-                                            {rivals.stranka && (
-                                                <View style={styles.rivalCard}>
-                                                    <Text style={styles.rivalTitle}>Najljubša stranka</Text>
-                                                    <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}>
-                                                        <Image source={{ uri: getAvatarUrl(rivals.stranka.opponent) }} style={[styles.playerAvatar, {width: 24, height: 24, borderRadius: 12, marginRight: 8}]} />
-                                                        <Text style={styles.rivalName}>{rivals.stranka.opponent}</Text>
-                                                    </View>
-                                                    <Text style={styles.rivalDesc}>
-                                                        Zmage proti njemu: <Text style={{fontWeight: '700', color: COLORS.text}}>{Math.round(rivals.stranka.winPct)} %</Text> ({rivals.stranka.wins} Z / {rivals.stranka.losses} P)
-                                                    </Text>
-                                                </View>
-                                            )}
-                                            {rivals.mora && rivals.mora.opponent !== rivals.stranka.opponent && (
-                                                <View style={styles.rivalCard}>
-                                                    <Text style={styles.rivalTitle}>Trn v peti</Text>
-                                                    <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}>
-                                                        <Image source={{ uri: getAvatarUrl(rivals.mora.opponent) }} style={[styles.playerAvatar, {width: 24, height: 24, borderRadius: 12, marginRight: 8}]} />
-                                                        <Text style={styles.rivalName}>{rivals.mora.opponent}</Text>
-                                                    </View>
-                                                    <Text style={styles.rivalDesc}>
-                                                        Porazi proti njemu: <Text style={{fontWeight: '700', color: COLORS.text}}>{Math.round(rivals.mora.lossPct)} %</Text> ({rivals.mora.losses} P / {rivals.mora.wins} Z)
-                                                    </Text>
-                                                </View>
-                                            )}
-                                            {rivals.derbi && (
-                                                <View style={styles.rivalCard}>
-                                                    <Text style={styles.rivalTitle}>Večni derbi</Text>
-                                                    <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}>
-                                                        <Image source={{ uri: getAvatarUrl(rivals.derbi.opponent) }} style={[styles.playerAvatar, {width: 24, height: 24, borderRadius: 12, marginRight: 8}]} />
-                                                        <Text style={styles.rivalName}>{rivals.derbi.opponent}</Text>
-                                                    </View>
-                                                    <Text style={styles.rivalDesc}>
-                                                        Izenačen boj: <Text style={{fontWeight: '700', color: COLORS.text}}>{Math.round(rivals.derbi.winPct)} %</Text> uspeh.
-                                                    </Text>
-                                                </View>
-                                            )}
-                                        </View>
-                                    );
-                                })()}
-                            </View>
-
-                            <View style={styles.recordsSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:12}}>
-                                    <Trophy size={20} color="#ffd700" style={{marginRight:8}} />
-                                    <Text style={[styles.sectionTitle, {marginBottom: 0}]}>Osebni rekordi in ekstremi</Text>
-                                </View>
-
-                                <View style={styles.recordsGrid}>
-                                    <View style={styles.recordBox}>
-                                        <Text style={styles.recordTitle}>🚀 Življenjska igra</Text>
-                                        <Text style={[styles.recordValue, selectedGlobalPlayer.best_game && selectedGlobalPlayer.best_game.score > 0 ? {color: COLORS.success} : {}]}>
-                                            {selectedGlobalPlayer.best_game ? (selectedGlobalPlayer.best_game.score > 0 ? `+${selectedGlobalPlayer.best_game.score}` : selectedGlobalPlayer.best_game.score) : '/'}
-                                        </Text>
-                                        <Text style={styles.recordSub}>
-                                            {selectedGlobalPlayer.best_game ? new Date(selectedGlobalPlayer.best_game.date).toLocaleDateString('sl-SI') : ''}
-                                        </Text>
-                                    </View>
-
-                                    <View style={styles.recordBox}>
-                                        <Text style={styles.recordTitle}>💀 Črni dan</Text>
-                                        <Text style={[styles.recordValue, selectedGlobalPlayer.worst_game && selectedGlobalPlayer.worst_game.score < 0 ? {color: COLORS.danger} : {}]}>
-                                            {selectedGlobalPlayer.worst_game ? selectedGlobalPlayer.worst_game.score : '/'}
-                                        </Text>
-                                        <Text style={styles.recordSub}>
-                                            {selectedGlobalPlayer.worst_game ? new Date(selectedGlobalPlayer.worst_game.date).toLocaleDateString('sl-SI') : ''}
-                                        </Text>
-                                    </View>
-
-                                    <View style={styles.recordBox}>
-                                        <Text style={styles.recordTitle}>💰 Skupne točke</Text>
-                                        <Text style={[styles.recordValue, selectedGlobalPlayer.total_score_sum > 0 ? {color: COLORS.success} : (selectedGlobalPlayer.total_score_sum < 0 ? {color: COLORS.danger} : {color: COLORS.text})]}>
-                                            {selectedGlobalPlayer.total_score_sum > 0 ? `+${selectedGlobalPlayer.total_score_sum}` : selectedGlobalPlayer.total_score_sum}
-                                        </Text>
-                                        <Text style={styles.recordSub}>Karierni izkupiček</Text>
-                                    </View>
-
-                                    <View style={styles.recordBox}>
-                                        <Text style={styles.recordTitle}>⚖️ Povprečje</Text>
-                                        <Text style={styles.recordValue}>
-                                            {(selectedGlobalPlayer.total_score_sum / selectedGlobalPlayer.total_games).toFixed(1)}
-                                        </Text>
-                                        <Text style={styles.recordSub}>Točk na igro</Text>
-                                    </View>
-
-                                    <View style={styles.recordBox}>
-                                        <Text style={styles.recordTitle}>🏅 Stopničke</Text>
-                                        <Text style={styles.recordValue}>
-                                            {Math.round(((selectedGlobalPlayer.wins + selectedGlobalPlayer.second + selectedGlobalPlayer.third) / selectedGlobalPlayer.total_games) * 100)} %
-                                        </Text>
-                                        <Text style={styles.recordSub}>Iger med top 3</Text>
-                                    </View>
-
-                                    <View style={styles.recordBox}>
-                                        <Text style={styles.recordTitle}>🔥 Niz zmag</Text>
-                                        <Text style={styles.recordValue}>
-                                            {selectedGlobalPlayer.longest_win_streak}
-                                        </Text>
-                                        <Text style={styles.recordSub}>Zaporednih zmag</Text>
-                                    </View>
-
-                                    <View style={[styles.recordBox, {width: '100%', borderColor: 'rgba(245, 158, 11, 0.2)', borderTopColor: 'rgba(245, 158, 11, 0.5)', borderLeftColor: 'rgba(245, 158, 11, 0.3)', backgroundColor: 'rgba(245, 158, 11, 0.05)'}]}>
-                                        <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                                            <Zap size={18} color={COLORS.warning} style={{marginRight: 8}} />
-                                            <Text style={[styles.recordTitle, {color: COLORS.warning, marginBottom: 0, fontSize: 16}]}>Valati</Text>
-                                        </View>
-                                        <Text style={[styles.recordValue, {color: COLORS.warning, marginTop: 8, fontSize: 32}]}>
-                                            {selectedGlobalPlayer.valat_count}
-                                        </Text>
-                                        <Text style={styles.recordSub}>Skupno število uspešnih valatov</Text>
-                                    </View>
-                                </View>
-                            </View>
-
-                            <View style={styles.recordsSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:12}}>
-                                    <Trophy size={20} color="#ffd700" style={{marginRight:8}} />
-                                    <Text style={[styles.sectionTitle, {marginBottom: 0}]}>Večni dosežki</Text>
-                                </View>
-                                
-                                <View style={{ gap: 10 }}>
-                                    {(() => {
-                                        const achievements = [
-                                            { 
-                                                id: 'metla', title: 'Zlata metla', icon: '🧹', target: 3, 
-                                                current: selectedGlobalPlayer.current_win_streak, 
-                                                unlocked: selectedGlobalPlayer.longest_win_streak >= 3, 
-                                                descLocked: 'Zmagaj 3 igre zapored v katerih sodeluješ.', 
-                                                descUnlocked: 'Dosežek odklenjen: Zmagal si 3 igre zapored.' 
-                                            },
-                                            { 
-                                                id: 'valat', title: 'Kralj valatov', icon: '⚡', target: 2, 
-                                                current: selectedGlobalPlayer.valat_count, 
-                                                unlocked: selectedGlobalPlayer.valat_count >= 2, 
-                                                descLocked: 'Odigraj in zmagaj 2 valata v svoji karieri.', 
-                                                descUnlocked: 'Dosežek odklenjen: Uspešno si odigral 2 valata v karieri.' 
-                                            },
-                                            { 
-                                                id: 'feniks', title: 'Feniks', icon: '🦅', target: 3, 
-                                                current: selectedGlobalPlayer.phoenix_count, 
-                                                unlocked: selectedGlobalPlayer.phoenix_count >= 3, 
-                                                descLocked: 'Zmagaj 3 igre, v katerih je bil tvoj skupni seštevek točk med igro pod ničlo (v minusu).', 
-                                                descUnlocked: 'Dosežek odklenjen: Trikrat si zmagal igro, čeprav si bil vmes v minusu.' 
-                                            },
-                                            { 
-                                                id: 'berac', title: 'Kralj beračev', icon: '🙏', target: 5, 
-                                                current: selectedGlobalPlayer.beggar_wins, 
-                                                unlocked: selectedGlobalPlayer.beggar_wins >= 5, 
-                                                descLocked: 'Odigraj in zmagaj 5 beračev v svoji karieri.', 
-                                                descUnlocked: 'Dosežek odklenjen: Uspešno si zmagal 5 beračev v karieri.' 
-                                            },
-                                            { 
-                                                id: 'dominator', title: 'Gospodar mize', icon: '👑', target: 3, 
-                                                current: selectedGlobalPlayer.dominator_count, 
-                                                unlocked: selectedGlobalPlayer.dominator_count >= 3, 
-                                                descLocked: 'Zmagaj igro z vsaj 300 točkami prednosti pred drugim mestom, in to ponovi 3x.', 
-                                                descUnlocked: 'Dosežek odklenjen: Trikrat si zmagal z vsaj 300 točkami prednosti.' 
-                                            }
-                                        ];
-
-                                        const unlockedCount = achievements.filter(a => a.unlocked).length;
-
-                                        return (
-                                            <>
-                                                {achievements.map(ach => {
-                                                    const isUnlocked = ach.unlocked;
-                                                    const progress = isUnlocked ? 1 : (ach.current / ach.target);
-                                                    
-                                                    return (
-                                                        <View key={ach.id} style={styles.achievementBox}>
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                                                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.2)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                                                                    {isUnlocked ? (<Text style={{ fontSize: 22 }}>{ach.icon}</Text>) : (<Lock size={20} color="#64748b" />)}
-                                                                </View>
-                                                                <View style={{ flex: 1 }}>
-                                                                    <Text style={{ fontSize: 18, fontWeight: '800', color: isUnlocked ? '#ffd700' : '#94a3b8' }}>{ach.title}</Text>
-                                                                </View>
-                                                            </View>
-                                                            <Text style={{ color: COLORS.textMuted, fontSize: 13, marginBottom: 12, lineHeight: 18 }}>{isUnlocked ? ach.descUnlocked : ach.descLocked}</Text>
-                                                            {isUnlocked ? (
-                                                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                                    <Trophy size={14} color="#ffd700" style={{ marginRight: 6 }} />
-                                                                    <Text style={{ color: '#ffd700', fontSize: 12, fontWeight: '700' }}>Odklenjeno</Text>
-                                                                </View>
-                                                            ) : (
-                                                                <View>
-                                                                    <View style={{ height: 6, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 3, overflow: 'hidden' }}>
-                                                                        <View style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: COLORS.primary, borderRadius: 3 }} />
-                                                                    </View>
-                                                                    <Text style={{ color: '#64748b', fontSize: 11, marginTop: 6, textAlign: 'right', fontWeight: '600' }}>({Math.min(ach.current, ach.target)} / {ach.target})</Text>
-                                                                </View>
-                                                            )}
-                                                        </View>
-                                                    );
-                                                })}
-
-                                                {unlockedCount === 5 && (
-                                                    <View style={styles.grandSlamBox}>
-                                                        <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 1}} style={styles.absoluteGradient} />
-                                                        <View style={styles.relativeContentVertical}>
-                                                            <Text style={{ fontSize: 24, fontWeight: '900', color: '#fff', marginBottom: 8, letterSpacing: 1, textAlign: 'center' }}>🏆 GRAND SLAM 🏆</Text>
-                                                            <Text style={{ fontSize: 15, color: '#e2e8f0', marginBottom: 15, textAlign: 'center', fontWeight: '500' }}>Čestitke, vse značke so tvoje!</Text>
-                                                            <View style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, width: '100%' }}>
-                                                                <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff', textAlign: 'center' }}>Nagrada: Vsak igralec ti plača pivo! 🍻😎</Text>
-                                                            </View>
-                                                        </View>
-                                                    </View>
-                                                )}
-                                            </>
-                                        );
-                                    })()}
-                                </View>
-                            </View>
-
-                        </ScrollView>
-
-                        <TouchableOpacity style={styles.closeButton} onPress={() => setShowGlobalPlayerModal(false)}>
-                            <Text style={styles.closeButtonText}>Zapri</Text>
                         </TouchableOpacity>
-                    </>
-                )}
-             </View>
-         </View>
+                    );
+                }}
+                ListEmptyComponent={
+                    searchQuery.length > 0 ? (
+                        <TouchableOpacity style={styles.createNewButton} onPress={createNewProfileAndSelect}>
+                            <UserPlus size={28} color="#fff" />
+                            <Text style={styles.createNewText}>Ustvari: "{searchQuery}"</Text>
+                        </TouchableOpacity>
+                    ) : (<Text style={styles.emptyText}>Začni pisati ime...</Text>)
+                }
+            />
+            {selectedProfileIds.size > 0 && (
+                <TouchableOpacity style={[styles.confirmButton, { marginBottom: 10 }]} onPress={confirmAddPlayers}>
+                    <Text style={styles.modalButtonText}>Potrdi izbiro ({selectedProfileIds.size})</Text>
+                </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.closeButton} onPress={() => setShowAddPlayerModal(false)}><Text style={styles.modalButtonText}>Zapri</Text></TouchableOpacity>
+          </View>
+        </View>
       </Modal>
-      
-      <Modal visible={showGameModal} transparent animationType="slide" onRequestClose={() => setShowGameModal(false)}>
+
+      <Modal visible={showScoreModal} transparent animationType="fade" onRequestClose={() => setShowScoreModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-              <TouchableOpacity style={styles.gameModalInfoBtn} onPress={() => loadAllPlayersHistory()}>
-                <Info size={20} color="#fff" />
-                <Text style={{color: '#fff', marginLeft: 8, fontWeight: '600'}}>Potek igre</Text>
-              </TouchableOpacity>
-
-              {!selectedGame?.is_active && selectedGame && (
-                <TouchableOpacity style={styles.gameModalTrashBtn} onPress={() => deleteGame(selectedGame.id)}>
-                  <Trash2 size={20} color={COLORS.danger} />
-                </TouchableOpacity>
-              )}
+            {/* AVATAR V NASLOVU ZA VNOS TOČK */}
+            <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 16}}>
+                {selectedPlayerId && (
+                   <Image source={{ uri: getAvatarUrl(getSelectedPlayerName()) }} style={[styles.playerAvatar, {width: 28, height: 28, borderRadius: 14, marginRight: 8}]} />
+                )}
+                <Text style={[styles.modalTitle, { marginBottom: 0 }]}>Vnesi točke ({getSelectedPlayerName()})</Text>
+            </View>
+            
+            <View style={styles.scoreDisplay}><Text style={styles.scoreDisplayText}>{scoreInput || '0'}</Text></View>
+            
+            <View style={styles.numpadContainer}>
+                <View style={styles.numpadRow}>{[1, 2, 3].map(n => (<TouchableOpacity key={n} style={styles.numpadButton} onPress={() => handleNumpadPress(n.toString())}><Text style={styles.numpadText}>{n}</Text></TouchableOpacity>))}</View>
+                <View style={styles.numpadRow}>{[4, 5, 6].map(n => (<TouchableOpacity key={n} style={styles.numpadButton} onPress={() => handleNumpadPress(n.toString())}><Text style={styles.numpadText}>{n}</Text></TouchableOpacity>))}</View>
+                <View style={styles.numpadRow}>{[7, 8, 9].map(n => (<TouchableOpacity key={n} style={styles.numpadButton} onPress={() => handleNumpadPress(n.toString())}><Text style={styles.numpadText}>{n}</Text></TouchableOpacity>))}</View>
+                <View style={styles.numpadRow}>
+                    <TouchableOpacity style={[styles.numpadButton, styles.numpadActionButton]} onPress={() => handleNumpadPress('-')}><Text style={styles.numpadText}>-</Text></TouchableOpacity>
+                    <TouchableOpacity style={styles.numpadButton} onPress={() => handleNumpadPress('0')}><Text style={styles.numpadText}>0</Text></TouchableOpacity>
+                    <TouchableOpacity style={[styles.numpadButton, styles.numpadActionButton]} onPress={() => handleNumpadPress('DEL')}><Delete size={28} color="#fff" /></TouchableOpacity>
+                </View>
             </View>
 
-            <ScrollView style={styles.playersListContainer} showsVerticalScrollIndicator={false}>
-              <ViewShot ref={viewShotRef} options={{ format: 'jpg', quality: 1.0 }}>
-                <View style={{ backgroundColor: COLORS.card, padding: 10, paddingBottom: 20 }}>
-                  <Text style={[styles.modalTitle, {color: '#FFFFFF', marginBottom: 15, textAlign: 'center'}]}>
-                    {selectedGame ? getFormattedTitle(selectedGame) : 'Igra'}
-                  </Text>
-                  <Text style={styles.sectionTitle}>Končna lestvica</Text>
-                  
-                  {!selectedGame?.is_active && gamePlayers.length > 0 && (
-                      <View style={styles.winnerCard}>
-                          <View style={{flexDirection: 'row', alignItems: 'center', marginBottom:15, justifyContent: 'center', width: '100%'}}>
-                              <Trophy size={24} color="#ffd700" style={{marginRight: 8}} />
-                              <Text style={[styles.winnerText, {fontSize: 16, letterSpacing: 2}]}>ZMAGOVALEC</Text>
-                          </View>
-                          
-                          <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10, width: '100%'}}>
-                              <Image source={{ uri: getAvatarUrl(gamePlayers[0].name) }} style={[styles.playerAvatar, {width: 70, height: 70, borderRadius: 35, marginRight: 10, borderWidth: 1.5}]} />
-                              <Text style={[styles.winnerName, {marginTop: 0, fontSize: 27}]}>{gamePlayers[0].name}</Text>
-                          </View>
-
-                          <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}}>
-                              <Text style={[styles.winnerScore, {marginTop: 0}]}>{gamePlayers[0].total_score} točk</Text>
-                          </View>
-                      </View>
-                  )}
-                  
-                  {gamePlayers.map((player, index, array) => {
-                    if (!selectedGame?.is_active && index === 0) return null;
-                    const rank = array.findIndex(p => p.total_score === player.total_score) + 1;
-                    
-                    return (
-                      <View key={player.id} style={styles.playerRowContainer}>
-                        <View style={styles.rankContainer}>
-                          {rank === 1 && <Trophy size={20} color="#ffd700" />}
-                          {rank === 2 && <Trophy size={20} color="#c0c0c0" />}
-                          {rank === 3 && <Trophy size={20} color="#cd7f32" />}
-                          {rank > 3 && (<Text style={styles.rankNumber}>{rank}</Text>)}
-                        </View>
-                        
-                        <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 8}]} />
-
-                        <Text style={styles.playerName}>{player.name || `Igralec ${player.position + 1}`}</Text>
-                        
-                        <Text style={[styles.playerScore, player.total_score > 0 ? styles.positiveScore : player.total_score < 0 ? styles.negativeScore : styles.neutralScore]}>{player.total_score}</Text>
-                      </View>
-                    );
-                  })}
-
-                  {!selectedGame?.is_active && gamePlayers.length > 0 && calculateGameAwards().length > 0 && (
-                    <View style={{marginTop: 20}}>
-                      <Text style={styles.sectionTitle}>Izstopajoči igralci</Text>
-                      <View style={styles.awardsGrid}>
-                        {calculateGameAwards().map((award, i) => (
-                          <View key={i} style={styles.awardCard}>
-                            <Text style={{fontSize: 24}}>{award.i}</Text>
-                            <Text style={styles.awardTitle}>{award.t}</Text>
-                            <Text style={styles.awardName} numberOfLines={1}>{award.n}</Text>
-                            <Text style={styles.awardDesc}>{award.d}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-
-                </View>
-              </ViewShot>
-            </ScrollView>
+            <View style={styles.modeSelectorContainer}>
+                <TouchableOpacity style={[styles.modeButton, scoreMode === 'played' && styles.modeButtonActive]} onPress={() => setScoreMode(scoreMode === 'played' ? 'none' : 'played')}>
+                    <Text style={[styles.modeButtonText, scoreMode === 'played' && styles.modeButtonTextActive]}>Igral</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.modeButton, scoreMode === 'partner' && styles.modeButtonActive]} onPress={() => setScoreMode(scoreMode === 'partner' ? 'none' : 'partner')}>
+                    <Text style={[styles.modeButtonText, scoreMode === 'partner' && styles.modeButtonTextActive]}>Klican</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.modeButton, scoreMode === 'beggar' && styles.modeButtonActive]} onPress={() => setScoreMode(scoreMode === 'beggar' ? 'none' : 'beggar')}>
+                    <Text style={[styles.modeButtonText, scoreMode === 'beggar' && styles.modeButtonTextActive]}>Berač</Text>
+                </TouchableOpacity>
+            </View>
 
             <View style={styles.modalButtons}>
-              {selectedGame?.is_active ? (
-                <>
-                  <TouchableOpacity style={[styles.closeButton, styles.closeButtonFlex]} onPress={() => setShowGameModal(false)}>
-                    <Text style={styles.closeButtonText}>Zapri</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <TouchableOpacity style={[styles.closeButton, styles.closeButtonFlex, {backgroundColor: COLORS.success, flexDirection: 'row', justifyContent: 'center', gap: 8}]} onPress={shareResults}>
-                    <Share2 size={20} color="#fff" />
-                    <Text style={styles.closeButtonText}>Deli</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity style={[styles.closeButton, styles.closeButtonFlex]} onPress={() => setShowGameModal(false)}>
-                    <Text style={styles.closeButtonText}>Zapri</Text>
-                  </TouchableOpacity>
-                </>
-              )}
+              <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowScoreModal(false)}><Text style={styles.modalButtonText}>Prekliči</Text></TouchableOpacity>
+              
+              <TouchableOpacity style={[styles.modalButton, styles.primaryModalButton]} onPress={submitScore} disabled={submitting}>
+                 <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} />
+                 <View style={styles.relativeContent}>
+                     {submitting ? (<ActivityIndicator size="small" color="#fff" />) : (<Text style={styles.modalButtonText}>Potrdi</Text>)}
+                 </View>
+              </TouchableOpacity>
+
             </View>
           </View>
         </View>
       </Modal>
 
-      <Modal visible={showPlayerHistoryModal} transparent animationType="slide" onRequestClose={() => setShowPlayerHistoryModal(false)}>
+      <Modal visible={showHistoryModal} transparent animationType="slide" onRequestClose={() => setShowHistoryModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
-            <Text style={styles.modalTitle}>{selectedPlayerName} - Zgodovina točk</Text>
-            <ScrollView style={[styles.historyList, { marginTop: 20 }]} showsVerticalScrollIndicator={false}>
-              {gamePlayers.sort((a, b) => b.total_score - a.total_score).map((player, playerIndex, array) => {
-                  const playerEntries = playerHistory.filter((e) => e.player_id === player.id);
-                  const playerName = player.name || `Igralec ${player.position + 1}`;
+            <Text style={[styles.modalTitle, { marginBottom: 16 }]}>Zgodovina igralca</Text>
+            <ScrollView style={styles.historyList}>
+              {playerHistory.map((entry, index) => {
+                let runningTotal = 0;
+                for (let i = 0; i <= index; i++) runningTotal += playerHistory[i].points;
+                return (
+                  <View key={entry.id} style={styles.historyItem}>
+                    <View style={styles.pointsWrapper}>
+                      <View style={styles.fixedPointsWidth}>
+                          <Text style={[styles.historyPoints, entry.is_valat ? {color: COLORS.warning} : (entry.points > 0 ? styles.positivePoints : styles.negativePoints)]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
+                      </View>
+                      <View style={styles.dotContainer}>
+                          {renderGameIcon(entry)}
+                      </View>
+                    </View>
+                    <Text style={styles.historyTotal}>= {runningTotal}</Text>
+                    <Text style={styles.historyDate}>{new Date(entry.created_at).toLocaleTimeString('sl-SI', {hour:'2-digit', minute:'2-digit'})}</Text>
+                  </View>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity style={styles.closeButton} onPress={() => setShowHistoryModal(false)}><Text style={styles.modalButtonText}>Zapri</Text></TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showLeaderboardModal} transparent animationType="slide" onRequestClose={() => setShowLeaderboardModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, styles.historyModal]}>
+            <View style={styles.leaderboardHeader}>
+                <Text style={[styles.modalTitle, { marginBottom: 0 }]}>Stanje igre</Text>
+                <TouchableOpacity onPress={() => setShowAllHistoryModal(true)} style={styles.statsButton}>
+                    <Info size={24} color={COLORS.primary} />
+                </TouchableOpacity>
+            </View>
+            
+            <View style={styles.tabContainer}>
+                <TouchableOpacity style={[styles.tabButton, leaderboardTab === 'list' && styles.tabButtonActive]} onPress={() => setLeaderboardTab('list')}>
+                    <Text style={[styles.tabText, leaderboardTab === 'list' && styles.tabTextActive]}>Lestvica</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.tabButton, leaderboardTab === 'chart' && styles.tabButtonActive]} onPress={() => setLeaderboardTab('chart')}>
+                    <Text style={[styles.tabText, leaderboardTab === 'chart' && styles.tabTextActive]}>Graf poteka</Text>
+                </TouchableOpacity>
+            </View>
+
+            {leaderboardTab === 'list' ? (
+                <ScrollView style={styles.historyList}>
+                {[...players].sort((a, b) => b.total_score - a.total_score).map((player, index, array) => {
+                    const pRadelci = radelci.filter(r => r.player_id === player.id);
+                    const rank = array.findIndex(p => p.total_score === player.total_score) + 1;
+                    const playerEntries = allGameHistory.filter(e => e.player_id === player.id);
+                    const lastEntry = playerEntries.length > 0 ? playerEntries[playerEntries.length - 1] : null;
+                    const isValat = lastEntry?.is_valat;
+
+                    return (
+                    <View key={player.id} style={styles.leaderboardItem}>
+                        <Text style={styles.rankText}>{rank}.</Text>
+                        
+                        <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 28, height: 28, borderRadius: 14, marginRight: 8}]} />
+                        
+                        <Text style={styles.leaderboardName} numberOfLines={1}>{player.name || 'Brez imena'}</Text>
+                        <View style={styles.miniRadelciContainer}>
+                            {pRadelci.map(r => (
+                                <View key={r.id} style={[styles.miniRadelc, r.is_used ? styles.radelcUsed : styles.radelcUnused]} />
+                            ))}
+                        </View>
+                        <Text style={[styles.leaderboardScore, isValat ? {color: COLORS.warning} : (player.total_score >= 0 ? styles.positivePoints : styles.negativePoints)]}>{player.total_score}</Text>
+                    </View>
+                    );
+                })}
+                </ScrollView>
+            ) : (
+                <View style={styles.chartContainer}>
+                    {allGameHistory.length > 0 ? (
+                        <>
+                            <ScrollView horizontal contentContainerStyle={{paddingBottom: 20}}>
+                                <LineChart
+                                    data={chartData}
+                                    width={Math.max(Dimensions.get("window").width - 60, chartData.labels.length * 40)}
+                                    height={280}
+                                    chartConfig={{
+                                        backgroundColor: COLORS.card,
+                                        backgroundGradientFrom: COLORS.card,
+                                        backgroundGradientTo: COLORS.card,
+                                        decimalPlaces: 0,
+                                        color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                                        labelColor: (opacity = 1) => `rgba(148, 163, 184, ${opacity})`,
+                                        style: { borderRadius: 16 },
+                                        propsForDots: { r: "4", strokeWidth: "2", stroke: COLORS.card }
+                                    }}
+                                    bezier
+                                    style={{ marginVertical: 8, borderRadius: 16 }}
+                                    withLegend={false} 
+                                />
+                            </ScrollView>
+                            
+                            <View style={[styles.legendContainer, { marginTop: 10 }]}>
+                                {players.map((p, index) => {
+                                    const isActive = focusedPlayerId === p.id;
+                                    const color = CHART_COLORS[index % CHART_COLORS.length];
+                                    return (
+                                        <TouchableOpacity 
+                                            key={p.id} 
+                                            style={[styles.legendChip, isActive && { backgroundColor: color, borderColor: color }]} 
+                                            onPress={() => toggleFocusPlayer(p.id)}
+                                        >
+                                            <View style={[styles.legendDot, { backgroundColor: color }, isActive && { backgroundColor: '#fff' }]} />
+                                            <Text style={[styles.legendText, isActive && { color: '#fff', fontWeight: '700' }]}>{p.name}</Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        </>
+                    ) : (
+                        <Text style={styles.emptyText}>Za graf vnesi točke.</Text>
+                    )}
+                </View>
+            )}
+
+            <TouchableOpacity style={styles.closeButton} onPress={() => setShowLeaderboardModal(false)}><Text style={styles.modalButtonText}>Zapri</Text></TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showAllHistoryModal} transparent animationType="slide" onRequestClose={() => setShowAllHistoryModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, styles.historyModal]}>
+            <Text style={[styles.modalTitle, { marginBottom: 0 }]}>Vsi igralci - Zgodovina</Text>
+            <ScrollView style={[styles.historyList, { marginTop: 20 }]}>
+              {players.sort((a, b) => b.total_score - a.total_score).map((player, playerIndex, array) => {
+                  const playerEntries = allGameHistory.filter((e) => e.player_id === player.id);
+                  if (playerEntries.length === 0) return null;
+
+                  const rank = array.findIndex(p => p.total_score === player.total_score) + 1;
                   const playedCount = playerEntries.filter(e => e.played || e.is_beggar).length;
 
-                  if (playerEntries.length === 0) return null;
-                  const rank = array.findIndex(p => p.total_score === player.total_score) + 1;
                   return (
                     <View key={player.id} style={styles.playerHistorySection}>
-                      
                       <View style={[styles.playerHistoryHeader, {backgroundColor: COLORS.slateBlue}]}>
                         <View style={styles.playerRankBadge}>
                           {rank === 1 && <Trophy size={16} color="#ffd700" />}
@@ -1306,27 +1045,24 @@ export default function ActiveGame() {
                           {rank > 3 && (<Text style={styles.playerRankText}>{rank}</Text>)}
                         </View>
                         
+                        {/* AVATAR V ZGODOVINI POSAMEZNIKA */}
                         <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 8}]} />
-
+                        
                         <Text style={styles.playerHistorySectionTitle}>
-                            {playerName} <Text style={{fontWeight: '400', fontSize: 14, color: COLORS.winnerGrey}}>(igralec je igral: {playedCount})</Text>
+                            {player.name} <Text style={{fontWeight: '400', fontSize: 14, color: COLORS.winnerGrey}}>(igral: {playedCount})</Text>
                         </Text>
                         <Text style={[styles.playerTotalScore, player.total_score > 0 ? styles.positivePoints : player.total_score < 0 ? styles.negativePoints : styles.neutralScore]}>{player.total_score}</Text>
                       </View>
-
                       {playerEntries.map((entry, index) => {
                         let runningTotal = 0;
                         for (let i = 0; i <= index; i++) { runningTotal += playerEntries[i].points; }
-
                         return (
                           <View key={entry.id} style={styles.historyItem}>
                              <View style={styles.pointsWrapper}>
-                                <View style={styles.fixedPointsBox}>
-                                    <Text style={[styles.historyPoints, entry.is_valat ? {color: COLORS.warning} : (entry.points > 0 ? styles.positivePoints : styles.negativePoints)]}>
-                                        {entry.points > 0 ? '+' : ''}{entry.points}
-                                    </Text>
+                                <View style={styles.fixedPointsWidth}>
+                                    <Text style={[styles.historyPoints, entry.is_valat ? {color: COLORS.warning} : (entry.points > 0 ? styles.positivePoints : styles.negativePoints)]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
                                 </View>
-                                <View style={styles.dotBox}>
+                                <View style={styles.dotContainer}>
                                     {renderGameIcon(entry)}
                                 </View>
                              </View>
@@ -1339,7 +1075,49 @@ export default function ActiveGame() {
                   );
                 })}
             </ScrollView>
-            <TouchableOpacity style={styles.closeButton} onPress={() => setShowPlayerHistoryModal(false)}><Text style={styles.closeButtonText}>Zapri</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.closeButton} onPress={() => setShowAllHistoryModal(false)}><Text style={styles.modalButtonText}>Zapri</Text></TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Izbriši igralca?</Text>
+            <Text style={styles.confirmText}>Vsi podatki tega igralca za to igro bodo izgubljeni.</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowDeleteModal(false)}><Text style={styles.modalButtonText}>Prekliči</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.modalButton, styles.dangerModalButton]} onPress={confirmDeletePlayer}><Text style={styles.modalButtonText}>Izbriši</Text></TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showFinishGameModal} transparent animationType="fade" onRequestClose={() => setShowFinishGameModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Zaključi igro?</Text>
+            <Text style={styles.confirmText}>Igra bo arhivirana.</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowFinishGameModal(false)}><Text style={styles.modalButtonText}>Prekliči</Text></TouchableOpacity>
+              
+              <TouchableOpacity style={[styles.modalButton, styles.primaryModalButton]} onPress={finishGame}>
+                <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} />
+                <View style={styles.relativeContent}>
+                    <Text style={styles.modalButtonText}>Zaključi</Text>
+                </View>
+              </TouchableOpacity>
+
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showKlopModal} transparent animationType="fade" onRequestClose={() => setShowKlopModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.klopTitle}>Obvezen klop!</Text>
+            <TouchableOpacity style={styles.klopButton} onPress={() => setShowKlopModal(false)}><Text style={styles.modalButtonText}>Zapri</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1459,21 +1237,19 @@ const styles = StyleSheet.create({
       borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.20)', borderTopColor: 'rgba(255, 255, 255, 0.55)', borderLeftColor: 'rgba(255, 255, 255, 0.35)', overflow: 'hidden'
   },
   
-  // POPRAVLJENA GUMBA: Flex 1 in odstranjen width
+  // Zbrisani vsi "width" atributi iz stila, da pustimo flexu opraviti svoje delo!
   undoButton: { 
-      flex: 1, 
-      backgroundColor: COLORS.card, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, 
+      backgroundColor: COLORS.card, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12,
       borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.10)', borderTopColor: 'rgba(255, 255, 255, 0.22)', borderLeftColor: 'rgba(255, 255, 255, 0.14)', overflow: 'hidden'
   },
   undoButtonText: { color: COLORS.textMuted, fontSize: 14, fontWeight: '600', marginLeft: 6 },
   
   finishGameBtn: { 
-      flex: 1, 
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, 
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12,
       borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.20)', borderTopColor: 'rgba(255, 255, 255, 0.55)', borderLeftColor: 'rgba(255, 255, 255, 0.35)', overflow: 'hidden'
   },
   finishGameText: { color: '#fff', fontSize: 14, fontWeight: '700', marginLeft: 6 },
-
+  
   listContainer: { padding: 16, paddingTop: 0, gap: 16 },
 
   playerCard: { 
@@ -1512,10 +1288,8 @@ const styles = StyleSheet.create({
   },
 
   scoreText: { color: COLORS.text, fontSize: 40, fontWeight: '700' },
-  
-  // Pomanjšani radelci, kot si želel
   radelciContainer: { flexDirection: 'row', paddingVertical: 4 },
-  radelcBase: { width: 18, height: 18, borderRadius: 9, marginHorizontal: 4 },
+  radelcBase: { width: 16, height: 16, borderRadius: 8, marginHorizontal: 4 }, // ZMANJŠANI RADELCI
   radelcUsed: { backgroundColor: COLORS.radelcFill, borderWidth: 0 }, 
   radelcUnused: { backgroundColor: 'transparent', borderWidth: 2, borderColor: COLORS.radelcBorder },
   miniRadelc: { width: 12, height: 12, borderRadius: 6 },
