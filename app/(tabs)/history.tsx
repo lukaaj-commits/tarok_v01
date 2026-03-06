@@ -465,11 +465,29 @@ export default function History() {
   const shareResults = async () => {
     try {
       if (viewShotRef.current && viewShotRef.current.capture) {
+        // 1. Naredi sliko
         const uri = await viewShotRef.current.capture();
-        await Sharing.shareAsync(uri);
+        
+        // 2. Preveri, kje smo
+        if (Platform.OS === 'web') {
+          // SPLETNA STRAN: Prenesi sliko v napravo
+          const link = document.createElement('a');
+          link.download = 'tarok-rezultati.jpg';
+          link.href = uri;
+          link.click();
+        } else {
+          // NATIVE APLIKACIJA (iPhone/Android): Odpri meni za deljenje
+          const isAvailable = await Sharing.isAvailableAsync();
+          if (isAvailable) {
+            await Sharing.shareAsync(uri);
+          } else {
+            Alert.alert("Opozorilo", "Deljenje ni na voljo na tej napravi.");
+          }
+        }
       }
     } catch (error) {
       console.error("Napaka pri deljenju:", error);
+      Alert.alert("Napaka", "Slike ni bilo mogoče ustvariti.");
     }
   };
 
