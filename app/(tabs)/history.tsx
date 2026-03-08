@@ -464,18 +464,32 @@ export default function History() {
   const shareResults = async () => {
     try {
       if (viewShotRef.current && viewShotRef.current.capture) {
+        // NATIVE APLIKACIJA: To bo delovalo točno tako kot na demotu, ko bo to naloženo kot prava app!
+        if (Platform.OS !== 'web') {
+          const uri = await viewShotRef.current.capture();
+          await Sharing.shareAsync(uri);
+          return;
+        }
+
+        // SPLET: Poskusimo narediti sliko (čeprav vemo, da bo brskalnik verjetno zablokiral zaradi avatarjev)
         const uri = await viewShotRef.current.capture();
-        await Sharing.shareAsync(uri);
+        
+        // Če brskalnik čudežno dovoli slikanje, poskusimo prenesti
+        const link = document.createElement('a');
+        link.href = uri;
+        link.download = 'tarok-rezultati.jpg';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
     } catch (error) {
-      console.error("Napaka pri deljenju:", error);
+      // ČE BRSKALNIK UBIJE PROCES (zaradi varnosti/avatarjev), SE BO POKAZALO TOLE:
+      console.log("Napaka pri deljenju:", error);
+      Alert.alert(
+        "Omejitev spleta", 
+        "Zaradi varnostnih omejitev spletnega brskalnika avtomatsko slikanje ni na voljo.\n\nZa deljenje rezultatov prosim naredi klasičen 'Screenshot' (posnetek zaslona) s tipkami na telefonu. Ko bo to prava aplikacija, bo gumb spet deloval!"
+      );
     }
-  };
-
-  const openGlobalPlayerDetails = (player: PlayerStats) => {
-      setSelectedGlobalPlayer(player);
-      setShowAllGames(false); 
-      setShowGlobalPlayerModal(true);
   };
   
   const getFormStatus = (ranks: { rank: number }[]) => {
