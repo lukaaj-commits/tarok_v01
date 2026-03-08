@@ -463,32 +463,42 @@ export default function History() {
   // POPRAVEK 1: PAMETNO DELJENJE (Tekst na webu, slika na telefonu)
   const shareResults = async () => {
     try {
-      if (viewShotRef.current && viewShotRef.current.capture) {
-        // NATIVE APLIKACIJA: To bo delovalo točno tako kot na demotu, ko bo to naloženo kot prava app!
-        if (Platform.OS !== 'web') {
-          const uri = await viewShotRef.current.capture();
-          await Sharing.shareAsync(uri);
-          return;
-        }
+      if (Platform.OS === 'web') {
+          // 1. NA SPLETU: Knjižnica za slikanje ne deluje, zato delimo tekstovno lestvico!
+          let text = `🏆 REZULTATI TAROKA 🏆\n\n`;
+          if (winnerData?.names) text += `Zmagovalec: ${winnerData.names} (${winnerData.score} točk)\n\n`;
+          
+          const sortedPlayers = [...gamePlayers].sort((a,b) => b.total_score - a.total_score);
+          sortedPlayers.forEach((p, i) => {
+              text += `${i+1}. ${p.name}: ${p.total_score} točk\n`;
+          });
+          
+          // Poskusimo odpreti moderno okno za deljenje (deluje na večini mobilnih brskalnikov)
+          if (navigator && navigator.share) {
+              await navigator.share({
+                  title: 'Rezultati Taroka',
+                  text: text,
+              });
+          } 
+          // Če deljenje ni podprto, tekst avtomatsko kopiramo
+          else if (navigator && navigator.clipboard) {
+              await navigator.clipboard.writeText(text);
+              window.alert("Rezultati so skopirani! Zdaj jih lahko prilepiš v katerokoli aplikacijo (SMS, Viber, Messenger).");
+          } 
+          // Stari brskalniki
+          else {
+              window.alert(text);
+          }
+          return; // OBVEZNO: Tukaj zaključimo, da se koda spodaj ne izvede!
+      }
 
-        // SPLET: Poskusimo narediti sliko (čeprav vemo, da bo brskalnik verjetno zablokiral zaradi avatarjev)
+      // 2. V PRAVI APLIKACIJI: Tu pa slikanje normalno deluje
+      if (viewShotRef.current && viewShotRef.current.capture) {
         const uri = await viewShotRef.current.capture();
-        
-        // Če brskalnik čudežno dovoli slikanje, poskusimo prenesti
-        const link = document.createElement('a');
-        link.href = uri;
-        link.download = 'tarok-rezultati.jpg';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        await Sharing.shareAsync(uri);
       }
     } catch (error) {
-      // ČE BRSKALNIK UBIJE PROCES (zaradi varnosti/avatarjev), SE BO POKAZALO TOLE:
       console.log("Napaka pri deljenju:", error);
-      Alert.alert(
-        "Omejitev spleta", 
-        "Zaradi varnostnih omejitev spletnega brskalnika avtomatsko slikanje ni na voljo.\n\nZa deljenje rezultatov prosim naredi klasičen 'Screenshot' (posnetek zaslona) s tipkami na telefonu. Ko bo to prava aplikacija, bo gumb spet deloval!"
-      );
     }
   };
   
