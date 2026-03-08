@@ -1324,7 +1324,7 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
   
   modalContent: { 
-      backgroundColor: COLORS.card, borderRadius: 16, padding: 24, width: '90%', maxWidth: 400, maxHeight: '80%',
+      backgroundColor: COLORS.card, borderRadius: 16, padding: 16, width: '90%', maxWidth: 400, maxHeight: '80%',
       borderWidth: 1, 
       borderColor: 'rgba(255, 255, 255, 0.10)',
       borderTopColor: 'rgba(255, 255, 255, 0.22)', 
@@ -1376,7 +1376,7 @@ const styles = StyleSheet.create({
   },
 
   scoreDisplay: { 
-      backgroundColor: COLORS.inputBg, borderRadius: 12, padding: 20, alignItems: 'center', marginBottom: 20,
+      backgroundColor: COLORS.inputBg, borderRadius: 12, padding: 12, alignItems: 'center', marginBottom: 12,
       borderWidth: 1, 
       borderColor: 'rgba(255, 255, 255, 0.10)',
       borderTopColor: 'rgba(255, 255, 255, 0.22)', 
@@ -1388,7 +1388,7 @@ const styles = StyleSheet.create({
   numpadRow: { flexDirection: 'row', gap: 8, justifyContent: 'space-between' },
   
   numpadButton: { 
-      flex: 1, backgroundColor: COLORS.inputBg, paddingVertical: 16, alignItems: 'center', justifyContent: 'center', borderRadius: 12,
+      flex: 1, backgroundColor: COLORS.inputBg, paddingVertical: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 12,
       borderWidth: 1, 
       borderColor: 'rgba(255, 255, 255, 0.08)', 
       borderTopColor: 'rgba(255, 255, 255, 0.18)',
