@@ -463,32 +463,12 @@ export default function History() {
   // POPRAVEK 1: PAMETNO DELJENJE (Tekst na webu, slika na telefonu)
   const shareResults = async () => {
     try {
-      if (Platform.OS === 'web') {
-          // WEBOV FALLBACK ZARADI BLOKADE SLIK
-          let text = `🏆 KONČNI REZULTATI TAROKA 🏆\n`;
-          if (winnerData?.names) text += `Zmagovalec: ${winnerData.names} (${winnerData.score} točk)\n\n`;
-          const sortedPlayers = [...gamePlayers].sort((a,b) => b.total_score - a.total_score);
-          sortedPlayers.forEach((p, i) => {
-              text += `${i+1}. ${p.name}: ${p.total_score} točk\n`;
-          });
-          
-          if (navigator && navigator.share) {
-              await navigator.share({
-                  title: 'Rezultati Taroka',
-                  text: text,
-              });
-          } else {
-              Alert.alert("Lestvica", text);
-          }
-      } else {
-          // NATIVE APLIKACIJA (Slikanje)
-          if (viewShotRef.current && viewShotRef.current.capture) {
-              const uri = await viewShotRef.current.capture();
-              await Sharing.shareAsync(uri);
-          }
+      if (viewShotRef.current && viewShotRef.current.capture) {
+        const uri = await viewShotRef.current.capture();
+        await Sharing.shareAsync(uri);
       }
     } catch (error) {
-      console.log("Napaka pri deljenju:", error);
+      console.error("Napaka pri deljenju:", error);
     }
   };
 
