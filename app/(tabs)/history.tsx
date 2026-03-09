@@ -136,6 +136,7 @@ export default function History() {
   const [chartWidth, setChartWidth] = useState(0);
 
   const viewShotRef = useRef<ViewShot>(null);
+  const detailScrollRef = useRef<ScrollView>(null);
 
   const isFocused = useIsFocused();
   useEffect(() => { if (isFocused) loadGames(); }, [isFocused]);
@@ -501,6 +502,18 @@ export default function History() {
       console.log("Napaka pri deljenju:", error);
     }
   };
+
+  const openGlobalPlayerDetails = (player: PlayerStats) => {
+      setSelectedGlobalPlayer(player);
+      setShowAllGames(false); 
+      setShowGlobalPlayerModal(true);
+      
+      setTimeout(() => {
+          if (detailScrollRef.current) {
+              detailScrollRef.current.scrollTo({ y: 0, animated: false });
+          }
+      }, 100);
+  };
   
   const getFormStatus = (ranks: { rank: number }[]) => {
       if (ranks.length === 0) return { text: '-', color: '#666', icon: '➖' };
@@ -686,8 +699,7 @@ export default function History() {
              <View style={[styles.modalContent, styles.historyModal]}>
                 {selectedGlobalPlayer && (
                     <>
-                        {/* POPRAVEK 2: Dodano za preprečitev skakanja */}
-                        <ScrollView contentOffset={{ x: 0, y: 0 }} automaticallyAdjustContentInsets={false} style={styles.detailScroll} showsVerticalScrollIndicator={false}>
+                        <ScrollView ref={detailScrollRef} style={styles.detailScroll} showsVerticalScrollIndicator={false}>
                             <View style={styles.detailHeader}>
                                 <Image source={{ uri: getAvatarUrl(selectedGlobalPlayer.name) }} style={[styles.playerAvatar, {width: 80, height: 80, borderRadius: 40, marginRight: 0, marginBottom: 12, borderWidth: 2}]} />
                                 <Text style={styles.modalTitle}>{selectedGlobalPlayer.name}   <Text style={{ color: 'rgb(148, 163, 184)' }}>{Math.round(selectedGlobalPlayer.avg_performance)}%</Text></Text>
