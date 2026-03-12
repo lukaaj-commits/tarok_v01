@@ -103,8 +103,25 @@ const COLORS = {
 
 const GRADIENT_COLORS = ['#556eeb', '#6050ea']; 
 
+// Seznam naših pravih igralcev in njihovih slik (USKLAJENO Z BAZO)
+const PLAYER_IMAGES: Record<string, string> = {
+  "Filip": "https://i.postimg.cc/jW6qppPX/filip01.png",
+  "Luka M": "https://i.postimg.cc/Z9PYGGpV/luka-M01.png",
+  "Luka Š": "https://i.postimg.cc/CZCM33kc/luka-S01.png",
+  "Mark": "https://i.postimg.cc/t1dRKKWr/mark01.png",
+  "Metka": "https://i.postimg.cc/67V6kknj/metka01.png",
+  "Miha": "https://i.postimg.cc/8Fdk22M0/miha01.png",
+  "Nejc": "https://i.postimg.cc/ph2VRsJQ/nejc01.png",
+  "Sara": "https://i.postimg.cc/wy6xgwQQ/sara01.png",
+  "Tiffany": "https://i.postimg.cc/7GxPwKnN/tiff01.png",
+  "Tina": "https://i.postimg.cc/tZXRpBN5/tina01.png"
+};
+
 const getAvatarUrl = (name: string) => {
     const cleanName = name.trim();
+    if (PLAYER_IMAGES[cleanName]) {
+        return PLAYER_IMAGES[cleanName];
+    }
     return `https://api.dicebear.com/8.x/lorelei/png?seed=${encodeURIComponent(cleanName)}&backgroundColor=transparent`;
 };
 
@@ -378,7 +395,7 @@ export default function History() {
         allEntries?.forEach(e => {
             const playerName = allPlayers.find(ap => ap.id === e.player_id)?.name;
             if (playerName && statsMap.has(playerName)) {
-                if (e.is_valat) statsMap.get(playerName)!.valat_count += 1;
+                if (e.is_valat && e.points > 0) statsMap.get(playerName)!.valat_count += 1;
                 if (e.is_beggar && e.points > 0) statsMap.get(playerName)!.beggar_wins += 1;
             }
         });

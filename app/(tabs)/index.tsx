@@ -112,8 +112,25 @@ const CHART_COLORS = [
   '#FF6B6B', '#4ECDC4', '#FFE66D', '#1A535C', '#FF9F1C', '#C7F464', '#9D4EDD', '#F72585'
 ];
 
+// Seznam naših pravih igralcev in njihovih slik (USKLAJENO Z BAZO)
+const PLAYER_IMAGES: Record<string, string> = {
+  "Filip": "https://i.postimg.cc/jW6qppPX/filip01.png",
+  "Luka M": "https://i.postimg.cc/Z9PYGGpV/luka-M01.png",
+  "Luka Š": "https://i.postimg.cc/CZCM33kc/luka-S01.png",
+  "Mark": "https://i.postimg.cc/t1dRKKWr/mark01.png",
+  "Metka": "https://i.postimg.cc/67V6kknj/metka01.png",
+  "Miha": "https://i.postimg.cc/8Fdk22M0/miha01.png",
+  "Nejc": "https://i.postimg.cc/ph2VRsJQ/nejc01.png",
+  "Sara": "https://i.postimg.cc/wy6xgwQQ/sara01.png",
+  "Tiffany": "https://i.postimg.cc/7GxPwKnN/tiff01.png",
+  "Tina": "https://i.postimg.cc/tZXRpBN5/tina01.png"
+};
+
 const getAvatarUrl = (name: string) => {
     const cleanName = name.trim();
+    if (PLAYER_IMAGES[cleanName]) {
+        return PLAYER_IMAGES[cleanName];
+    }
     return `https://api.dicebear.com/8.x/lorelei/png?seed=${encodeURIComponent(cleanName)}&backgroundColor=transparent`;
 };
 
@@ -362,7 +379,7 @@ export default function ActiveGame() {
     const points = parseInt(scoreInput, 10);
     if (isNaN(points)) { Alert.alert("Napaka", "Neveljaven vnos."); return; }
 
-    const valatValues = [250, 500, 1000, -250, -500, -1000];
+    const valatValues = [250, 500, 1000, 2000, 4000, 8000, 16000, -250, -500, -1000, -2000, -4000, -8000, -16000];
     if (valatValues.includes(points)) {
       // Skrijemo modal s številčnico in odpremo naš po meri narejen Valat Modal
       setShowScoreModal(false);
