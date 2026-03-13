@@ -106,7 +106,7 @@ const GRADIENT_COLORS = ['#556eeb', '#6050ea'];
 // Seznam naših pravih igralcev in njihovih slik (USKLAJENO Z BAZO)
 const PLAYER_IMAGES: Record<string, string> = {
   "Filip": "https://i.postimg.cc/jW6qppPX/filip01.png",
-  "Luka M": "https://i.postimg.cc/Z9PYGGpV/luka-M01.png",
+  "Luka M": "https://i.postimg.cc/FHDntBY5/luka-M02.png",
   "Luka Š": "https://i.postimg.cc/CZCM33kc/luka-S01.png",
   "Mark": "https://i.postimg.cc/t1dRKKWr/mark01.png",
   "Metka": "https://i.postimg.cc/67V6kknj/metka01.png",
