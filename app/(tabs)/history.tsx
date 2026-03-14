@@ -238,8 +238,8 @@ export default function History() {
           }
       }
 
-      // TUKAJ JE VIZUALNA OMEJITEV NA MAX 8
-      const MAX_DOTS = 8;
+      // TUKAJ JE VIZUALNA OMEJITEV NA MAX 5
+      const MAX_DOTS = 5;
       const displayDots = dots.slice(0, MAX_DOTS);
       const overflowCount = dots.length - MAX_DOTS;
 
@@ -874,10 +874,10 @@ export default function History() {
                       <View key={player.id} style={styles.playerRowContainer}>
                       <View style={styles.rankContainer}>{rank === 1 && <Trophy size={20} color="#ffd700" />}{rank === 2 && <Trophy size={20} color="#c0c0c0" />}{rank === 3 && <Trophy size={20} color="#cd7f32" />}{rank > 3 && (<Text style={styles.rankNumber}>{rank}</Text>)}</View>
                       
-                      {/* ZDRUŽENA SLIKA IN IME (da ostaneta tesno skupaj) */}
+                      {/* POPRAVLJENA SLIKA IN IME (Ime se sedaj spet vidi) */}
                       <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
                           <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 8}]} />
-                          <Text style={[styles.playerName, {marginLeft: 0, flex: 0}]} numberOfLines={1}>{player.name || `Igralec ${player.position + 1}`}</Text>
+                          <Text style={[styles.playerName, {marginLeft: 0}]} numberOfLines={1}>{player.name || `Igralec ${player.position + 1}`}</Text>
                       </View>
 
                       {renderRadelciDots(player.id, false)}
