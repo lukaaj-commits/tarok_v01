@@ -237,9 +237,16 @@ export default function History() {
               dots.push(<View key={`r-${i}`} style={[styles.radelc, isUsed ? styles.radelcUsed : styles.radelcUnused]} />);
           }
       }
+
+      // TUKAJ JE VIZUALNA OMEJITEV NA MAX 8
+      const MAX_DOTS = 8;
+      const displayDots = dots.slice(0, MAX_DOTS);
+      const overflowCount = dots.length - MAX_DOTS;
+
       return (
           <View style={[styles.radelciContainer, centered && { justifyContent: 'center', marginTop: 10, marginLeft: 0 }]}>
-              {dots}
+              {displayDots}
+              {overflowCount > 0 && <Text style={{color: COLORS.textMuted, fontSize: 10, fontWeight: '700', marginLeft: 2}}>+{overflowCount}</Text>}
           </View>
       );
   };
@@ -865,12 +872,17 @@ export default function History() {
                     const rank = array.findIndex(p => p.total_score === player.total_score) + 1;
                     return (
                       <View key={player.id} style={styles.playerRowContainer}>
-                        <View style={styles.rankContainer}>{rank === 1 && <Trophy size={20} color="#ffd700" />}{rank === 2 && <Trophy size={20} color="#c0c0c0" />}{rank === 3 && <Trophy size={20} color="#cd7f32" />}{rank > 3 && (<Text style={styles.rankNumber}>{rank}</Text>)}</View>
-                        <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 8}]} />
-                        <Text style={styles.playerName}>{player.name || `Igralec ${player.position + 1}`}</Text>
-                        {renderRadelciDots(player.id, false)}
-                        <Text style={[styles.playerScore, player.total_score > 0 ? styles.positiveScore : player.total_score < 0 ? styles.negativeScore : styles.neutralScore]}>{player.total_score}</Text>
+                      <View style={styles.rankContainer}>{rank === 1 && <Trophy size={20} color="#ffd700" />}{rank === 2 && <Trophy size={20} color="#c0c0c0" />}{rank === 3 && <Trophy size={20} color="#cd7f32" />}{rank > 3 && (<Text style={styles.rankNumber}>{rank}</Text>)}</View>
+                      
+                      {/* ZDRUŽENA SLIKA IN IME (da ostaneta tesno skupaj) */}
+                      <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
+                          <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 8}]} />
+                          <Text style={[styles.playerName, {marginLeft: 0, flex: 0}]} numberOfLines={1}>{player.name || `Igralec ${player.position + 1}`}</Text>
                       </View>
+
+                      {renderRadelciDots(player.id, false)}
+                      <Text style={[styles.playerScore, player.total_score > 0 ? styles.positiveScore : player.total_score < 0 ? styles.negativeScore : styles.neutralScore]}>{player.total_score}</Text>
+                    </View>
                     );
                   })}
 
