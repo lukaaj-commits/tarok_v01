@@ -742,8 +742,11 @@ export default function ActiveGame() {
 
       <View style={styles.headerContainer}>
           
+          {/* 1. VRSTICA */}
           <View style={styles.headerRow}>
-            <View style={styles.buttonWrapper}>
+            
+            {/* LEVA STRAN: Igralec (Zavzame natanko 50% širine) */}
+            <View style={{ flex: 1 }}>
                 <TouchableOpacity style={styles.gradientHeaderBtn} onPress={openAddPlayerModal} activeOpacity={0.8}>
                     <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} />
                     <View style={[styles.relativeContent, { gap: 4 }]}>
@@ -753,25 +756,30 @@ export default function ActiveGame() {
                 </TouchableOpacity>
             </View>
 
-            <View style={styles.buttonWrapper}>
-                <TouchableOpacity style={styles.gradientHeaderBtn} onPress={addGlobalRadelc} activeOpacity={0.8}>
-                     <LinearGradient colors={['#20B2AA', '#20B2AA']} style={styles.absoluteGradient} />
-                     <View style={[styles.relativeContent, { gap: 4 }]}>
-                         <Plus size={20} color="#fff" />
-                         <Text style={styles.addButtonText}>Radelc</Text>
+            {/* DESNA STRAN: Radelc + Pokal (Zavzameta preostalih 50% širine) */}
+            <View style={{ flex: 1, flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                    <TouchableOpacity style={styles.gradientHeaderBtn} onPress={addGlobalRadelc} activeOpacity={0.8}>
+                         <LinearGradient colors={['#20B2AA', '#20B2AA']} style={styles.absoluteGradient} />
+                         <View style={[styles.relativeContent, { gap: 4 }]}>
+                             <Plus size={20} color="#fff" />
+                             <Text style={styles.addButtonText}>Radelc</Text>
+                         </View>
+                    </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity style={styles.gradientIconBtn} onPress={openLeaderboard} activeOpacity={0.8}>
+                     <LinearGradient colors={['#5863ea', '#5863ea']} style={styles.absoluteGradient} />
+                     <View style={styles.relativeContent}>
+                         <Trophy size={24} color="#fff" />
                      </View>
                 </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.gradientIconBtn} onPress={openLeaderboard} activeOpacity={0.8}>
-                 <LinearGradient colors={['#5863ea', '#5863ea']} style={styles.absoluteGradient} />
-                 <View style={styles.relativeContent}>
-                     <Trophy size={24} color="#fff" />
-                 </View>
-            </TouchableOpacity>
           </View>
           
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+          {/* 2. VRSTICA */}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
             <TouchableOpacity 
                 style={{ flex: 1, backgroundColor: COLORS.card, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.10)', borderTopColor: 'rgba(255, 255, 255, 0.22)', borderLeftColor: 'rgba(255, 255, 255, 0.14)', overflow: 'hidden' }} 
                 onPress={handleUndo} 
