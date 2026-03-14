@@ -27,7 +27,7 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/images/favicon.png",
+      "favicon": "./assets/images/adaptive-icon.png",
       "icon": "./assets/images/adaptive-icon.png",
       "meta": {
         "apple": {
