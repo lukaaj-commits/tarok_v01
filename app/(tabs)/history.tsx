@@ -69,8 +69,8 @@ type PlayerStats = {
     total_games: number; 
     recent_ranks: { rank: number, date: string, gameName: string }[]; 
     performance_scores: number[]; 
-    avg_performance: number;      
-    prev_performance: number;      
+    avg_performance: number;     
+    prev_performance: number;     
     h2h: Record<string, H2HStat>; 
     best_game: GameRecord | null;
     worst_game: GameRecord | null;
@@ -309,22 +309,22 @@ export default function History() {
     } catch (error) { console.error(error); }
   };
 
-  const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderboard') => {
+const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderboard') => {
     setStatsLoading(true);
     if (destination === 'leaderboard') setShowGlobalStatsModal(true);
     else setShowPlayerSelectModal(true);
     try {
-        const { data: finishedGames } = await supabase.from('games').select('id, name, created_at').eq('is_active', false).order('created_at', { ascending: false }); 
+        const { data: finishedGames } = await supabase.from('games').select('id, name, created_at').order('created_at', { ascending: false }); 
         const gameIds = finishedGames?.map(g => g.id) || [];
         const gameMap = new Map<string, {date: string, name: string}>();
         finishedGames?.forEach(g => gameMap.set(g.id, {date: g.created_at, name: g.name}));
 
         if (gameIds.length === 0) { setGlobalStats([]); setStatsLoading(false); return; }
 
-        const { data: allPlayers } = await supabase.from('players').select('id, name, game_id, total_score').in('game_id', gameIds);
+        const { data: allPlayers } = await supabase.from('players').select('*').in('game_id', gameIds);
         if (!allPlayers) { setGlobalStats([]); return; }
         
-        const { data: allEntries } = await supabase.from('score_entries').select('player_id, game_id, points, is_valat, is_beggar, created_at').in('game_id', gameIds).order('created_at', { ascending: true });
+        const { data: allEntries } = await supabase.from('score_entries').select('*').in('game_id', gameIds).order('created_at', { ascending: true });
 
         const statsMap = new Map<string, PlayerStats>();
         const playersByGame = allPlayers.reduce((acc, p) => {
@@ -340,7 +340,7 @@ export default function History() {
             if (!runningScores[e.game_id]) runningScores[e.game_id] = {};
             if (!phoenixFlags[e.game_id]) phoenixFlags[e.game_id] = new Set();
             const gScores = runningScores[e.game_id];
-            gScores[e.player_id] = (gScores[e.player_id] || 0) + e.points;
+            gScores[e.player_id] = (gScores[e.player_id] || 0) + Number(e.points);
             if (gScores[e.player_id] < 0) phoenixFlags[e.game_id].add(e.player_id);
         });
 
@@ -351,6 +351,8 @@ export default function History() {
 
             gameP.sort((a, b) => b.total_score - a.total_score);
             const gameInfo = gameMap.get(gameId) || {date: '', name: ''};
+
+            const hasAnyScore = gameP.some(gp => gp.total_score !== 0);
 
             gameP.forEach((p) => {
                 const name = p.name; 
@@ -367,13 +369,15 @@ export default function History() {
                 const betterPlayers = gameP.filter(gp => gp.total_score > myScore).length;
                 const myRank = betterPlayers + 1;
 
-                if (myRank === 1) {
-                    stat.wins += 1;
-                    if (gameP.length > 1 && (gameP[0].total_score - gameP[1].total_score >= 300)) stat.dominator_count += 1;
-                    if (phoenixFlags[gameId]?.has(p.id)) stat.phoenix_count += 1;
+                if (hasAnyScore) {
+                    if (myRank === 1) {
+                        stat.wins += 1;
+                        if (gameP.length > 1 && (gameP[0].total_score - gameP[1].total_score >= 300)) stat.dominator_count += 1;
+                        if (phoenixFlags[gameId]?.has(p.id)) stat.phoenix_count += 1;
+                    }
+                    if (myRank === 2) stat.second += 1;
+                    if (myRank === 3) stat.third += 1;
                 }
-                if (myRank === 2) stat.second += 1;
-                if (myRank === 3) stat.third += 1;
 
                 stat.recent_ranks.push({ rank: myRank, date: gameInfo.date, gameName: gameInfo.name });
                 stat.total_score_sum += myScore;
@@ -381,29 +385,35 @@ export default function History() {
                 if (!stat.worst_game || myScore < stat.worst_game.score) stat.worst_game = { score: myScore, date: gameInfo.date };
 
                 const opponents = gameP.length - 1; 
-                if (opponents > 0) {
+                if (opponents > 0 && hasAnyScore) {
                     const beaten = gameP.filter(op => op.total_score < myScore).length;
                     const pct = (beaten / opponents) * 100;
                     stat.performance_scores.push(pct);
                 }
 
-                gameP.forEach((op) => {
-                    if (p.name !== op.name) {
-                        if (!stat.h2h[op.name]) stat.h2h[op.name] = { opponent: op.name, wins: 0, losses: 0, ties: 0, total: 0, winPct: 0, lossPct: 0 };
-                        stat.h2h[op.name].total += 1;
-                        if (p.total_score > op.total_score) stat.h2h[op.name].wins += 1;
-                        else if (p.total_score < op.total_score) stat.h2h[op.name].losses += 1;
-                        else stat.h2h[op.name].ties += 1;
-                    }
-                });
+                if (hasAnyScore) {
+                    gameP.forEach((op) => {
+                        if (p.name !== op.name) {
+                            if (!stat.h2h[op.name]) stat.h2h[op.name] = { opponent: op.name, wins: 0, losses: 0, ties: 0, total: 0, winPct: 0, lossPct: 0 };
+                            stat.h2h[op.name].total += 1;
+                            if (p.total_score > op.total_score) stat.h2h[op.name].wins += 1;
+                            else if (p.total_score < op.total_score) stat.h2h[op.name].losses += 1;
+                            else stat.h2h[op.name].ties += 1;
+                        }
+                    });
+                }
             });
         });
 
         allEntries?.forEach(e => {
             const playerName = allPlayers.find(ap => ap.id === e.player_id)?.name;
             if (playerName && statsMap.has(playerName)) {
-                if (e.is_valat && e.points > 0) statsMap.get(playerName)!.valat_count += 1;
-                if (e.is_beggar && e.points > 0) statsMap.get(playerName)!.beggar_wins += 1;
+                const pts = Number(e.points);
+                const isValat = e.is_valat === true || e.is_valat === 'true';
+                const isBeggar = e.is_beggar === true || e.is_beggar === 'true';
+
+                if (isValat && pts > 0) statsMap.get(playerName)!.valat_count += 1;
+                if (isBeggar && pts > 0) statsMap.get(playerName)!.beggar_wins += 1;
             }
         });
 
@@ -874,7 +884,6 @@ export default function History() {
                       <View key={player.id} style={styles.playerRowContainer}>
                       <View style={styles.rankContainer}>{rank === 1 && <Trophy size={20} color="#ffd700" />}{rank === 2 && <Trophy size={20} color="#c0c0c0" />}{rank === 3 && <Trophy size={20} color="#cd7f32" />}{rank > 3 && (<Text style={styles.rankNumber}>{rank}</Text>)}</View>
                       
-                      {/* POPRAVLJENA SLIKA IN IME (Ime se sedaj spet vidi) */}
                       <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
                           <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 8}]} />
                           <Text style={[styles.playerName, {marginLeft: 0}]} numberOfLines={1}>{player.name || `Igralec ${player.position + 1}`}</Text>

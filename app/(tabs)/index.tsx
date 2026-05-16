@@ -73,8 +73,8 @@ type PlayerStats = {
     total_games: number; 
     recent_ranks: { rank: number, date: string, gameName: string }[]; 
     performance_scores: number[]; 
-    avg_performance: number;      
-    prev_performance: number;      
+    avg_performance: number;     
+    prev_performance: number;     
     h2h: Record<string, H2HStat>; 
     best_game: GameRecord | null;
     worst_game: GameRecord | null;
@@ -372,7 +372,6 @@ export default function ActiveGame() {
     setScoreInput(prev => prev + value);
   };
 
-  // TUKAJ JE PRAVILNO POPRAVLJENA FUNKCIJA
   const submitScore = async () => {
     if (!selectedPlayerId || !scoreInput) return;
     if (scoreInput === '-') { setScoreInput(''); return; }
@@ -381,7 +380,6 @@ export default function ActiveGame() {
 
     const valatValues = [250, 500, 1000, 2000, 4000, 8000, 16000, -250, -500, -1000, -2000, -4000, -8000, -16000];
     if (valatValues.includes(points)) {
-      // Skrijemo modal s številčnico in odpremo naš po meri narejen Valat Modal
       setShowScoreModal(false);
       setPendingValatPoints(points);
       setShowValatModal(true);
@@ -668,6 +666,195 @@ export default function ActiveGame() {
         </ScrollView>
       </View>
     );
+  };
+
+  const loadAllPlayersHistory = async () => {
+    if (!selectedGame) return;
+    try {
+      const playerIds = gamePlayers.map((p) => p.id);
+      const { data, error } = await supabase.from('score_entries').select('*').in('player_id', playerIds).order('created_at', { ascending: true });
+      if (error) throw error;
+      setPlayerHistory(data || []); setSelectedPlayerName('Vsi igralci'); setShowPlayerHistoryModal(true);
+    } catch (error) { console.error(error); }
+  };
+
+const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderboard') => {
+    setStatsLoading(true);
+    if (destination === 'leaderboard') setShowGlobalStatsModal(true);
+    else setShowPlayerSelectModal(true);
+    try {
+        const { data: finishedGames } = await supabase.from('games').select('id, name, created_at').order('created_at', { ascending: false }); 
+        const gameIds = finishedGames?.map(g => g.id) || [];
+        const gameMap = new Map<string, {date: string, name: string}>();
+        finishedGames?.forEach(g => gameMap.set(g.id, {date: g.created_at, name: g.name}));
+
+        if (gameIds.length === 0) { setGlobalStats([]); setStatsLoading(false); return; }
+
+        const { data: allPlayers } = await supabase.from('players').select('*').in('game_id', gameIds);
+        if (!allPlayers) { setGlobalStats([]); return; }
+        
+        const { data: allEntries } = await supabase.from('score_entries').select('*').in('game_id', gameIds).order('created_at', { ascending: true });
+
+        const statsMap = new Map<string, PlayerStats>();
+        const playersByGame = allPlayers.reduce((acc, p) => {
+            if (!acc[p.game_id]) acc[p.game_id] = [];
+            acc[p.game_id].push(p);
+            return acc;
+        }, {} as Record<string, typeof allPlayers>);
+
+        const runningScores: any = {}; 
+        const phoenixFlags: any = {}; 
+
+        allEntries?.forEach(e => {
+            if (!runningScores[e.game_id]) runningScores[e.game_id] = {};
+            if (!phoenixFlags[e.game_id]) phoenixFlags[e.game_id] = new Set();
+            const gScores = runningScores[e.game_id];
+            gScores[e.player_id] = (gScores[e.player_id] || 0) + Number(e.points);
+            if (gScores[e.player_id] < 0) phoenixFlags[e.game_id].add(e.player_id);
+        });
+
+        finishedGames?.forEach(g => {
+            const gameId = g.id;
+            const gameP = playersByGame[gameId];
+            if(!gameP) return;
+
+            gameP.sort((a, b) => b.total_score - a.total_score);
+            const gameInfo = gameMap.get(gameId) || {date: '', name: ''};
+
+            const hasAnyScore = gameP.some(gp => gp.total_score !== 0);
+
+            gameP.forEach((p) => {
+                const name = p.name; 
+                if (!statsMap.has(name)) {
+                    statsMap.set(name, { 
+                        name, wins: 0, second: 0, third: 0, total_games: 0, recent_ranks: [], performance_scores: [], avg_performance: 0, prev_performance: 0, h2h: {},
+                        best_game: null, worst_game: null, total_score_sum: 0, longest_win_streak: 0, current_win_streak: 0, valat_count: 0, beggar_wins: 0, phoenix_count: 0, dominator_count: 0
+                    });
+                }
+                const stat = statsMap.get(name)!;
+                stat.total_games += 1;
+                
+                const myScore = p.total_score;
+                const betterPlayers = gameP.filter(gp => gp.total_score > myScore).length;
+                const myRank = betterPlayers + 1;
+
+                if (hasAnyScore) {
+                    if (myRank === 1) {
+                        stat.wins += 1;
+                        if (gameP.length > 1 && (gameP[0].total_score - gameP[1].total_score >= 300)) stat.dominator_count += 1;
+                        if (phoenixFlags[gameId]?.has(p.id)) stat.phoenix_count += 1;
+                    }
+                    if (myRank === 2) stat.second += 1;
+                    if (myRank === 3) stat.third += 1;
+                }
+
+                stat.recent_ranks.push({ rank: myRank, date: gameInfo.date, gameName: gameInfo.name });
+                stat.total_score_sum += myScore;
+                if (!stat.best_game || myScore > stat.best_game.score) stat.best_game = { score: myScore, date: gameInfo.date };
+                if (!stat.worst_game || myScore < stat.worst_game.score) stat.worst_game = { score: myScore, date: gameInfo.date };
+
+                const opponents = gameP.length - 1; 
+                if (opponents > 0 && hasAnyScore) {
+                    const beaten = gameP.filter(op => op.total_score < myScore).length;
+                    const pct = (beaten / opponents) * 100;
+                    stat.performance_scores.push(pct);
+                }
+
+                if (hasAnyScore) {
+                    gameP.forEach((op) => {
+                        if (p.name !== op.name) {
+                            if (!stat.h2h[op.name]) stat.h2h[op.name] = { opponent: op.name, wins: 0, losses: 0, ties: 0, total: 0, winPct: 0, lossPct: 0 };
+                            stat.h2h[op.name].total += 1;
+                            if (p.total_score > op.total_score) stat.h2h[op.name].wins += 1;
+                            else if (p.total_score < op.total_score) stat.h2h[op.name].losses += 1;
+                            else stat.h2h[op.name].ties += 1;
+                        }
+                    });
+                }
+            });
+        });
+
+        allEntries?.forEach(e => {
+            const playerName = allPlayers.find(ap => ap.id === e.player_id)?.name;
+            if (playerName && statsMap.has(playerName)) {
+                const pts = Number(e.points);
+                const isValat = e.is_valat === true || e.is_valat === 'true';
+                const isBeggar = e.is_beggar === true || e.is_beggar === 'true';
+
+                if (isValat && pts > 0) statsMap.get(playerName)!.valat_count += 1;
+                if (isBeggar && pts > 0) statsMap.get(playerName)!.beggar_wins += 1;
+            }
+        });
+
+        const processedStats = Array.from(statsMap.values()).map(stat => {
+            stat.recent_ranks.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            
+            if (stat.performance_scores.length > 0) {
+                const sum = stat.performance_scores.reduce((acc, val) => acc + val, 0);
+                stat.avg_performance = sum / stat.performance_scores.length;
+                if (stat.performance_scores.length > 1) {
+                    const prevScores = stat.performance_scores.slice(1);
+                    const prevSum = prevScores.reduce((acc, val) => acc + val, 0);
+                    stat.prev_performance = prevSum / prevScores.length;
+                } else { stat.prev_performance = stat.avg_performance; }
+            } else {
+                stat.avg_performance = 0; stat.prev_performance = 0;
+            }
+
+            Object.values(stat.h2h).forEach(h => {
+                h.winPct = h.total > 0 ? (h.wins / h.total) * 100 : 0;
+                h.lossPct = h.total > 0 ? (h.losses / h.total) * 100 : 0;
+            });
+
+            let maxStreak = 0; let currentStreak = 0;
+            const chronologicalRanks = [...stat.recent_ranks].reverse();
+            for (let r of chronologicalRanks) {
+                if (r.rank === 1) { currentStreak++; if (currentStreak > maxStreak) maxStreak = currentStreak; } else { currentStreak = 0; }
+            }
+            stat.longest_win_streak = maxStreak; stat.current_win_streak = currentStreak; 
+            return stat;
+        });
+
+        setGlobalStats(processedStats);
+    } catch (e) { console.error(e); } finally { setStatsLoading(false); }
+  };
+
+  const calculateGameAwards = () => {
+// ... OSTALA KODA DO KONCA (NESPREMENJENA) ...
+    if (!gamePlayers.length || !playerHistory.length) return [];
+    
+    const stats = gamePlayers.map(p => {
+      const entries = playerHistory.filter(e => e.player_id === p.id);
+      return {
+        id: p.id, name: p.name,
+        playedCount: entries.filter(e => e.played && !e.is_beggar).length,
+        partnerCount: entries.filter(e => e.is_partner).length,
+        beggarCount: entries.filter(e => e.is_beggar).length,
+        actions: entries.filter(e => e.played || e.is_partner || e.is_beggar).length,
+        minus: entries.reduce((acc, e) => e.points < 0 ? acc + e.points : acc, 0)
+      };
+    });
+
+    const awards: any[] = [];
+    const assignedIds = new Set();
+
+    const pohlepnez = [...stats].sort((a, b) => b.playedCount - a.playedCount)[0];
+    if (pohlepnez && pohlepnez.playedCount > 0) { awards.push({ t: "Pohlepnež", n: pohlepnez.name, i: "💰", d: `Odigral ${pohlepnez.playedCount} iger.` }); assignedIds.add(pohlepnez.id); }
+
+    const pijavka = [...stats].filter(s => !assignedIds.has(s.id)).sort((a, b) => b.partnerCount - a.partnerCount)[0];
+    if (pijavka && pijavka.partnerCount > 0) { awards.push({ t: "Pijavka", n: pijavka.name, i: "🦟", d: `Klican ${pijavka.partnerCount}-krat.` }); assignedIds.add(pijavka.id); }
+
+    const beggarCandidate = [...stats].filter(s => !assignedIds.has(s.id)).sort((a, b) => b.beggarCount - a.beggarCount)[0];
+    if (beggarCandidate && beggarCandidate.beggarCount >= 2) { awards.push({ t: "Socialni problem", n: beggarCandidate.name, i: "🙏", d: `Berač ${beggarCandidate.beggarCount}-krat.` }); assignedIds.add(beggarCandidate.id); } 
+    else {
+      const kamikaza = [...stats].filter(s => !assignedIds.has(s.id)).sort((a, b) => a.minus - b.minus)[0];
+      if (kamikaza && kamikaza.minus < 0) { awards.push({ t: "Kamikaza", n: kamikaza.name, i: "🧨", d: `${kamikaza.minus} minus točk.` }); assignedIds.add(kamikaza.id); }
+    }
+
+    const turist = [...stats].filter(s => !assignedIds.has(s.id)).sort((a, b) => a.actions - b.actions)[0];
+    if (turist) awards.push({ t: "Turist", n: turist.name, i: "📸", d: "Najmanj sodeloval." });
+
+    return awards.slice(0, 4);
   };
 
   const chartData = prepareChartData();
