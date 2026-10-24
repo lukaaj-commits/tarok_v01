@@ -340,6 +340,16 @@ export default function ActiveGame() {
     }
   };
 
+  // Seštevek igralca vedno izračuna iz vseh njegovih vnosov v bazi (tudi tistih z drugih telefonov)
+  const recalcPlayerTotal = async (playerId: string): Promise<number> => {
+    const { data, error } = await supabase.from('score_entries').select('points').eq('player_id', playerId);
+    if (error) throw error;
+    const total = (data || []).reduce((sum, e) => sum + Number(e.points), 0);
+    const { error: updateError } = await supabase.from('players').update({ total_score: total }).eq('id', playerId);
+    if (updateError) throw updateError;
+    return total;
+  };
+
   const performSubmit = async (points: number, isValat: boolean) => {
     setSubmitting(true);
     try {
@@ -354,13 +364,9 @@ export default function ActiveGame() {
       });
       if (error) throw error;
 
-      const player = players.find(p => p.id === selectedPlayerId);
-      if (player) {
-        const newScore = player.total_score + points;
-        await supabase.from('players').update({ total_score: newScore }).eq('id', selectedPlayerId!);
-        setPlayers(players.map(p => p.id === selectedPlayerId ? { ...p, total_score: newScore } : p));
-        if (newScore === 0) setShowKlopModal(true);
-      }
+      const newScore = await recalcPlayerTotal(selectedPlayerId!);
+      setPlayers(prev => prev.map(p => p.id === selectedPlayerId ? { ...p, total_score: newScore } : p));
+      if (newScore === 0) setShowKlopModal(true);
       setShowScoreModal(false); setScoreInput('');
     } catch (e: any) { showAlert("Napaka", e.message); } finally { setSubmitting(false); }
   };
@@ -408,13 +414,10 @@ export default function ActiveGame() {
           }
 
           if (undoType === 'score') {
-              const playerToUpdate = players.find(p => p.id === lastScore.player_id);
-              if (playerToUpdate) {
-                  const newScore = playerToUpdate.total_score - lastScore.points;
-                  await supabase.from('players').update({ total_score: newScore }).eq('id', playerToUpdate.id);
-                  setPlayers(players.map(p => p.id === playerToUpdate.id ? { ...p, total_score: newScore } : p));
-              }
-              await supabase.from('score_entries').delete().eq('id', lastScore.id);
+              const { error: deleteError } = await supabase.from('score_entries').delete().eq('id', lastScore.id);
+              if (deleteError) throw deleteError;
+              const newScore = await recalcPlayerTotal(lastScore.player_id);
+              setPlayers(prev => prev.map(p => p.id === lastScore.player_id ? { ...p, total_score: newScore } : p));
           } else {
               const posToDelete = lastRadelc.position;
               await supabase.from('radelci').delete().eq('game_id', gameId).eq('position', posToDelete);
@@ -498,16 +501,17 @@ export default function ActiveGame() {
             const unusedRadelci = radelci.filter(r => r.player_id === p.id && !r.is_used);
             if (unusedRadelci.length > 0) {
                 const penalty = unusedRadelci.length * -50;
-                await supabase.from('score_entries').insert({
+                const { error: penaltyError } = await supabase.from('score_entries').insert({
                     game_id: gameId, player_id: p.id, points: penalty, played: false 
                 });
-                await supabase.from('players').update({ total_score: p.total_score + penalty }).eq('id', p.id);
-                
-                finalPlayers[i].total_score += penalty; 
+                if (penaltyError) throw penaltyError;
                 
                 const radelcIds = unusedRadelci.map(r => r.id);
                 await supabase.from('radelci').update({ is_used: true }).in('id', radelcIds);
             }
+            // Končni seštevek vsakega igralca iz vseh vnosov v bazi
+            const total = await recalcPlayerTotal(p.id);
+            finalPlayers[i] = { ...p, total_score: total };
         });
         await Promise.all(updates);
 
