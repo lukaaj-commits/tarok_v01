@@ -10,6 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Platform,
   Dimensions,
   Image
 } from 'react-native';
@@ -68,6 +69,15 @@ const COLORS = {
   winnerGrey: 'rgb(148, 163, 184)',
   closeBtn: 'rgb(88, 99, 234)',
   confirmTeal: '#20B2AA'
+};
+
+// Sporočilo, ki deluje tudi na spletu (Alert.alert na spletu ne prikaže ničesar)
+const showAlert = (title: string, message: string) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
 };
 
 const GRADIENT_COLORS = ['#556eeb', '#6050ea']; 
@@ -174,9 +184,9 @@ export default function ActiveGame() {
   const fetchProfiles = async (showDebug = false) => {
     try {
       const { data, error } = await supabase.from('player_profiles').select('id, name').order('name');
-      if (error) { if (showDebug) Alert.alert("NAPAKA", error.message); return; }
+      if (error) { if (showDebug) showAlert("NAPAKA", error.message); return; }
       setAllProfiles(data || []);
-    } catch (err: any) { if (showDebug) Alert.alert("NAPAKA", err.message); }
+    } catch (err: any) { if (showDebug) showAlert("NAPAKA", err.message); }
   };
 
   const enterGame = async (selectedGame: Game) => {
@@ -202,7 +212,7 @@ export default function ActiveGame() {
       const { data: newGame, error } = await supabase.from('games').insert({ name: newName, is_active: true }).select().single();
       if (error) throw error;
       await fetchActiveGamesList(); await enterGame(newGame);
-    } catch (error) { Alert.alert("Napaka", "Ni bilo mogoče ustvariti igre."); } finally { setLoading(false); }
+    } catch (error) { showAlert("Napaka", "Ni bilo mogoče ustvariti igre."); } finally { setLoading(false); }
   };
 
   const loadPlayers = async (gId: string) => {
@@ -223,7 +233,7 @@ export default function ActiveGame() {
 
   const toggleProfileSelection = (profile: PlayerProfile) => {
     if (players.some(p => p.profile_id === profile.id || p.name === profile.name)) {
-        Alert.alert("Opozorilo", "Ta igralec je že v igri.");
+        showAlert("Opozorilo", "Ta igralec je že v igri.");
         return;
     }
     const newSelection = new Set(selectedProfileIds);
@@ -268,7 +278,7 @@ export default function ActiveGame() {
               setPlayers([...players, ...data]);
               setShowAddPlayerModal(false);
           }
-      } catch (e: any) { Alert.alert("Napaka", e.message); } finally { setLoading(false); }
+      } catch (e: any) { showAlert("Napaka", e.message); } finally { setLoading(false); }
   };
 
   const filteredProfiles = allProfiles.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -318,7 +328,7 @@ export default function ActiveGame() {
     if (!selectedPlayerId || !scoreInput) return;
     if (scoreInput === '-') { setScoreInput(''); return; }
     const points = parseInt(scoreInput, 10);
-    if (isNaN(points)) { Alert.alert("Napaka", "Neveljaven vnos."); return; }
+    if (isNaN(points)) { showAlert("Napaka", "Neveljaven vnos."); return; }
 
     const valatValues = [250, 500, 1000, 2000, 4000, 8000, 16000, -250, -500, -1000, -2000, -4000, -8000, -16000];
     if (valatValues.includes(points)) {
@@ -352,7 +362,7 @@ export default function ActiveGame() {
         if (newScore === 0) setShowKlopModal(true);
       }
       setShowScoreModal(false); setScoreInput('');
-    } catch (e: any) { Alert.alert("Napaka", e.message); } finally { setSubmitting(false); }
+    } catch (e: any) { showAlert("Napaka", e.message); } finally { setSubmitting(false); }
   };
 
   const handleUndo = async () => {
@@ -380,7 +390,7 @@ export default function ActiveGame() {
           const lastRadelc = lastRadelci && lastRadelci.length > 0 ? lastRadelci[0] : null;
 
           if (!lastScore && !lastRadelc) {
-              Alert.alert("Obvestilo", "Ni vnosov za razveljavitev.");
+              showAlert("Obvestilo", "Ni vnosov za razveljavitev.");
               setIsUndoing(false);
               return;
           }
@@ -414,7 +424,7 @@ export default function ActiveGame() {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       } catch (err: any) {
-          Alert.alert("Napaka", "Prišlo je do napake pri razveljavitvi: " + err.message);
+          showAlert("Napaka", "Prišlo je do napake pri razveljavitvi: " + err.message);
       } finally {
           setIsUndoing(false);
       }
@@ -520,7 +530,7 @@ export default function ActiveGame() {
         } else {
             exitToLobby();
         }
-    } catch (e) { Alert.alert("Napaka", "Prišlo je do napake pri zaključevanju."); } finally { setLoading(false); }
+    } catch (e) { showAlert("Napaka", "Prišlo je do napake pri zaključevanju."); } finally { setLoading(false); }
   };
 
   const getSelectedPlayerName = () => players.find(x => x.id === selectedPlayerId)?.name || '';
