@@ -622,6 +622,9 @@ export default function ActiveGame() {
 
   const chartData = prepareChartData();
 
+  // Glavni seznam: vodilni vedno na vrhu (pri enakih točkah ostane vrstni red dodajanja)
+  const sortedPlayers = [...players].sort((a, b) => b.total_score - a.total_score || a.position - b.position);
+
   if (loading && !gameId && activeGamesList.length === 0) {
       return (
         <View style={[styles.container, styles.centerContent]}>
@@ -757,7 +760,7 @@ export default function ActiveGame() {
 
       </View>
 
-      <FlatList data={players} keyExtractor={(item) => item.id} renderItem={renderPlayer} contentContainerStyle={styles.listContainer} ListEmptyComponent={<Text style={styles.emptyText}>Dodaj igralce za začetek.</Text>} />
+      <FlatList data={sortedPlayers} keyExtractor={(item) => item.id} renderItem={renderPlayer} contentContainerStyle={styles.listContainer} ListEmptyComponent={<Text style={styles.emptyText}>Dodaj igralce za začetek.</Text>} />
 
       <Modal visible={showAddPlayerModal} animationType="slide" transparent onRequestClose={() => setShowAddPlayerModal(false)}>
         <View style={styles.modalOverlay}>
@@ -1003,7 +1006,7 @@ export default function ActiveGame() {
           <View style={[styles.modalContent, styles.historyModal]}>
             <Text style={[styles.modalTitle, { marginBottom: 0 }]}>Vsi igralci - Zgodovina</Text>
             <ScrollView style={[styles.historyList, { marginTop: 20 }]}>
-              {players.sort((a, b) => b.total_score - a.total_score).map((player, playerIndex, array) => {
+              {[...players].sort((a, b) => b.total_score - a.total_score).map((player, playerIndex, array) => {
                   const playerEntries = allGameHistory.filter((e) => e.player_id === player.id);
                   if (playerEntries.length === 0) return null;
 
