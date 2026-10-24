@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Trophy, History } from 'lucide-react-native';
+import NotificationBell from '@/components/NotificationBell';
 
 export default function TabLayout() {
   return (
@@ -10,6 +11,7 @@ export default function TabLayout() {
           backgroundColor: '#0f172a',
         },
         headerTintColor: '#fff',
+        headerRight: () => <NotificationBell />,
         tabBarStyle: {
           backgroundColor: '#0f172a',
           borderTopColor: '#334155',
