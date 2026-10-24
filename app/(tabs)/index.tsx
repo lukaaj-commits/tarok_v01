@@ -12,7 +12,8 @@ import {
   Alert,
   Platform,
   Dimensions,
-  Image
+  Image,
+  AppState
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -224,6 +225,40 @@ export default function ActiveGame() {
     const { data } = await supabase.from('radelci').select('*').eq('game_id', gId).order('position');
     setRadelci(data || []);
   };
+
+  // REZULTATI V ŽIVO: ko je igra odprta, poslušamo spremembe igralcev in radelcev te igre
+  // (točke, razveljavitve, radelci z drugih naprav) in ob spremembi ponovno naložimo stanje.
+  useEffect(() => {
+    if (!gameId) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    // Več hkratnih sprememb (npr. radelc za vse igralce) združimo v eno osvežitev
+    const refresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { loadPlayers(gameId); loadRadelci(gameId); }, 300);
+    };
+    const gameFilter = `game_id=eq.${gameId}`;
+    const channel = supabase
+      .channel(`igra-${gameId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'players', filter: gameFilter }, refresh)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'players', filter: gameFilter }, refresh)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'players' }, refresh)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'radelci', filter: gameFilter }, refresh)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'radelci', filter: gameFilter }, refresh)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'radelci' }, refresh)
+      .subscribe();
+
+    // Ko se telefon zbudi ali se vrneš v aplikacijo/brskalnik, naložimo sveže stanje
+    const appStateSub = AppState.addEventListener('change', (state) => { if (state === 'active') refresh(); });
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    if (Platform.OS === 'web') document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+      appStateSub.remove();
+      if (Platform.OS === 'web') document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [gameId]);
 
   const openAddPlayerModal = () => {
     setSearchQuery(''); 
