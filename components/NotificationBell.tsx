@@ -11,7 +11,10 @@ import { loadGenders, g } from '@/lib/gender';
 import TintBg from '@/components/TintBg';
 
 // Ta telefon si zapomni, katera obvestila je že videl
-const SEEN_KEY = 'tarok_prebrana_obvestila_v1';
+// v2: ob posodobitvi aplikacije (nov dizajn) se vsa obstoječa obvestila štejejo kot prebrana,
+// zato uporabnik po posodobitvi nima nobenega novega obvestila. Ob novi verziji ključa se to ponovi.
+const SEEN_KEY = 'tarok_prebrana_obvestila_v2';
+const OLD_SEEN_KEYS = ['tarok_prebrana_obvestila_v1'];
 // ... in katera je uporabnik počistil (križec, podrs, Počisti vse)
 const DISMISSED_KEY = 'tarok_pocisceno_obvestila_v1';
 const MAX_ITEMS = 120;
@@ -111,6 +114,7 @@ export default function NotificationBell() {
       // Prvi zagon na tem telefonu: vsa obstoječa obvestila štejemo kot prebrana
       const stored = await AsyncStorage.getItem(SEEN_KEY).catch(() => null);
       if (stored === null) {
+        OLD_SEEN_KEYS.forEach(k => AsyncStorage.removeItem(k).catch(() => {}));
         const all = new Set(items.map(i => i.key));
         await AsyncStorage.setItem(SEEN_KEY, JSON.stringify([...all])).catch(() => {});
         setSeen(all);
