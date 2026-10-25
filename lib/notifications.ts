@@ -243,6 +243,21 @@ export function computeNotifications(
       if (e.is_valat && pts > 0) {
         s.valats++;
         push({ id: `valat:${e.id}`, kind: 'live', time: t, gameId: e.game_id, icon: '⚡', title: 'Valat!', text: `${name}: ${fmt(pts)}`, player: name });
+        // Nagrada za valate: pri 10., 15., 20. ... valatu (šteje vsak valat, igral ali klican)
+        if (s.valats >= 10 && (s.valats - 10) % 5 === 0) {
+          // partner = drug igralec z uspešnim valatom v isti igri ob istem času
+          const tMs = new Date(t).getTime();
+          const partnerEntry = (entriesByGame.get(e.game_id) || [])
+            .filter(o => o.player_id !== e.player_id && o.is_valat && Number(o.points) > 0 && Math.abs(new Date(o.created_at).getTime() - tMs) <= 3 * 60 * 1000)
+            .sort((x, y) => Math.abs(new Date(x.created_at).getTime() - tMs) - Math.abs(new Date(y.created_at).getTime() - tMs))[0];
+          const partner = partnerEntry ? playerById.get(partnerEntry.player_id)?.name : undefined;
+          push({
+            id: `valatdrink:${s.valats}:${name}`, kind: 'live', time: t, gameId: e.game_id, icon: '🍻',
+            title: `${name}: ${s.valats}. valat!`,
+            text: partner ? `Pijačo plača ${partner} (partner v tem valatu).` : 'Valat brez partnerja, pijačo si plača kar sam 😄',
+            player: name,
+          });
+        }
       }
       // dobljen berač (samo za dosežek, brez lastnega obvestila)
       if (e.is_beggar && pts > 0) {
