@@ -63,24 +63,27 @@ type ScoreEntry = {
 };
 
 const COLORS = {
-  bg: '#0d1321',
-  card: '#1e293b',
-  primary: '#556eeb',
+  bg: '#000000',
+  card: 'rgba(255,255,255,0.09)',
+  primary: '#0A84FF',
   text: '#FFFFFF',
-  textMuted: '#94A3B8',
-  border: '#334155',
-  success: '#10B981', 
-  danger: '#EF4444',  
-  warning: '#F59E0B', 
-  inputBg: '#334155',
-  radelcBorder: '#20B2AA', 
-  radelcFill: '#28323e',
+  textMuted: '#8E8E93',
+  border: 'rgba(255,255,255,0.10)',
+  success: '#30D158',
+  danger: '#FF453A',
+  warning: '#FF9F0A',
+  inputBg: 'rgba(255,255,255,0.08)',
+  radelcBorder: '#64D2FF',
+  radelcFill: '#3A3A3C',
   playedDot: '#FFFFFF',
-  slateBlue: 'rgb(74, 87, 106)',
-  winnerGrey: 'rgb(148, 163, 184)'
+  slateBlue: 'rgba(255,255,255,0.09)',
+  winnerGrey: '#8E8E93',
+  sheet: '#121A2B',
+  awardLabel: 'rgba(100,210,255,0.6)',
 };
 
-const GRADIENT_COLORS = ['#556eeb', '#6050ea']; 
+const GRADIENT_COLORS = ['#0A84FF', '#0A84FF']; 
+const MONTHS_SHORT = ['JAN', 'FEB', 'MAR', 'APR', 'MAJ', 'JUN', 'JUL', 'AVG', 'SEP', 'OKT', 'NOV', 'DEC'];
 
 // Seznam naših pravih igralcev in njihovih slik (USKLAJENO Z BAZO)
 const PLAYER_IMAGES: Record<string, string> = {
@@ -403,26 +406,37 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
     const winners = game.players.filter(p => p.total_score === maxScore);
     const names = winners.map(w => w.name).join(' & ');
     return (
-        <Text style={{ color: COLORS.winnerGrey, fontSize: 13, marginTop: 4 }}>
-            {game.is_active ? "Trenutno vodilni: " : `${winnerWord(names)}: `} <Text style={{ fontWeight: '700', color: COLORS.winnerGrey }}>{names} ({maxScore})</Text>
+        <Text style={{ color: COLORS.winnerGrey, fontSize: 13, marginTop: 3 }}>
+            {game.is_active ? "Trenutno vodilni: " : `${winnerWord(names)}: `}<Text style={{ fontWeight: '600', color: '#EBEBF5' }}>{names} ({maxScore})</Text>
         </Text>
     );
   };
 
-  const renderGame = ({ item }: { item: Game }) => {
+  const renderGame = ({ item, index }: { item: Game; index: number }) => {
+    const d = new Date(item.created_at);
+    const year = d.getFullYear();
+    const prevYear = index > 0 ? new Date(games[index - 1].created_at).getFullYear() : null;
+    // letnica pred prvo igro starejšega leta (pri tekočem letu nič)
+    const showYear = year !== new Date().getFullYear() && year !== prevYear;
+    const title = getFormattedTitle(item);
+    const comma = title.indexOf(', ');
     return (
-      <TouchableOpacity style={styles.cardWrapper} onPress={() => loadGameDetails(item)}>
-        <View style={styles.gameCard}>
+      <View>
+        {showYear && <Text style={styles.yearLabel}>{year}</Text>}
+        <TouchableOpacity style={styles.gameCard} onPress={() => loadGameDetails(item)} activeOpacity={0.7}>
             <View style={styles.cardHeader}>
-                <View style={[styles.cardIconBox, item.is_active && {backgroundColor: 'rgba(85, 110, 235, 0.2)'}]}><Calendar size={18} color={item.is_active ? COLORS.primary : COLORS.textMuted} /></View>
+                <View style={styles.calLeaf}>
+                    <Text style={[styles.calMonth, !item.is_active && { color: COLORS.danger }]}>{MONTHS_SHORT[d.getMonth()]}</Text>
+                    <Text style={styles.calDay}>{d.getDate()}</Text>
+                </View>
                 <View style={{flex: 1, justifyContent: 'center'}}>
-                    <Text style={styles.gameTitleCombined}>{getFormattedTitle(item)}</Text>
+                    <Text style={styles.gameTitleCombined}>{comma > 0 ? title.slice(0, comma) : title}{comma > 0 && <Text style={styles.gameTitleDate}>{title.slice(comma)}</Text>}</Text>
                     {renderGameWinner(item)}
                 </View>
-                {item.is_active && <View style={styles.activeBadge}><Clock size={12} color="#fff" style={{marginRight: 4}}/><Text style={styles.activeBadgeText}>V TEKU</Text></View>}
+                {item.is_active ? <View style={styles.activeBadge}><Text style={styles.activeBadgeText}>V TEKU</Text></View> : <ChevronRight size={18} color="#636366" />}
             </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -438,34 +452,31 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
   return (
     <View style={styles.container}>
       <View style={styles.mainHeader}>
-          <View>
-            <Text style={styles.headerTitle}>Pregled</Text>
-            <Text style={styles.headerSub}>{(() => { const n = games.filter(g => !g.is_active).length; return `${n} ${n % 100 === 1 ? 'odigrana igra' : n % 100 === 2 ? 'odigrani igri' : n % 100 === 3 || n % 100 === 4 ? 'odigrane igre' : 'odigranih iger'}`; })()}</Text>
-          </View>
-          <View style={{flexDirection: 'row', gap: 10}}>
-              <TouchableOpacity style={styles.globalStatsButton} onPress={() => setShowSeasonModal(true)}><LinearGradient colors={['#334155', '#1e293b']} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} /><View style={styles.relativeContent}><CalendarDays size={22} color="#fff" /></View></TouchableOpacity>
-              <TouchableOpacity style={styles.globalStatsButton} onPress={() => loadGlobalStats('select')}><LinearGradient colors={['#334155', '#1e293b']} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} /><View style={styles.relativeContent}><Users size={22} color="#fff" /></View></TouchableOpacity>
-              <TouchableOpacity style={styles.globalStatsButton} onPress={() => loadGlobalStats('leaderboard')}><LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} /><View style={styles.relativeContent}><Trophy size={22} color="#fff" /></View></TouchableOpacity>
+          <Text style={styles.headerSub}>{(() => { const n = games.filter(g => !g.is_active).length; return `${n} ${n % 100 === 1 ? 'odigrana igra' : n % 100 === 2 ? 'odigrani igri' : n % 100 === 3 || n % 100 === 4 ? 'odigrane igre' : 'odigranih iger'}`; })()}</Text>
+          <View style={styles.tileRow}>
+              <TouchableOpacity style={styles.tile} onPress={() => setShowSeasonModal(true)} activeOpacity={0.7}><CalendarDays size={21} color={COLORS.primary} /><Text style={styles.tileText}>Sezona</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.tile} onPress={() => loadGlobalStats('select')} activeOpacity={0.7}><Users size={21} color={COLORS.primary} /><Text style={styles.tileText}>Igralci</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.tile} onPress={() => loadGlobalStats('leaderboard')} activeOpacity={0.7}><Trophy size={21} color={COLORS.primary} /><Text style={styles.tileText}>Lestvica</Text></TouchableOpacity>
           </View>
       </View>
 
       <SeasonModal visible={showSeasonModal} onClose={() => setShowSeasonModal(false)} />
 
       <Modal visible={showPlayerSelectModal} transparent animationType="fade" onRequestClose={() => setShowPlayerSelectModal(false)}>
-         <View style={[styles.modalOverlay, {justifyContent: 'center', alignItems: 'center'}]}>
-            <View style={[styles.modalContent, {width: '85%', maxHeight: '70%', borderRadius: 24, padding: 20}]}>
+         <View style={styles.centerOverlay}>
+            <View style={[styles.gameModalCard, {width: '88%', maxHeight: '75%'}]}>
                 <Text style={[styles.modalTitle, {marginBottom: 20}]}>Izberi igralca</Text>
                 {statsLoading ? (<ActivityIndicator size="large" color={COLORS.primary} style={{marginVertical: 40}} />) : (
                     <ScrollView style={{width: '100%'}} showsVerticalScrollIndicator={false}>
                         {[...globalStats].sort((a, b) => a.name.localeCompare(b.name)).map(stat => (
                             <TouchableOpacity key={stat.name} style={styles.selectPlayerItem} onPress={() => { setShowPlayerSelectModal(false); openGlobalPlayerDetails(stat); }}>
-                                <View style={{flexDirection: 'row', alignItems: 'center'}}><Image source={{ uri: getAvatarUrl(stat.name) }} style={[styles.playerAvatar, {marginRight: 12}]} /><Text style={{color: '#fff', fontSize: 18, fontWeight: '600'}}>{stat.name}</Text></View>
+                                <View style={{flexDirection: 'row', alignItems: 'center'}}><Image source={{ uri: getAvatarUrl(stat.name) }} style={[styles.playerAvatar, {width: 36, height: 36, borderRadius: 18, marginRight: 12}]} /><Text style={{color: '#fff', fontSize: 16, fontWeight: '500'}}>{stat.name}</Text></View>
                                 <ChevronRight size={20} color={COLORS.textMuted} />
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
                 )}
-                <TouchableOpacity style={[styles.closeButton, {marginTop: 10}]} onPress={() => setShowPlayerSelectModal(false)}><Text style={styles.closeButtonText}>Prekliči</Text></TouchableOpacity>
+                <TouchableOpacity style={[styles.closeButton, styles.glassButton, {marginTop: 12}]} onPress={() => setShowPlayerSelectModal(false)}><Text style={styles.closeButtonText}>Prekliči</Text></TouchableOpacity>
             </View>
          </View>
       </Modal>
@@ -537,28 +548,36 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
          </View>
       </Modal>
 
-      <Modal visible={showGameModal} transparent animationType="slide" onRequestClose={() => setShowGameModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+      <Modal visible={showGameModal} transparent animationType="fade" onRequestClose={() => setShowGameModal(false)}>
+        <View style={styles.centerOverlay}>
+          <View style={styles.gameModalCard}>
             
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-              <TouchableOpacity style={styles.gameModalInfoBtn} onPress={() => loadAllPlayersHistory()}><Info size={20} color="#fff" /><Text style={{color: '#fff', marginLeft: 8, fontWeight: '600'}}>Potek igre</Text></TouchableOpacity>
-              {!selectedGame?.is_active && selectedGame && (<TouchableOpacity style={styles.gameModalTrashBtn} onPress={() => deleteGame(selectedGame.id)}><Trash2 size={20} color={COLORS.danger} /></TouchableOpacity>)}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <TouchableOpacity style={styles.gameModalInfoBtn} onPress={() => loadAllPlayersHistory()}><Info size={17} color="#fff" /><Text style={{color: '#fff', marginLeft: 7, fontWeight: '500', fontSize: 14}}>Potek igre</Text></TouchableOpacity>
+              {!selectedGame?.is_active && selectedGame && (<TouchableOpacity style={styles.gameModalTrashBtn} onPress={() => deleteGame(selectedGame.id)}><Trash2 size={17} color={COLORS.danger} /></TouchableOpacity>)}
             </View>
 
             <ScrollView style={styles.playersListContainer} showsVerticalScrollIndicator={false}>
               <ViewShot ref={viewShotRef} options={{ format: 'jpg', quality: 1.0 }}>
-                <View style={{ backgroundColor: COLORS.card, padding: 10, paddingBottom: 20 }}>
-                  <Text style={[styles.modalTitle, {color: '#FFFFFF', marginBottom: 15, textAlign: 'center'}]}>{selectedGame ? getFormattedTitle(selectedGame) : 'Igra'}</Text>
-                  <Text style={styles.sectionTitle}>Končna lestvica</Text>
+                <View style={{ backgroundColor: COLORS.sheet, paddingTop: 8, paddingBottom: 6 }}>
+                  <Text style={[styles.modalTitle, { fontSize: 19, marginBottom: 14 }]}>{selectedGame ? getFormattedTitle(selectedGame) : 'Igra'}</Text>
+                  <Text style={styles.sectionLabel}>Končna lestvica</Text>
                   
                   {!selectedGame?.is_active && gamePlayers.length > 0 && (
-                      <View style={styles.winnerCard}>
-                          <View style={{flexDirection: 'row', alignItems: 'center', marginBottom:15, justifyContent: 'center', width: '100%'}}><Trophy size={24} color="#ffd700" style={{marginRight: 8}} /><Text style={[styles.winnerText, {fontSize: 16, letterSpacing: 2}]}>{winnerWord(gamePlayers[0].name, true)}</Text></View>
-                          <TouchableOpacity onPress={() => openProfile(gamePlayers[0].name)} activeOpacity={0.7} style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10, width: '100%'}}><Image source={{ uri: getAvatarUrl(gamePlayers[0].name) }} style={[styles.playerAvatar, {width: 70, height: 70, borderRadius: 35, marginRight: 10, borderWidth: 1.5}]} /><Text style={[styles.winnerName, {marginTop: 0, fontSize: 27}]}>{gamePlayers[0].name}</Text></TouchableOpacity>
-                          <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}}><Text style={[styles.winnerScore, {marginTop: 0}]}>{gamePlayers[0].total_score} točk</Text></View>
-                          {renderRadelciDots(gamePlayers[0].id, true)}
-                      </View>
+                      <TouchableOpacity onPress={() => openProfile(gamePlayers[0].name)} activeOpacity={0.8} style={styles.winnerCard}>
+                          <Trophy size={24} color="#FFD60A" />
+                          <Image source={{ uri: getAvatarUrl(gamePlayers[0].name) }} style={[styles.playerAvatar, { width: 52, height: 52, borderRadius: 26 }]} />
+                          <View style={{ flex: 1, gap: 3 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                  <Text style={styles.winnerText}>{winnerWord(gamePlayers[0].name, true)}</Text>
+                                  {renderRadelciDots(gamePlayers[0].id, false)}
+                              </View>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                                  <Text style={styles.winnerName} numberOfLines={1}>{gamePlayers[0].name}</Text>
+                                  <View style={styles.pointsPill}><Text style={styles.pointsPillText}>{gamePlayers[0].total_score} točk</Text></View>
+                              </View>
+                          </View>
+                      </TouchableOpacity>
                   )}
                   
                   {gamePlayers.map((player, index, array) => {
@@ -566,10 +585,10 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                     const rank = array.findIndex(p => p.total_score === player.total_score) + 1;
                     return (
                       <View key={player.id} style={styles.playerRowContainer}>
-                      <View style={styles.rankContainer}>{rank === 1 && <Trophy size={20} color="#ffd700" />}{rank === 2 && <Trophy size={20} color="#c0c0c0" />}{rank === 3 && <Trophy size={20} color="#cd7f32" />}{rank > 3 && (<Text style={styles.rankNumber}>{rank}</Text>)}</View>
+                      <View style={styles.rankContainer}>{rank === 1 && <Trophy size={19} color="#FFD60A" />}{rank === 2 && <Trophy size={19} color="#D1D1D6" />}{rank === 3 && <Trophy size={19} color="#FF9F0A" />}{rank > 3 && (<Text style={styles.rankNumber}>{rank}</Text>)}</View>
                       
                       <TouchableOpacity onPress={() => openProfile(player.name)} activeOpacity={0.7} style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
-                          <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 8}]} />
+                          <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 10}]} />
                           <Text style={[styles.playerName, {marginLeft: 0}]} numberOfLines={1}>{player.name || `Igralec ${player.position + 1}`}</Text>
                       </TouchableOpacity>
 
@@ -580,7 +599,18 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                   })}
 
                   {!selectedGame?.is_active && gamePlayers.length > 0 && calculateGameAwards().length > 0 && (
-                    <View style={{marginTop: 20}}><Text style={styles.sectionTitle}>Izstopajoči igralci</Text><View style={styles.awardsGrid}>{calculateGameAwards().map((award, i) => (<View key={i} style={styles.awardCard}><Text style={{fontSize: 24}}>{award.i}</Text><Text style={styles.awardTitle}>{award.t}</Text><Text style={styles.awardName} numberOfLines={1}>{award.n}</Text><Text style={styles.awardDesc}>{award.d}</Text></View>))}</View></View>
+                    <View style={{marginTop: 18}}>
+                      <Text style={styles.sectionLabel}>Izstopajoči igralci</Text>
+                      <View style={styles.awardsGrid}>
+                        {calculateGameAwards().map((award, i) => (
+                          <View key={i} style={styles.awardCard}>
+                            <Text style={styles.awardTitle}>{award.t}</Text>
+                            <Text style={styles.awardName} numberOfLines={1}>{award.n}</Text>
+                            <Text style={styles.awardDesc}>{award.d}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
                   )}
                 </View>
               </ViewShot>
@@ -613,7 +643,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
       <Modal visible={showPlayerHistoryModal} transparent animationType="slide" onRequestClose={() => setShowPlayerHistoryModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, styles.historyModal]}>
-            <Text style={styles.modalTitle}>{selectedPlayerName} - Zgodovina točk</Text>
+            <Text style={styles.modalTitle}>Potek igre</Text>
             <ScrollView style={[styles.historyList, { marginTop: 20 }]} showsVerticalScrollIndicator={false}>
               {gamePlayers.sort((a, b) => b.total_score - a.total_score).map((player, playerIndex, array) => {
                   const playerEntries = playerHistory.filter((e) => e.player_id === player.id);
@@ -626,9 +656,9 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                     <View key={player.id} style={styles.playerHistorySection}>
                       
                       <View style={[styles.playerHistoryHeader, {backgroundColor: COLORS.slateBlue}]}>
-                        <View style={styles.playerRankBadge}>{rank === 1 && <Trophy size={16} color="#ffd700" />}{rank === 2 && <Trophy size={16} color="#c0c0c0" />}{rank === 3 && <Trophy size={16} color="#cd7f32" />}{rank > 3 && (<Text style={styles.playerRankText}>{rank}</Text>)}</View>
+                        <View style={styles.playerRankBadge}>{rank === 1 && <Trophy size={16} color="#FFD60A" />}{rank === 2 && <Trophy size={16} color="#D1D1D6" />}{rank === 3 && <Trophy size={16} color="#FF9F0A" />}{rank > 3 && (<Text style={styles.playerRankText}>{rank}</Text>)}</View>
                         <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 8}]} />
-                        <Text style={styles.playerHistorySectionTitle}>{playerName} <Text style={{fontWeight: '400', fontSize: 14, color: COLORS.winnerGrey}}>(igralec je igral: {playedCount})</Text></Text>
+                        <Text style={styles.playerHistorySectionTitle}>{playerName} <Text style={{fontWeight: '400', fontSize: 12, color: COLORS.winnerGrey}}>igral: {playedCount}</Text></Text>
                         <Text style={[styles.playerTotalScore, player.total_score > 0 ? styles.positivePoints : player.total_score < 0 ? styles.negativePoints : styles.neutralScore]}>{player.total_score}</Text>
                       </View>
 
@@ -664,15 +694,15 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
       </Modal>
 
       <Modal visible={showWinnerPopup} transparent animationType="fade" onRequestClose={() => setShowWinnerPopup(false)}>
-        <View style={[styles.modalOverlay, {justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.85)'}]}>
+        <View style={[styles.centerOverlay, { backgroundColor: 'rgba(0,0,0,0.88)' }]}>
             <View style={styles.winnerPopupCard}>
-                <TouchableOpacity style={{position: 'absolute', top: 12, right: 12, padding: 8}} onPress={() => setShowWinnerPopup(false)}><X size={24} color={COLORS.textMuted} /></TouchableOpacity>
-                <Trophy size={60} color="#ffd700" style={{marginBottom: 15}} />
-                <Text style={{color: '#ffd700', fontSize: 14, fontWeight: '800', letterSpacing: 3, marginBottom: 10}}>{winnerWord(winnerData?.names || '', true)}</Text>
-                {winnerData?.names && (<Image source={{ uri: getAvatarUrl(winnerData.names.split(' & ')[0]) }} style={[styles.playerAvatar, {width: 80, height: 80, borderRadius: 40, marginVertical: 10, borderWidth: 2}]} />)}
-                <Text style={{color: COLORS.text, fontSize: 32, fontWeight: '900', textAlign: 'center', marginBottom: 10}}>{winnerData?.names}</Text>
-                <View style={{backgroundColor: 'rgba(16, 185, 129, 0.1)', paddingHorizontal: 20, paddingVertical: 8, borderRadius: 12, marginTop: 5}}>
-                    <Text style={{color: COLORS.success, fontSize: 26, fontWeight: '800'}}>{winnerData?.score} točk</Text>
+                <TouchableOpacity style={styles.popupClose} onPress={() => setShowWinnerPopup(false)}><X size={16} color="#AEAEB2" /></TouchableOpacity>
+                <Trophy size={52} color="#FFD60A" style={{marginBottom: 12}} strokeWidth={1.6} />
+                <Text style={{color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '600', letterSpacing: 2.5, marginBottom: 12}}>{winnerWord(winnerData?.names || '', true)}</Text>
+                {winnerData?.names && (<Image source={{ uri: getAvatarUrl(winnerData.names.split(' & ')[0]) }} style={[styles.playerAvatar, {width: 84, height: 84, borderRadius: 42, marginBottom: 12}]} />)}
+                <Text style={{color: COLORS.text, fontSize: 30, fontWeight: '600', textAlign: 'center', marginBottom: 8}}>{winnerData?.names}</Text>
+                <View style={styles.pointsPillBig}>
+                    <Text style={{color: COLORS.success, fontSize: 20, fontWeight: '600'}}>{winnerData?.score} točk</Text>
                 </View>
             </View>
             {showWinnerPopup && (<View pointerEvents="none" style={StyleSheet.absoluteFillObject}><ConfettiCannon count={200} origin={{x: -10, y: 0}} autoStart={true} fadeOut={true} fallSpeed={2500} /></View>)}
@@ -684,9 +714,9 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
-  mainHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 },
+  mainHeader: { paddingHorizontal: 16, paddingTop: 2, paddingBottom: 6 },
   headerTitle: { fontSize: 32, fontWeight: '800', color: COLORS.text },
-  headerSub: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
+  headerSub: { fontSize: 15, color: COLORS.textMuted, marginBottom: 14, paddingHorizontal: 4 },
   
   absoluteGradient: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 },
   relativeContent: { position: 'relative', zIndex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
@@ -698,85 +728,64 @@ const styles = StyleSheet.create({
   },
   
   subTitle: { color: COLORS.textMuted, fontSize: 14, textAlign: 'center', marginBottom: 15 },
-  listContainer: { padding: 16, gap: 12 },
+  listContainer: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20, gap: 10 },
   cardWrapper: { }, 
-  gameCard: { 
-      backgroundColor: COLORS.card, borderRadius: 20, padding: 18,
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.10)', borderTopColor: 'rgba(255, 255, 255, 0.22)', borderLeftColor: 'rgba(255, 255, 255, 0.14)', overflow: 'hidden'
-  },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 15 },
+  gameCard: { backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)', borderRadius: 16, paddingVertical: 12, paddingLeft: 12, paddingRight: 14 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   cardIconBox: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' },
   gameTitleCombined: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  activeBadge: { backgroundColor: COLORS.success, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, flexDirection: 'row', alignItems: 'center' },
-  activeBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  activeBadge: { backgroundColor: COLORS.primary, paddingHorizontal: 9, height: 24, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
+  activeBadgeText: { color: '#fff', fontSize: 11, fontWeight: '600', letterSpacing: 0.4 },
   emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
   emptyText: { color: COLORS.textMuted, fontSize: 15, marginBottom: 8, textAlign: 'center', paddingHorizontal: 20 },
   loadingText: { color: COLORS.text, fontSize: 18, textAlign: 'center', marginTop: 40 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   
-  modalContent: { 
-      backgroundColor: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '85%',
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.10)', borderTopColor: 'rgba(255, 255, 255, 0.22)', borderLeftColor: 'rgba(255, 255, 255, 0.12)', overflow: 'hidden'
-  },
+  modalContent: { backgroundColor: COLORS.sheet, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 28, maxHeight: '88%', borderWidth: 0.5, borderColor: 'rgba(100,170,255,0.14)', borderTopColor: 'rgba(120,190,255,0.40)', borderBottomWidth: 0, overflow: 'hidden' },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20, gap: 12 },
-  modalTitle: { color: COLORS.text, fontSize: 22, fontWeight: '700', textAlign: 'center' },
+  modalTitle: { color: COLORS.text, fontSize: 21, fontWeight: '600', textAlign: 'center' },
   headerInfoButton: { padding: 4 },
-  playersListContainer: { marginBottom: 20 },
+  playersListContainer: { marginBottom: 14 },
   
-  playerRowContainer: { 
-      flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.inputBg, borderRadius: 12, marginBottom: 8, paddingVertical: 14, paddingHorizontal: 16, gap: 12,
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)', borderTopColor: 'rgba(255, 255, 255, 0.18)', borderLeftColor: 'rgba(255, 255, 255, 0.12)', overflow: 'hidden'
-  },
-  rankContainer: { width: 32, alignItems: 'center' },
-  rankNumber: { color: COLORS.textMuted, fontSize: 16, fontWeight: '600' },
+  playerRowContainer: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 4, gap: 10, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.08)' },
+  rankContainer: { width: 26, alignItems: 'center' },
+  rankNumber: { color: COLORS.textMuted, fontSize: 15, fontWeight: '600' },
   
-  playerAvatar: {
-      width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255, 255, 255, 0.05)',
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.15)', borderTopColor: 'rgba(255, 255, 255, 0.3)', 
-  },
+  playerAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.10)' },
   
   playerName: { flex: 1, color: COLORS.text, fontSize: 16, fontWeight: '500', marginLeft: 4 },
-  playerScore: { fontSize: 20, fontWeight: '700' },
+  playerScore: { fontSize: 17, fontWeight: '600', minWidth: 48, textAlign: 'right' },
   positiveScore: { color: COLORS.success },
   negativeScore: { color: COLORS.danger },
   neutralScore: { color: COLORS.text },
-  modalButtons: { flexDirection: 'row', gap: 12 },
+  modalButtons: { flexDirection: 'row', gap: 10 },
   
-  closeButton: { 
-      backgroundColor: '#5863ea', padding: 16, borderRadius: 12, alignItems: 'center', 
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.2)', borderTopColor: 'rgba(255, 255, 255, 0.55)', borderLeftColor: 'rgba(255, 255, 255, 0.35)', overflow: 'hidden' 
-  },
+  closeButton: { backgroundColor: COLORS.primary, height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   closeButtonFlex: { flex: 1 },
-  closeButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  closeButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '500' },
   radelciContainer: { flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: 8 },
-  radelc: { width: 10, height: 10, borderRadius: 5 }, 
-  radelcUnused: { backgroundColor: 'transparent', borderWidth: 2, borderColor: COLORS.radelcBorder },
+  radelc: { width: 8, height: 8, borderRadius: 4 }, 
+  radelcUnused: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: COLORS.radelcBorder },
   radelcUsed: { backgroundColor: COLORS.radelcFill, borderWidth: 0 },
   historyModal: { height: '85%', maxHeight: '85%' }, 
   historyList: { flex: 1, marginBottom: 16 },
   playerHistorySection: { marginBottom: 24 },
   
-  playerHistoryHeader: { 
-      flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, marginBottom: 8, gap: 12,
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.10)', borderTopColor: 'rgba(255, 255, 255, 0.20)', borderLeftColor: 'rgba(255, 255, 255, 0.14)', overflow: 'hidden'
-  },
+  playerHistoryHeader: { backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)', flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 16, marginBottom: 4, gap: 10 },
   playerRankBadge: { width: 28, alignItems: 'center', justifyContent: 'center' },
   playerRankText: { color: COLORS.textMuted, fontSize: 14, fontWeight: '700' },
-  playerHistorySectionTitle: { flex: 1, color: COLORS.text, fontSize: 18, fontWeight: '600' },
-  playerTotalScore: { fontSize: 22, fontWeight: '700' },
+  playerHistorySectionTitle: { flex: 1, color: COLORS.text, fontSize: 16, fontWeight: '600' },
+  playerTotalScore: { fontSize: 18, fontWeight: '600' },
   
-  historyItem: { 
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 16, backgroundColor: COLORS.inputBg, borderRadius: 8, marginBottom: 8,
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)', borderTopColor: 'rgba(255, 255, 255, 0.18)', borderLeftColor: 'rgba(255, 255, 255, 0.12)', overflow: 'hidden'
-  },
+  historyItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.06)' },
   pointsWrapper: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'center' },
   fixedPointsBox: { width: 60, alignItems: 'flex-end', paddingRight: 5 },
   dotBox: { width: 20, alignItems: 'center', justifyContent: 'center' },
-  historyPoints: { fontSize: 20, fontWeight: '700' },
+  historyPoints: { fontSize: 16, fontWeight: '600' },
   positivePoints: { color: COLORS.success },
   negativePoints: { color: COLORS.danger },
-  historyTotal: { color: COLORS.text, fontSize: 18, fontWeight: '600', flex: 1, textAlign: 'center' },
-  historyDate: { color: COLORS.textMuted, fontSize: 12, flex: 1, textAlign: 'right' },
+  historyTotal: { color: '#AEAEB2', fontSize: 15, fontWeight: '400', flex: 1, textAlign: 'center' },
+  historyDate: { color: '#636366', fontSize: 12, flex: 1, textAlign: 'right' },
   playedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.playedDot },
   
   tabContainer: { 
@@ -798,7 +807,7 @@ const styles = StyleSheet.create({
   medalText: { color: '#fff', fontWeight: '800', marginLeft: 4, fontSize: 15 },
   detailHeader: { alignItems: 'center', marginBottom: 20 },
   detailScroll: { flex: 1, marginBottom: 16 },
-  sectionTitle: { color: COLORS.text, fontSize: 18, fontWeight: '700', marginBottom: 12 },
+  sectionTitle: { color: COLORS.text, fontSize: 17, fontWeight: '600', marginBottom: 10 },
   
   formSection: { marginBottom: 24, alignItems: 'center' },
   formCard: { 
@@ -841,40 +850,22 @@ const styles = StyleSheet.create({
   rankRowDate: { color: COLORS.textMuted, fontSize: 14 },
   rankBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, minWidth: 90, alignItems: 'center' },
   rankBadgeText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  awardsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 10 },
+  awardsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8 },
   
-  awardCard: { 
-      width: '48%', backgroundColor: COLORS.inputBg, padding: 12, borderRadius: 12, alignItems: 'center', marginBottom: 10,
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)', borderTopColor: 'rgba(255, 255, 255, 0.18)', borderLeftColor: 'rgba(255, 255, 255, 0.12)', overflow: 'hidden'
-  },
-  awardTitle: { color: COLORS.success, fontSize: 12, fontWeight: '800', marginTop: 4 }, 
-  awardName: { color: COLORS.text, fontSize: 16, fontWeight: '700', textAlign: 'center', marginVertical: 2 },
-  awardDesc: { color: COLORS.textMuted, fontSize: 11, textAlign: 'center' },
+  awardCard: { width: '48.5%', backgroundColor: 'rgba(0,0,0,0.30)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 16 },
+  awardTitle: { color: COLORS.awardLabel, fontSize: 11, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' }, 
+  awardName: { color: COLORS.text, fontSize: 16, fontWeight: '600', marginVertical: 1 },
+  awardDesc: { color: COLORS.textMuted, fontSize: 12 },
   
-  winnerCard: { 
-      alignItems: 'center', backgroundColor: COLORS.inputBg, padding: 16, borderRadius: 16, marginBottom: 16,
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.10)', borderTopColor: 'rgba(255, 255, 255, 0.22)', borderLeftColor: 'rgba(255, 255, 255, 0.14)', overflow: 'hidden'
-  },
-  winnerText: { color: '#ffd700', fontSize: 12, fontWeight: '800', letterSpacing: 2 },
-  winnerName: { color: COLORS.text, fontSize: 20, fontWeight: '800', marginTop: 4 },
+  winnerCard: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 96, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, marginBottom: 8, backgroundColor: 'rgba(10,132,255,0.15)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
+  winnerText: { color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '600', letterSpacing: 1.6 },
+  winnerName: { color: COLORS.text, fontSize: 22, fontWeight: '600', flexShrink: 1 },
   winnerScore: { color: COLORS.success, fontSize: 22, fontWeight: '800', marginTop: 4 },
 
-  selectPlayerItem: {
-      backgroundColor: COLORS.inputBg, padding: 16, borderRadius: 12, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)', borderTopColor: 'rgba(255, 255, 255, 0.18)', borderLeftColor: 'rgba(255, 255, 255, 0.12)', overflow: 'hidden'
-  },
-  gameModalInfoBtn: {
-      paddingVertical: 8, paddingHorizontal: 12, backgroundColor: COLORS.inputBg, borderRadius: 8, flexDirection: 'row', alignItems: 'center',
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)', borderTopColor: 'rgba(255, 255, 255, 0.18)', borderLeftColor: 'rgba(255, 255, 255, 0.12)', overflow: 'hidden'
-  },
-  gameModalTrashBtn: {
-      padding: 8, backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: 8,
-      borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.2)', borderTopColor: 'rgba(239, 68, 68, 0.4)', borderLeftColor: 'rgba(239, 68, 68, 0.3)', overflow: 'hidden'
-  },
-  winnerPopupCard: {
-      backgroundColor: COLORS.card, padding: 30, borderRadius: 24, alignItems: 'center', width: '80%', zIndex: 10,
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.10)', borderTopColor: 'rgba(255, 255, 255, 0.22)', borderLeftColor: 'rgba(255, 255, 255, 0.14)', overflow: 'hidden'
-  },
+  selectPlayerItem: { paddingVertical: 10, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.10)' },
+  gameModalInfoBtn: { height: 36, paddingHorizontal: 14, backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)', borderRadius: 18, flexDirection: 'row', alignItems: 'center' },
+  gameModalTrashBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' },
+  winnerPopupCard: { backgroundColor: COLORS.sheet, paddingVertical: 30, paddingHorizontal: 22, borderRadius: 28, alignItems: 'center', width: '84%', maxWidth: 380, zIndex: 10, borderWidth: 0.5, borderColor: 'rgba(100,170,255,0.14)', borderTopColor: 'rgba(120,190,255,0.40)', overflow: 'hidden' },
   achievementBox: {
       backgroundColor: COLORS.inputBg, borderRadius: 12, padding: 16,
       borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)', borderTopColor: 'rgba(255, 255, 255, 0.18)', borderLeftColor: 'rgba(255, 255, 255, 0.12)', overflow: 'hidden'
@@ -882,5 +873,22 @@ const styles = StyleSheet.create({
   grandSlamBox: {
       marginTop: 10, padding: 20, borderRadius: 16, alignItems: 'center',
       borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.15)', borderTopColor: 'rgba(255, 255, 255, 0.3)', borderLeftColor: 'rgba(255, 255, 255, 0.2)', overflow: 'hidden'
-  }
+  },
+  // --- nov dizajn (D3) ---
+  tileRow: { flexDirection: 'row', gap: 10 },
+  tile: { flex: 1, height: 66, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  tileText: { color: COLORS.text, fontSize: 12, fontWeight: '500' },
+  yearLabel: { color: COLORS.text, fontSize: 20, fontWeight: '600', paddingHorizontal: 4, paddingTop: 10, paddingBottom: 8 },
+  calLeaf: { width: 46, height: 50, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.30)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' },
+  calMonth: { fontSize: 10, fontWeight: '600', letterSpacing: 0.5, color: COLORS.primary },
+  calDay: { fontSize: 20, lineHeight: 24, fontWeight: '600', color: COLORS.text },
+  gameTitleDate: { color: COLORS.textMuted, fontSize: 14, fontWeight: '400' },
+  centerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
+  gameModalCard: { width: '92%', maxWidth: 440, maxHeight: '88%', backgroundColor: COLORS.sheet, borderRadius: 28, padding: 16, borderWidth: 0.5, borderColor: 'rgba(100,170,255,0.14)', borderTopColor: 'rgba(120,190,255,0.40)', overflow: 'hidden' },
+  sectionLabel: { color: COLORS.textMuted, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8, marginLeft: 4 },
+  pointsPill: { height: 24, paddingHorizontal: 10, borderRadius: 12, backgroundColor: 'rgba(48,209,88,0.18)', justifyContent: 'center' },
+  pointsPillText: { color: COLORS.success, fontSize: 14, fontWeight: '600' },
+  pointsPillBig: { height: 38, paddingHorizontal: 18, borderRadius: 19, backgroundColor: 'rgba(48,209,88,0.16)', justifyContent: 'center' },
+  popupClose: { position: 'absolute', top: 14, right: 14, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center', zIndex: 2 },
+  glassButton: { backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)' },
 });

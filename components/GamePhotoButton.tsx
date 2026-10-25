@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, Image, ActivityIndicator, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { photoSupported, pickImage, compressImage, uploadGamePhoto } from '@/lib/photo';
 import { showAlert } from '@/lib/alert';
+import { Camera } from 'lucide-react-native';
 
 type Props = {
   gameId: string;
@@ -50,7 +51,7 @@ export default function GamePhotoButton({ gameId, photoUrl, title, onChange, onP
         {uploading ? (
           <><ActivityIndicator size="small" color="#fff" /><Text style={styles.text}>Nalagam …</Text></>
         ) : (
-          <Text style={styles.text}>📸 Slika večera</Text>
+          <><Camera size={19} color="#fff" /><Text style={styles.text}>Slika večera</Text></>
         )}
       </TouchableOpacity>
 
@@ -58,10 +59,10 @@ export default function GamePhotoButton({ gameId, photoUrl, title, onChange, onP
         <Modal visible transparent animationType="fade" onRequestClose={() => setChooser(false)}>
           <TouchableOpacity activeOpacity={1} onPress={() => setChooser(false)} style={styles.chooserOverlay}>
             <View style={styles.chooserBox}>
-              <Text style={styles.chooserTitle}>📸 Slika večera</Text>
-              <TouchableOpacity style={[styles.vButton, styles.close]} onPress={() => chooseAndUpload('camera')}><Text style={styles.vText}>📷 Slikaj zdaj</Text></TouchableOpacity>
-              <TouchableOpacity style={[styles.vButton, styles.replace]} onPress={() => chooseAndUpload('gallery')}><Text style={styles.vText}>🖼️ Iz galerije</Text></TouchableOpacity>
-              <TouchableOpacity style={{ padding: 10, alignItems: 'center' }} onPress={() => setChooser(false)}><Text style={{ color: '#94A3B8', fontSize: 15 }}>Prekliči</Text></TouchableOpacity>
+              <Text style={styles.chooserTitle}>Slika večera</Text>
+              <TouchableOpacity style={[styles.cButton, styles.close]} onPress={() => chooseAndUpload('camera')}><Text style={styles.vText}>Slikaj zdaj</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.cButton, styles.replace]} onPress={() => chooseAndUpload('gallery')}><Text style={styles.vText}>Iz galerije</Text></TouchableOpacity>
+              <TouchableOpacity style={{ padding: 10, alignItems: 'center' }} onPress={() => setChooser(false)}><Text style={{ color: '#8E8E93', fontSize: 15 }}>Prekliči</Text></TouchableOpacity>
             </View>
           </TouchableOpacity>
         </Modal>
@@ -74,7 +75,7 @@ export default function GamePhotoButton({ gameId, photoUrl, title, onChange, onP
             {!!title && <Text style={styles.title}>{title}</Text>}
             <View style={styles.row}>
               <TouchableOpacity style={[styles.vButton, styles.replace]} disabled={uploading} onPress={() => setChooser(true)}>
-                {uploading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.vText}>🔄 Zamenjaj</Text>}
+                {uploading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.vText}>Zamenjaj</Text>}
               </TouchableOpacity>
               <TouchableOpacity style={[styles.vButton, styles.close]} onPress={() => setViewer(false)}>
                 <Text style={styles.vText}>Zapri</Text>
@@ -88,19 +89,20 @@ export default function GamePhotoButton({ gameId, photoUrl, title, onChange, onP
 }
 
 const styles = StyleSheet.create({
-  button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16, borderRadius: 12, borderWidth: 1 },
-  buttonEmpty: { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.25)', borderStyle: 'dashed' },
-  buttonHas: { backgroundColor: '#10B981', borderColor: 'rgba(255,255,255,0.3)' },
-  text: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 50, paddingHorizontal: 14, borderRadius: 16, borderWidth: 0.5 },
+  buttonEmpty: { backgroundColor: 'rgba(255,255,255,0.09)', borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)' },
+  buttonHas: { backgroundColor: 'rgba(10,132,255,0.18)', borderColor: 'rgba(10,132,255,0.45)' },
+  text: { color: '#fff', fontSize: 16, fontWeight: '500' },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center', padding: 16 },
   photo: { width: '100%', height: '75%' },
   title: { color: '#cbd5e1', fontSize: 15, marginTop: 12 },
   row: { flexDirection: 'row', gap: 12, marginTop: 18, width: '100%', maxWidth: 420 },
-  vButton: { flex: 1, padding: 16, borderRadius: 12, alignItems: 'center' },
+  vButton: { flex: 1, height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   replace: { backgroundColor: 'rgba(255,255,255,0.12)' },
-  close: { backgroundColor: '#5863ea' },
+  close: { backgroundColor: '#0A84FF' },
+  cButton: { height: 54, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   vText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   chooserOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  chooserBox: { backgroundColor: '#1e293b', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, gap: 10 },
-  chooserTitle: { color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: 6 },
+  chooserBox: { backgroundColor: '#121A2B', borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, paddingBottom: 28, gap: 10, borderWidth: 0.5, borderBottomWidth: 0, borderColor: 'rgba(100,170,255,0.14)', borderTopColor: 'rgba(120,190,255,0.40)' },
+  chooserTitle: { color: '#fff', fontSize: 18, fontWeight: '600', textAlign: 'center', marginBottom: 6 },
 });
