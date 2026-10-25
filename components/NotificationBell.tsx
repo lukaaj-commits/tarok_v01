@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet, Image, ActivityIndicator, AppState, Platform, Animated, PanResponder } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Bell, X } from 'lucide-react-native';
+import { Bell, X, Trophy } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { computeNotifications, AppNotification, GameSummary } from '@/lib/notifications';
 import { getAvatarUrl } from '@/lib/avatars';
@@ -15,16 +15,19 @@ const DISMISSED_KEY = 'tarok_pocisceno_obvestila_v1';
 const MAX_ITEMS = 120;
 
 const C = {
-  bg: '#0d1321',
-  card: '#1e293b',
-  cardInner: '#334155',
-  primary: '#556eeb',
+  bg: '#000000',
+  card: '#121A2B',
+  cardInner: 'rgba(255,255,255,0.08)',
+  primary: '#0A84FF',
   text: '#FFFFFF',
-  muted: '#94A3B8',
-  danger: '#EF4444',
-  warning: '#F59E0B',
-  live: '#10B981',
+  muted: '#8E8E93',
+  danger: '#FF453A',
+  warning: '#FF9F0A',
+  live: '#FF453A',
 };
+
+// emojiji se v obvestilih ne prikazujejo (besedila ostanejo enaka)
+const clean = (t: string) => (t || '').replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, '').replace(/\s{2,}/g, ' ').trim();
 
 type FeedItem =
   | { type: 'live'; key: string; time: string; n: AppNotification }
@@ -168,7 +171,7 @@ export default function NotificationBell() {
   return (
     <>
       <TouchableOpacity onPress={openFeed} style={styles.bellButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel="Obvestila">
-        <Bell size={24} color={C.text} />
+        <Bell size={23} color={C.primary} strokeWidth={1.9} />
         {unreadKeys.length > 0 && (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{unreadKeys.length > 99 ? '99+' : unreadKeys.length}</Text>
@@ -185,57 +188,54 @@ export default function NotificationBell() {
                 {visible.length > 0 && (
                   <TouchableOpacity onPress={dismissAll} style={styles.clearAll}><Text style={styles.clearAllText}>Počisti vse</Text></TouchableOpacity>
                 )}
-                <TouchableOpacity onPress={closeFeed} style={{ padding: 6 }}><X size={24} color={C.muted} /></TouchableOpacity>
+                <TouchableOpacity onPress={closeFeed} style={styles.closeCircle}><X size={15} color="#AEAEB2" strokeWidth={3} /></TouchableOpacity>
               </View>
             </View>
 
             {loading && visible.length === 0 && feed.length === 0 ? (
               <ActivityIndicator size="large" color={C.primary} style={{ marginTop: 40 }} />
             ) : visible.length === 0 ? (
-              <Text style={styles.empty}>Ni novih obvestil. 🎉</Text>
+              <Text style={styles.empty}>Ni novih obvestil.</Text>
             ) : (
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30, gap: 10 }}>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
                 {visible.map(item =>
                   item.type === 'live' ? (
                     <SwipeToDismiss key={item.key} onDismiss={() => dismissOne(item.key)}>
-                    <TouchableOpacity activeOpacity={0.7} disabled={!item.n.player} onPress={() => item.n.player && openProfile(item.n.player)} style={[styles.card, isNew(item.key) && styles.cardNew]}>
-                      <Text style={styles.icon}>{item.n.icon}</Text>
+                    <TouchableOpacity activeOpacity={0.7} disabled={!item.n.player} onPress={() => item.n.player && openProfile(item.n.player)} style={styles.card}>
                       <View style={{ flex: 1 }}>
                         <View style={styles.metaRow}>
+                          {isNew(item.key) && <View style={styles.newDot} />}
                           {item.n.kind === 'live' && <View style={styles.liveChip}><Text style={styles.liveChipText}>V ŽIVO</Text></View>}
                           <Text style={styles.time}>{timeLabel(item.time)}</Text>
-                          {isNew(item.key) && <View style={styles.newDot} />}
                         </View>
-                        <Text style={styles.itemTitle}>{item.n.title}</Text>
-                        <Text style={styles.itemText}>{item.n.text}</Text>
+                        <Text style={styles.itemTitle}>{clean(item.n.title)}</Text>
+                        <Text style={styles.itemText}>{clean(item.n.text)}</Text>
                       </View>
-                      {item.n.player && <Image source={{ uri: getAvatarUrl(item.n.player) }} style={styles.avatar} />}
-                      <TouchableOpacity onPress={() => dismissOne(item.key)} style={styles.closeOne} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><X size={16} color={C.muted} /></TouchableOpacity>
+                      <TouchableOpacity onPress={() => dismissOne(item.key)} style={styles.closeOne} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><X size={13} color={C.muted} strokeWidth={3} /></TouchableOpacity>
                     </TouchableOpacity>
                     </SwipeToDismiss>
                   ) : (
                     <SwipeToDismiss key={item.key} onDismiss={() => dismissOne(item.key)}>
-                    <View style={[styles.card, styles.gameCard, isNew(item.key) && styles.cardNew]}>
+                    <View style={[styles.card, styles.gameCard]}>
                       <View style={styles.metaRow}>
-                        <Text style={[styles.time, { flex: 1 }]}>Igra {item.g.gameDate} · zaključena {timeLabel(item.time)}</Text>
                         {isNew(item.key) && <View style={styles.newDot} />}
-                        <TouchableOpacity onPress={() => dismissOne(item.key)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><X size={16} color={C.muted} /></TouchableOpacity>
+                        <Text style={[styles.time, { flex: 1 }]}>Igra {item.g.gameDate} · zaključena {timeLabel(item.time)}</Text>
+                        <TouchableOpacity onPress={() => dismissOne(item.key)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><X size={13} color={C.muted} strokeWidth={3} /></TouchableOpacity>
                       </View>
                       <TouchableOpacity activeOpacity={0.7} onPress={() => openProfile(item.g.winners.split(' & ')[0])} style={styles.winnerRow}>
-                        <Text style={styles.icon}>🏁</Text>
+                        <Trophy size={20} color="#FFD60A" />
                         <Image source={{ uri: getAvatarUrl(item.g.winners.split(' & ')[0]) }} style={styles.avatar} />
                         <View style={{ flex: 1 }}>
                           <Text style={styles.itemTitle}>{item.g.winners.includes(' & ') ? 'Zmagovalci' : g(item.g.winners, 'Zmagovalec', 'Zmagovalka')}: {item.g.winners}</Text>
                           <Text style={styles.itemText}>{item.g.winnerScore} točk</Text>
                         </View>
                       </TouchableOpacity>
-                      {item.g.awards.length > 0 && <Text style={styles.awards}>{item.g.awards.join('   ')}</Text>}
+                      {item.g.awards.length > 0 && <Text style={styles.awards}>{item.g.awards.map(clean).join(' · ')}</Text>}
                       {item.g.items.map(n => (
                         <TouchableOpacity key={n.id} activeOpacity={0.7} disabled={!n.player} onPress={() => n.player && openProfile(n.player)} style={styles.subItem}>
-                          <Text style={styles.subIcon}>{n.icon}</Text>
                           <View style={{ flex: 1 }}>
-                            <Text style={styles.subTitle}>{n.title}</Text>
-                            <Text style={styles.itemText}>{n.text}</Text>
+                            <Text style={styles.subTitle}>{clean(n.title)}</Text>
+                            <Text style={styles.itemText}>{clean(n.text)}</Text>
                           </View>
                         </TouchableOpacity>
                       ))}
@@ -255,32 +255,33 @@ export default function NotificationBell() {
 
 const styles = StyleSheet.create({
   bellButton: { marginRight: 16, padding: 4 },
-  badge: { position: 'absolute', top: -4, right: -6, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: C.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, height: '88%', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  title: { color: C.text, fontSize: 22, fontWeight: '700' },
+  badge: { position: 'absolute', top: -3, right: -6, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: C.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  badgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 10, height: '88%', borderWidth: 0.5, borderBottomWidth: 0, borderColor: 'rgba(100,170,255,0.14)', borderTopColor: 'rgba(120,190,255,0.40)' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  title: { color: C.text, fontSize: 21, fontWeight: '600' },
   empty: { color: C.muted, textAlign: 'center', marginTop: 40 },
-  card: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.cardInner, borderRadius: 14, padding: 14, paddingRight: 30, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  cardNew: { borderColor: C.primary },
-  gameCard: { flexDirection: 'column', alignItems: 'stretch', gap: 8 },
+  card: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 12, paddingRight: 26, paddingLeft: 0, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.10)', backgroundColor: C.card },
+  cardNew: {},
+  gameCard: { flexDirection: 'column', alignItems: 'stretch', gap: 8, paddingRight: 0 },
   icon: { fontSize: 26 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
-  liveChip: { backgroundColor: 'rgba(16,185,129,0.15)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  liveChipText: { color: C.live, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  time: { color: C.muted, fontSize: 12 },
-  newDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.primary },
-  itemTitle: { color: C.text, fontSize: 16, fontWeight: '700' },
-  itemText: { color: C.muted, fontSize: 14, marginTop: 2 },
-  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
-  winnerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  awards: { color: C.muted, fontSize: 13, lineHeight: 20 },
-  subItem: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(0,0,0,0.18)', borderRadius: 10, padding: 10 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 },
+  liveChip: { backgroundColor: 'rgba(255,69,58,0.16)', borderRadius: 9, paddingHorizontal: 6, height: 18, justifyContent: 'center' },
+  liveChipText: { color: C.live, fontSize: 10, fontWeight: '600', letterSpacing: 0.5 },
+  time: { color: '#636366', fontSize: 11 },
+  newDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.primary },
+  itemTitle: { color: C.text, fontSize: 15, fontWeight: '600' },
+  itemText: { color: '#AEAEB2', fontSize: 13, marginTop: 2 },
+  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.10)' },
+  winnerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 16, backgroundColor: 'rgba(10,132,255,0.15)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
+  awards: { color: C.muted, fontSize: 12, lineHeight: 18 },
+  subItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 4 },
   subIcon: { fontSize: 20 },
-  subTitle: { color: C.text, fontSize: 14, fontWeight: '700' },
-  closeOne: { position: 'absolute', top: 8, right: 8, padding: 2 },
-  clearAll: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.08)' },
-  clearAllText: { color: C.text, fontSize: 13, fontWeight: '600' },
-  hint: { color: '#64748b', fontSize: 11, textAlign: 'center', marginTop: 6 },
+  subTitle: { color: C.text, fontSize: 13, fontWeight: '600' },
+  closeOne: { position: 'absolute', top: 12, right: 0, padding: 4 },
+  clearAll: { paddingHorizontal: 4, paddingVertical: 6 },
+  clearAllText: { color: C.primary, fontSize: 13, fontWeight: '500' },
+  closeCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  hint: { color: '#636366', fontSize: 11, textAlign: 'center', marginTop: 14 },
 });

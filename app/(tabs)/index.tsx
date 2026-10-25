@@ -1030,9 +1030,9 @@ export default function ActiveGame() {
                     <View key={player.id} style={styles.playerHistorySection}>
                       <View style={[styles.playerHistoryHeader, {backgroundColor: COLORS.slateBlue}]}>
                         <View style={styles.playerRankBadge}>
-                          {rank === 1 && <Trophy size={16} color="#ffd700" />}
-                          {rank === 2 && <Trophy size={16} color="#c0c0c0" />}
-                          {rank === 3 && <Trophy size={16} color="#cd7f32" />}
+                          {rank === 1 && <Trophy size={16} color="#FFD60A" />}
+                          {rank === 2 && <Trophy size={16} color="#D1D1D6" />}
+                          {rank === 3 && <Trophy size={16} color="#FF9F0A" />}
                           {rank > 3 && (<Text style={styles.playerRankText}>{rank}</Text>)}
                         </View>
                         
@@ -1148,32 +1148,32 @@ export default function ActiveGame() {
         <View style={[styles.modalOverlay, {justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.85)'}]}>
             <View style={styles.winnerPopupCard}>
                 <TouchableOpacity 
-                    style={{position: 'absolute', top: 12, right: 12, padding: 8}}
+                    style={{position: 'absolute', top: 14, right: 14, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center', zIndex: 2}}
                     onPress={() => {
                         if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current);
                         setShowWinnerPopup(false); 
                         exitToLobby();
                     }}
                 >
-                    <X size={24} color={COLORS.textMuted} />
+                    <X size={16} color="#AEAEB2" />
                 </TouchableOpacity>
 
-                <Trophy size={60} color="#ffd700" style={{marginBottom: 15}} />
+                <Trophy size={52} color="#FFD60A" strokeWidth={1.6} style={{marginBottom: 12}} />
                 
-                <Text style={{color: '#ffd700', fontSize: 14, fontWeight: '800', letterSpacing: 3, marginBottom: 10}}>
+                <Text style={{color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '600', letterSpacing: 2.5, marginBottom: 12}}>
                     {(winnerData?.names || '').includes(' & ') ? 'ZMAGOVALCI' : g(winnerData?.names, 'ZMAGOVALEC', 'ZMAGOVALKA')}
                 </Text>
                 
                 {winnerData?.names && (
-                    <Image source={{ uri: getAvatarUrl(winnerData.names.split(' & ')[0]) }} style={[styles.playerAvatar, {width: 80, height: 80, borderRadius: 40, marginVertical: 10, borderWidth: 2}]} />
+                    <Image source={{ uri: getAvatarUrl(winnerData.names.split(' & ')[0]) }} style={[styles.playerAvatar, {width: 84, height: 84, borderRadius: 42, marginBottom: 12}]} />
                 )}
 
-                <Text style={{color: COLORS.text, fontSize: 32, fontWeight: '900', textAlign: 'center', marginBottom: 10}}>
+                <Text style={{color: COLORS.text, fontSize: 30, fontWeight: '600', textAlign: 'center', marginBottom: 8}}>
                     {winnerData?.names}
                 </Text>
                 
-                <View style={{backgroundColor: 'rgba(16, 185, 129, 0.1)', paddingHorizontal: 20, paddingVertical: 8, borderRadius: 12, marginTop: 5}}>
-                    <Text style={{color: COLORS.success, fontSize: 26, fontWeight: '800'}}>
+                <View style={{backgroundColor: 'rgba(48,209,88,0.16)', height: 38, paddingHorizontal: 18, borderRadius: 19, justifyContent: 'center'}}>
+                    <Text style={{color: COLORS.success, fontSize: 20, fontWeight: '600'}}>
                         {winnerData?.score} točk
                     </Text>
                 </View>
@@ -1181,7 +1181,7 @@ export default function ActiveGame() {
                 {finishedGameId && (
                     <GamePhotoButton
                         gameId={finishedGameId}
-                        style={{ marginTop: 20, alignSelf: 'stretch' }}
+                        style={{ marginTop: 22, alignSelf: 'stretch' }}
                         onPress={() => { if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current); }}
                     />
                 )}

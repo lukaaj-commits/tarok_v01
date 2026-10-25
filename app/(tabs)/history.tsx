@@ -343,47 +343,6 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
     return null;
   };
   
-  // POPRAVEK 1: PAMETNO DELJENJE (Tekst na webu, slika na telefonu)
-  const shareResults = async () => {
-    try {
-      if (Platform.OS === 'web') {
-          // 1. NA SPLETU: Knjižnica za slikanje ne deluje, zato delimo tekstovno lestvico!
-          let text = `🏆 REZULTATI TAROKA 🏆\n\n`;
-          if (winnerData?.names) text += `${winnerWord(winnerData.names)}: ${winnerData.names} (${winnerData.score} točk)\n\n`;
-          
-          const sortedPlayers = [...gamePlayers].sort((a,b) => b.total_score - a.total_score);
-          sortedPlayers.forEach((p, i) => {
-              text += `${i+1}. ${p.name}: ${p.total_score} točk\n`;
-          });
-          
-          // Poskusimo odpreti moderno okno za deljenje (deluje na večini mobilnih brskalnikov)
-          if (navigator && navigator.share) {
-              await navigator.share({
-                  title: 'Rezultati Taroka',
-                  text: text,
-              });
-          } 
-          // Če deljenje ni podprto, tekst avtomatsko kopiramo
-          else if (navigator && navigator.clipboard) {
-              await navigator.clipboard.writeText(text);
-              window.alert("Rezultati so skopirani! Zdaj jih lahko prilepiš v katerokoli aplikacijo (SMS, Viber, Messenger).");
-          } 
-          // Stari brskalniki
-          else {
-              window.alert(text);
-          }
-          return; // OBVEZNO: Tukaj zaključimo, da se koda spodaj ne izvede!
-      }
-
-      // 2. V PRAVI APLIKACIJI: Tu pa slikanje normalno deluje
-      if (viewShotRef.current && viewShotRef.current.capture) {
-        const uri = await viewShotRef.current.capture();
-        await Sharing.shareAsync(uri);
-      }
-    } catch (error) {
-      console.log("Napaka pri deljenju:", error);
-    }
-  };
 
   const openGlobalPlayerDetails = (player: PlayerStats) => {
       showProfile(player);
