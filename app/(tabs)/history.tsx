@@ -22,6 +22,8 @@ import * as Haptics from 'expo-haptics';
 
 // @ts-ignore
 import ConfettiCannon from 'react-native-confetti-cannon';
+import { fetchPlayerStats, PlayerStats } from '@/lib/playerStats';
+import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 
 type PlayerSummary = { name: string; total_score: number; };
 
@@ -47,40 +49,6 @@ type ScoreEntry = {
   is_partner?: boolean;
   is_beggar?: boolean;
   is_valat?: boolean;
-};
-
-type H2HStat = { 
-    opponent: string; 
-    wins: number; 
-    losses: number; 
-    ties: number; 
-    total: number; 
-    winPct: number; 
-    lossPct: number; 
-};
-
-type GameRecord = { score: number; date: string };
-
-type PlayerStats = { 
-    name: string; 
-    wins: number; 
-    second: number; 
-    third: number; 
-    total_games: number; 
-    recent_ranks: { rank: number, date: string, gameName: string }[]; 
-    performance_scores: number[]; 
-    avg_performance: number;     
-    prev_performance: number;     
-    h2h: Record<string, H2HStat>; 
-    best_game: GameRecord | null;
-    worst_game: GameRecord | null;
-    total_score_sum: number;
-    longest_win_streak: number;
-    current_win_streak: number; 
-    valat_count: number; 
-    beggar_wins: number;
-    phoenix_count: number;
-    dominator_count: number;
 };
 
 const COLORS = {
@@ -142,20 +110,16 @@ export default function History() {
   
   const [globalStatsTab, setGlobalStatsTab] = useState<'classic' | 'index'>('classic');
   
-  const [selectedGlobalPlayer, setSelectedGlobalPlayer] = useState<PlayerStats | null>(null);
-  const [showGlobalPlayerModal, setShowGlobalPlayerModal] = useState(false);
   
-  const [showAllGames, setShowAllGames] = useState(false);
   const [showPlayerSelectModal, setShowPlayerSelectModal] = useState(false);
   const [showWinnerPopup, setShowWinnerPopup] = useState(false);
   const [winnerData, setWinnerData] = useState<{names: string, score: number} | null>(null);
 
-  const [chartWidth, setChartWidth] = useState(0);
 
   const viewShotRef = useRef<ViewShot>(null);
-  const detailScrollRef = useRef<ScrollView>(null);
 
   const isFocused = useIsFocused();
+  const { openProfile, showProfile } = usePlayerProfile();
   useEffect(() => { if (isFocused) loadGames(); }, [isFocused]);
 
   const loadGames = async () => {
@@ -314,139 +278,8 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
     if (destination === 'leaderboard') setShowGlobalStatsModal(true);
     else setShowPlayerSelectModal(true);
     try {
-        const { data: finishedGames } = await supabase.from('games').select('id, name, created_at').order('created_at', { ascending: false }); 
-        const gameIds = finishedGames?.map(g => g.id) || [];
-        const gameMap = new Map<string, {date: string, name: string}>();
-        finishedGames?.forEach(g => gameMap.set(g.id, {date: g.created_at, name: g.name}));
-
-        if (gameIds.length === 0) { setGlobalStats([]); setStatsLoading(false); return; }
-
-        const { data: allPlayers } = await supabase.from('players').select('*').in('game_id', gameIds);
-        if (!allPlayers) { setGlobalStats([]); return; }
-        
-        const { data: allEntries } = await supabase.from('score_entries').select('*').in('game_id', gameIds).order('created_at', { ascending: true });
-
-        const statsMap = new Map<string, PlayerStats>();
-        const playersByGame = allPlayers.reduce((acc, p) => {
-            if (!acc[p.game_id]) acc[p.game_id] = [];
-            acc[p.game_id].push(p);
-            return acc;
-        }, {} as Record<string, typeof allPlayers>);
-
-        const runningScores: any = {}; 
-        const phoenixFlags: any = {}; 
-
-        allEntries?.forEach(e => {
-            if (!runningScores[e.game_id]) runningScores[e.game_id] = {};
-            if (!phoenixFlags[e.game_id]) phoenixFlags[e.game_id] = new Set();
-            const gScores = runningScores[e.game_id];
-            gScores[e.player_id] = (gScores[e.player_id] || 0) + Number(e.points);
-            if (gScores[e.player_id] < 0) phoenixFlags[e.game_id].add(e.player_id);
-        });
-
-        finishedGames?.forEach(g => {
-            const gameId = g.id;
-            const gameP = playersByGame[gameId];
-            if(!gameP) return;
-
-            gameP.sort((a, b) => b.total_score - a.total_score);
-            const gameInfo = gameMap.get(gameId) || {date: '', name: ''};
-
-            const hasAnyScore = gameP.some(gp => gp.total_score !== 0);
-
-            gameP.forEach((p) => {
-                const name = p.name; 
-                if (!statsMap.has(name)) {
-                    statsMap.set(name, { 
-                        name, wins: 0, second: 0, third: 0, total_games: 0, recent_ranks: [], performance_scores: [], avg_performance: 0, prev_performance: 0, h2h: {},
-                        best_game: null, worst_game: null, total_score_sum: 0, longest_win_streak: 0, current_win_streak: 0, valat_count: 0, beggar_wins: 0, phoenix_count: 0, dominator_count: 0
-                    });
-                }
-                const stat = statsMap.get(name)!;
-                stat.total_games += 1;
-                
-                const myScore = p.total_score;
-                const betterPlayers = gameP.filter(gp => gp.total_score > myScore).length;
-                const myRank = betterPlayers + 1;
-
-                if (hasAnyScore) {
-                    if (myRank === 1) {
-                        stat.wins += 1;
-                        if (gameP.length > 1 && (gameP[0].total_score - gameP[1].total_score >= 300)) stat.dominator_count += 1;
-                        if (phoenixFlags[gameId]?.has(p.id)) stat.phoenix_count += 1;
-                    }
-                    if (myRank === 2) stat.second += 1;
-                    if (myRank === 3) stat.third += 1;
-                }
-
-                stat.recent_ranks.push({ rank: myRank, date: gameInfo.date, gameName: gameInfo.name });
-                stat.total_score_sum += myScore;
-                if (!stat.best_game || myScore > stat.best_game.score) stat.best_game = { score: myScore, date: gameInfo.date };
-                if (!stat.worst_game || myScore < stat.worst_game.score) stat.worst_game = { score: myScore, date: gameInfo.date };
-
-                const opponents = gameP.length - 1; 
-                if (opponents > 0 && hasAnyScore) {
-                    const beaten = gameP.filter(op => op.total_score < myScore).length;
-                    const pct = (beaten / opponents) * 100;
-                    stat.performance_scores.push(pct);
-                }
-
-                if (hasAnyScore) {
-                    gameP.forEach((op) => {
-                        if (p.name !== op.name) {
-                            if (!stat.h2h[op.name]) stat.h2h[op.name] = { opponent: op.name, wins: 0, losses: 0, ties: 0, total: 0, winPct: 0, lossPct: 0 };
-                            stat.h2h[op.name].total += 1;
-                            if (p.total_score > op.total_score) stat.h2h[op.name].wins += 1;
-                            else if (p.total_score < op.total_score) stat.h2h[op.name].losses += 1;
-                            else stat.h2h[op.name].ties += 1;
-                        }
-                    });
-                }
-            });
-        });
-
-        allEntries?.forEach(e => {
-            const playerName = allPlayers.find(ap => ap.id === e.player_id)?.name;
-            if (playerName && statsMap.has(playerName)) {
-                const pts = Number(e.points);
-                const isValat = e.is_valat === true || e.is_valat === 'true';
-                const isBeggar = e.is_beggar === true || e.is_beggar === 'true';
-
-                if (isValat && pts > 0) statsMap.get(playerName)!.valat_count += 1;
-                if (isBeggar && pts > 0) statsMap.get(playerName)!.beggar_wins += 1;
-            }
-        });
-
-        const processedStats = Array.from(statsMap.values()).map(stat => {
-            stat.recent_ranks.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            
-            if (stat.performance_scores.length > 0) {
-                const sum = stat.performance_scores.reduce((acc, val) => acc + val, 0);
-                stat.avg_performance = sum / stat.performance_scores.length;
-                if (stat.performance_scores.length > 1) {
-                    const prevScores = stat.performance_scores.slice(1);
-                    const prevSum = prevScores.reduce((acc, val) => acc + val, 0);
-                    stat.prev_performance = prevSum / prevScores.length;
-                } else { stat.prev_performance = stat.avg_performance; }
-            } else {
-                stat.avg_performance = 0; stat.prev_performance = 0;
-            }
-
-            Object.values(stat.h2h).forEach(h => {
-                h.winPct = h.total > 0 ? (h.wins / h.total) * 100 : 0;
-                h.lossPct = h.total > 0 ? (h.losses / h.total) * 100 : 0;
-            });
-
-            let maxStreak = 0; let currentStreak = 0;
-            const chronologicalRanks = [...stat.recent_ranks].reverse();
-            for (let r of chronologicalRanks) {
-                if (r.rank === 1) { currentStreak++; if (currentStreak > maxStreak) maxStreak = currentStreak; } else { currentStreak = 0; }
-            }
-            stat.longest_win_streak = maxStreak; stat.current_win_streak = currentStreak; 
-            return stat;
-        });
-
-        setGlobalStats(processedStats);
+        // Izračun je v lib/playerStats.ts (skupen za vse zaslone)
+        setGlobalStats(await fetchPlayerStats());
     } catch (e) { console.error(e); } finally { setStatsLoading(false); }
   };
 
@@ -538,46 +371,9 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
   };
 
   const openGlobalPlayerDetails = (player: PlayerStats) => {
-      setSelectedGlobalPlayer(player);
-      setShowAllGames(false); 
-      setShowGlobalPlayerModal(true);
-      
-      setTimeout(() => {
-          if (detailScrollRef.current) {
-              detailScrollRef.current.scrollTo({ y: 0, animated: false });
-          }
-      }, 100);
+      showProfile(player);
   };
   
-  const getFormStatus = (ranks: { rank: number }[]) => {
-      if (ranks.length === 0) return { text: '-', color: '#666', icon: '➖' };
-      const last5 = ranks.slice(0, 5);
-      const wins = last5.filter(r => r.rank === 1).length;
-      let totalScore = 0;
-      last5.forEach(r => { if (r.rank === 1) totalScore += 10; else if (r.rank === 2) totalScore += 5; else if (r.rank === 3) totalScore += 2; });
-      const avgScore = totalScore / last5.length;
-      if (wins >= 3) return { text: 'Vroče', color: '#ff4500', icon: '🔥' };
-      if (avgScore >= 3.5) return { text: 'Odlična', color: '#22c55e', icon: '🚀' };
-      if (avgScore >= 1.5) return { text: 'Srednja', color: '#fbbf24', icon: '😐' };
-      return { text: 'Hladna', color: '#94a3b8', icon: '❄️' };
-  };
-
-  const getRivals = (h2h: Record<string, H2HStat>) => {
-      const qualified = Object.values(h2h).filter(h => h.total >= 3);
-      if (qualified.length === 0) return null;
-      let stranka = qualified[0]; let mora = qualified[0];
-      qualified.forEach(h => { if (h.winPct > stranka.winPct) stranka = h; if (h.lossPct > mora.lossPct) mora = h; });
-      let derbi = null;
-      if (qualified.length > 2) {
-          const availableForDerbi = qualified.filter(h => h.opponent !== stranka.opponent && h.opponent !== mora.opponent);
-          if (availableForDerbi.length > 0) {
-              derbi = availableForDerbi[0];
-              let minDiff = Math.abs(derbi.winPct - 50);
-              availableForDerbi.forEach(h => { const diff = Math.abs(h.winPct - 50); if (diff < minDiff) { minDiff = diff; derbi = h; } });
-          }
-      }
-      return { stranka, mora, derbi };
-  };
 
   const getFormattedTitle = (game: Game | null) => {
     if (!game) return '';
@@ -618,11 +414,6 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
     );
   };
 
-  const Line = ({ x1, y1, x2, y2, color }: { x1: number, y1: number, x2: number, y2: number, color: string }) => {
-      const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-      const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
-      return (<View style={{ position: 'absolute', left: (x1 + x2) / 2 - length / 2, top: (y1 + y2) / 2 - 1, width: length, height: 2, backgroundColor: color, transform: [{ rotate: `${angle}deg` }] }} />);
-  };
 
   const classicSortedStats = [...globalStats].sort((a, b) => {
     if (b.wins !== a.wins) return b.wins - a.wins; if (b.second !== a.second) return b.second - a.second; return b.third - a.third;
@@ -723,136 +514,6 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
          </View>
       </Modal>
 
-      <Modal 
-          visible={showGlobalPlayerModal} 
-          transparent 
-          animationType="slide" 
-          onRequestClose={() => setShowGlobalPlayerModal(false)}
-      >
-         <View style={styles.modalOverlay}>
-             <View style={[styles.modalContent, styles.historyModal]}>
-                {selectedGlobalPlayer && (
-                    <>
-                        <ScrollView ref={detailScrollRef} style={styles.detailScroll} showsVerticalScrollIndicator={false}>
-                            <View style={styles.detailHeader}>
-                                <Image source={{ uri: getAvatarUrl(selectedGlobalPlayer.name) }} style={[styles.playerAvatar, {width: 80, height: 80, borderRadius: 40, marginRight: 0, marginBottom: 12, borderWidth: 2}]} />
-                                <Text style={styles.modalTitle}>{selectedGlobalPlayer.name}   <Text style={{ color: 'rgb(148, 163, 184)' }}>{Math.round(selectedGlobalPlayer.avg_performance)}%</Text></Text>
-                            </View>
-
-                            <View style={styles.formSection}>
-                                <Text style={styles.sectionTitle}>Trenutna forma</Text>
-                                {(() => {
-                                    const form = getFormStatus(selectedGlobalPlayer.recent_ranks);
-                                    return (
-                                        <View style={styles.formCard}><Text style={{fontSize: 40}}>{form.icon}</Text><Text style={styles.formSubText}>{selectedGlobalPlayer.recent_ranks.slice(0, 5).length} iger v analizi</Text></View>
-                                    );
-                                })()}
-                            </View>
-
-                            <View style={styles.chartSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:20}}><TrendingUp size={20} color={COLORS.primary} style={{marginRight:8}} /><Text style={[styles.sectionTitle, {marginBottom: 0}]}>Gibanje uvrstitev (Zadnjih 10)</Text></View>
-                                <View style={styles.chartContainer} onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}>
-                                    <View style={[styles.gridLine, {top: 0}]}><Text style={styles.gridLabel}>1.</Text></View><View style={[styles.gridLine, {top: '50%'}]}><Text style={styles.gridLabel}>5.</Text></View><View style={[styles.gridLine, {top: '100%'}]}><Text style={styles.gridLabel}>10.</Text></View>
-                                    {(() => {
-                                        if (chartWidth === 0) return null;
-                                        const data = selectedGlobalPlayer.recent_ranks.slice(0, 10).reverse();
-                                        const chartHeight = 120;
-                                        const totalPoints = data.length;
-                                        const stepX = totalPoints > 1 ? chartWidth / (totalPoints - 1) : chartWidth / 2;
-                                        const points = data.map((r, i) => { const cappedRank = Math.min(r.rank, 10); const y = ((cappedRank - 1) / 9) * chartHeight; const x = totalPoints > 1 ? i * stepX : chartWidth / 2; return { x, y, rank: r.rank }; });
-                                        return (
-                                            <View style={{ width: '100%', height: '100%' }}>
-                                                {points.map((p, i) => { if (i === points.length - 1) return null; const nextP = points[i+1]; return (<Line key={`line-${i}`} x1={p.x} y1={p.y} x2={nextP.x} y2={nextP.y} color={COLORS.primary} />); })}
-                                                {points.map((p, i) => { let dotColor = '#fff'; if (p.rank === 1) dotColor = '#ffd700'; else if (p.rank === 2) dotColor = '#c0c0c0'; else if (p.rank === 3) dotColor = '#cd7f32'; return (<View key={`dot-${i}`} style={{position: 'absolute', left: p.x - 5, top: p.y - 5, width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.bg, borderWidth: 2, borderColor: dotColor, zIndex: 10}} />); })}
-                                            </View>
-                                        );
-                                    })()}
-                                </View>
-                                <View style={styles.chartXAxis}><Text style={styles.axisLabel}>Starejše</Text><Text style={styles.axisLabel}>Novejše</Text></View>
-                            </View>
-
-                            <View style={styles.lastGamesSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', justifyContent: 'space-between', marginBottom:10}}>
-                                    <View style={{flexDirection:'row', alignItems:'center'}}><Calendar size={20} color={COLORS.textMuted} style={{marginRight:8}} /><Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{showAllGames ? 'Vse igre' : 'Zadnjih 5 iger'}</Text></View>
-                                    {selectedGlobalPlayer.recent_ranks.length > 5 && (<TouchableOpacity onPress={() => setShowAllGames(!showAllGames)}><Text style={{color: COLORS.primary, fontWeight: '600', fontSize: 14}}>{showAllGames ? 'Pokaži manj' : 'Pokaži vse'}</Text></TouchableOpacity>)}
-                                </View>
-                                {(showAllGames ? selectedGlobalPlayer.recent_ranks : selectedGlobalPlayer.recent_ranks.slice(0, 5)).map((r, i) => (
-                                    <View key={i} style={styles.rankRow}><Text style={styles.rankRowDate}>{new Date(r.date).toLocaleDateString('sl-SI')}</Text><View style={styles.rankBadge}><Text style={styles.rankBadgeText}>{r.rank}. mesto</Text></View></View>
-                                ))}
-                            </View>
-
-                            <View style={styles.rivalsSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:12}}><Swords size={20} color={COLORS.danger} style={{marginRight:8}} /><Text style={[styles.sectionTitle, {marginBottom: 0}]}>Osebni rivali</Text></View>
-                                {(() => {
-                                    const rivals = getRivals(selectedGlobalPlayer.h2h);
-                                    if (!rivals) return <Text style={styles.emptyText}>Premalo odigranih skupnih iger za izračun rivalov (vsaj 3 igre z istim nasprotnikom).</Text>;
-                                    return (
-                                        <View>
-                                            {rivals.stranka && (<View style={styles.rivalCard}><Text style={styles.rivalTitle}>Najljubša stranka</Text><View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}><Image source={{ uri: getAvatarUrl(rivals.stranka.opponent) }} style={[styles.playerAvatar, {width: 24, height: 24, borderRadius: 12, marginRight: 8}]} /><Text style={styles.rivalName}>{rivals.stranka.opponent}</Text></View><Text style={styles.rivalDesc}>Zmage proti njemu: <Text style={{fontWeight: '700', color: COLORS.text}}>{Math.round(rivals.stranka.winPct)} %</Text> ({rivals.stranka.wins} Z / {rivals.stranka.losses} P)</Text></View>)}
-                                            {rivals.mora && rivals.mora.opponent !== rivals.stranka.opponent && (<View style={styles.rivalCard}><Text style={styles.rivalTitle}>Trn v peti</Text><View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}><Image source={{ uri: getAvatarUrl(rivals.mora.opponent) }} style={[styles.playerAvatar, {width: 24, height: 24, borderRadius: 12, marginRight: 8}]} /><Text style={styles.rivalName}>{rivals.mora.opponent}</Text></View><Text style={styles.rivalDesc}>Porazi proti njemu: <Text style={{fontWeight: '700', color: COLORS.text}}>{Math.round(rivals.mora.lossPct)} %</Text> ({rivals.mora.losses} P / {rivals.mora.wins} Z)</Text></View>)}
-                                            {rivals.derbi && (<View style={styles.rivalCard}><Text style={styles.rivalTitle}>Večni derbi</Text><View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}><Image source={{ uri: getAvatarUrl(rivals.derbi.opponent) }} style={[styles.playerAvatar, {width: 24, height: 24, borderRadius: 12, marginRight: 8}]} /><Text style={styles.rivalName}>{rivals.derbi.opponent}</Text></View><Text style={styles.rivalDesc}>Izenačen boj: <Text style={{fontWeight: '700', color: COLORS.text}}>{Math.round(rivals.derbi.winPct)} %</Text> uspeh.</Text></View>)}
-                                        </View>
-                                    );
-                                })()}
-                            </View>
-
-                            <View style={styles.recordsSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:12}}><Trophy size={20} color="#ffd700" style={{marginRight:8}} /><Text style={[styles.sectionTitle, {marginBottom: 0}]}>Osebni rekordi in ekstremi</Text></View>
-                                <View style={styles.recordsGrid}>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>🚀 Življenjska igra</Text><Text style={[styles.recordValue, selectedGlobalPlayer.best_game && selectedGlobalPlayer.best_game.score > 0 ? {color: COLORS.success} : {}]}>{selectedGlobalPlayer.best_game ? (selectedGlobalPlayer.best_game.score > 0 ? `+${selectedGlobalPlayer.best_game.score}` : selectedGlobalPlayer.best_game.score) : '/'}</Text><Text style={styles.recordSub}>{selectedGlobalPlayer.best_game ? new Date(selectedGlobalPlayer.best_game.date).toLocaleDateString('sl-SI') : ''}</Text></View>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>💀 Črni dan</Text><Text style={[styles.recordValue, selectedGlobalPlayer.worst_game && selectedGlobalPlayer.worst_game.score < 0 ? {color: COLORS.danger} : {}]}>{selectedGlobalPlayer.worst_game ? selectedGlobalPlayer.worst_game.score : '/'}</Text><Text style={styles.recordSub}>{selectedGlobalPlayer.worst_game ? new Date(selectedGlobalPlayer.worst_game.date).toLocaleDateString('sl-SI') : ''}</Text></View>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>💰 Skupne točke</Text><Text style={[styles.recordValue, selectedGlobalPlayer.total_score_sum > 0 ? {color: COLORS.success} : (selectedGlobalPlayer.total_score_sum < 0 ? {color: COLORS.danger} : {color: COLORS.text})]}>{selectedGlobalPlayer.total_score_sum > 0 ? `+${selectedGlobalPlayer.total_score_sum}` : selectedGlobalPlayer.total_score_sum}</Text><Text style={styles.recordSub}>Karierni izkupiček</Text></View>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>⚖️ Povprečje</Text><Text style={styles.recordValue}>{(selectedGlobalPlayer.total_score_sum / selectedGlobalPlayer.total_games).toFixed(1)}</Text><Text style={styles.recordSub}>Točk na igro</Text></View>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>🏅 Stopničke</Text><Text style={styles.recordValue}>{Math.round(((selectedGlobalPlayer.wins + selectedGlobalPlayer.second + selectedGlobalPlayer.third) / selectedGlobalPlayer.total_games) * 100)} %</Text><Text style={styles.recordSub}>Iger med top 3</Text></View>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>🔥 Niz zmag</Text><Text style={styles.recordValue}>{selectedGlobalPlayer.longest_win_streak}</Text><Text style={styles.recordSub}>Zaporednih zmag</Text></View>
-                                    <View style={[styles.recordBox, {width: '100%', borderColor: 'rgba(245, 158, 11, 0.2)', borderTopColor: 'rgba(245, 158, 11, 0.5)', borderLeftColor: 'rgba(245, 158, 11, 0.3)', backgroundColor: 'rgba(245, 158, 11, 0.05)'}]}><View style={{flexDirection: 'row', alignItems: 'center'}}><Zap size={18} color={COLORS.warning} style={{marginRight: 8}} /><Text style={[styles.recordTitle, {color: COLORS.warning, marginBottom: 0, fontSize: 16}]}>Valati</Text></View><Text style={[styles.recordValue, {color: COLORS.warning, marginTop: 8, fontSize: 32}]}>{selectedGlobalPlayer.valat_count}</Text><Text style={styles.recordSub}>Skupno število uspešnih valatov</Text></View>
-                                </View>
-                            </View>
-
-                            <View style={styles.recordsSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:12}}><Trophy size={20} color="#ffd700" style={{marginRight:8}} /><Text style={[styles.sectionTitle, {marginBottom: 0}]}>Večni dosežki</Text></View>
-                                <View style={{ gap: 10 }}>
-                                    {(() => {
-                                        const achievements = [
-                                            { id: 'metla', title: 'Zlata metla', icon: '🧹', target: 3, current: selectedGlobalPlayer.current_win_streak, unlocked: selectedGlobalPlayer.longest_win_streak >= 3, descLocked: 'Zmagaj 3 igre zapored v katerih sodeluješ.', descUnlocked: 'Dosežek odklenjen: Zmagal si 3 igre zapored.' },
-                                            { id: 'valat', title: 'Kralj valatov', icon: '⚡', target: 2, current: selectedGlobalPlayer.valat_count, unlocked: selectedGlobalPlayer.valat_count >= 2, descLocked: 'Odigraj in zmagaj 2 valata v svoji karieri.', descUnlocked: 'Dosežek odklenjen: Uspešno si odigral 2 valata v karieri.' },
-                                            { id: 'feniks', title: 'Feniks', icon: '🦅', target: 3, current: selectedGlobalPlayer.phoenix_count, unlocked: selectedGlobalPlayer.phoenix_count >= 3, descLocked: 'Zmagaj 3 igre, v katerih je bil tvoj skupni seštevek točk med igro pod ničlo (v minusu).', descUnlocked: 'Dosežek odklenjen: Trikrat si zmagal igro, čeprav si bil vmes v minusu.' },
-                                            { id: 'berac', title: 'Kralj beračev', icon: '🙏', target: 5, current: selectedGlobalPlayer.beggar_wins, unlocked: selectedGlobalPlayer.beggar_wins >= 5, descLocked: 'Odigraj in zmagaj 5 beračev v svoji karieri.', descUnlocked: 'Dosežek odklenjen: Uspešno si zmagal 5 beračev v karieri.' },
-                                            { id: 'dominator', title: 'Gospodar mize', icon: '👑', target: 3, current: selectedGlobalPlayer.dominator_count, unlocked: selectedGlobalPlayer.dominator_count >= 3, descLocked: 'Zmagaj igro z vsaj 300 točkami prednosti pred drugim mestom, in to ponovi 3x.', descUnlocked: 'Dosežek odklenjen: Trikrat si zmagal z vsaj 300 točkami prednosti.' }
-                                        ];
-                                        const unlockedCount = achievements.filter(a => a.unlocked).length;
-                                        return (
-                                            <>
-                                                {achievements.map(ach => {
-                                                    const isUnlocked = ach.unlocked; const progress = isUnlocked ? 1 : (ach.current / ach.target);
-                                                    return (
-                                                        <View key={ach.id} style={styles.achievementBox}>
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}><View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.2)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>{isUnlocked ? (<Text style={{ fontSize: 22 }}>{ach.icon}</Text>) : (<Lock size={20} color="#64748b" />)}</View><View style={{ flex: 1 }}><Text style={{ fontSize: 18, fontWeight: '800', color: isUnlocked ? '#ffd700' : '#94a3b8' }}>{ach.title}</Text></View></View>
-                                                            <Text style={{ color: COLORS.textMuted, fontSize: 13, marginBottom: 12, lineHeight: 18 }}>{isUnlocked ? ach.descUnlocked : ach.descLocked}</Text>
-                                                            {isUnlocked ? (<View style={{ flexDirection: 'row', alignItems: 'center' }}><Trophy size={14} color="#ffd700" style={{ marginRight: 6 }} /><Text style={{ color: '#ffd700', fontSize: 12, fontWeight: '700' }}>Odklenjeno</Text></View>) : (<View><View style={{ height: 6, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 3, overflow: 'hidden' }}><View style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: COLORS.primary, borderRadius: 3 }} /></View><Text style={{ color: '#64748b', fontSize: 11, marginTop: 6, textAlign: 'right', fontWeight: '600' }}>({Math.min(ach.current, ach.target)} / {ach.target})</Text></View>)}
-                                                        </View>
-                                                    );
-                                                })}
-                                                {unlockedCount === 5 && (
-                                                    <View style={styles.grandSlamBox}>
-                                                        <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 1}} style={styles.absoluteGradient} />
-                                                        <View style={styles.relativeContentVertical}><Text style={{ fontSize: 24, fontWeight: '900', color: '#fff', marginBottom: 8, letterSpacing: 1, textAlign: 'center' }}>🏆 GRAND SLAM 🏆</Text><Text style={{ fontSize: 15, color: '#e2e8f0', marginBottom: 15, textAlign: 'center', fontWeight: '500' }}>Čestitke, vse značke so tvoje!</Text><View style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, width: '100%' }}><Text style={{ fontSize: 16, fontWeight: '800', color: '#fff', textAlign: 'center' }}>Nagrada: Vsak igralec ti plača pivo! 🍻😎</Text></View></View>
-                                                    </View>
-                                                )}
-                                            </>
-                                        );
-                                    })()}
-                                </View>
-                            </View>
-
-                        </ScrollView>
-                        <TouchableOpacity style={styles.closeButton} onPress={() => setShowGlobalPlayerModal(false)}><Text style={styles.closeButtonText}>Zapri</Text></TouchableOpacity>
-                    </>
-                )}
-             </View>
-         </View>
-      </Modal>
-      
       <Modal visible={showGameModal} transparent animationType="slide" onRequestClose={() => setShowGameModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -871,7 +532,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                   {!selectedGame?.is_active && gamePlayers.length > 0 && (
                       <View style={styles.winnerCard}>
                           <View style={{flexDirection: 'row', alignItems: 'center', marginBottom:15, justifyContent: 'center', width: '100%'}}><Trophy size={24} color="#ffd700" style={{marginRight: 8}} /><Text style={[styles.winnerText, {fontSize: 16, letterSpacing: 2}]}>ZMAGOVALEC</Text></View>
-                          <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10, width: '100%'}}><Image source={{ uri: getAvatarUrl(gamePlayers[0].name) }} style={[styles.playerAvatar, {width: 70, height: 70, borderRadius: 35, marginRight: 10, borderWidth: 1.5}]} /><Text style={[styles.winnerName, {marginTop: 0, fontSize: 27}]}>{gamePlayers[0].name}</Text></View>
+                          <TouchableOpacity onPress={() => openProfile(gamePlayers[0].name)} activeOpacity={0.7} style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10, width: '100%'}}><Image source={{ uri: getAvatarUrl(gamePlayers[0].name) }} style={[styles.playerAvatar, {width: 70, height: 70, borderRadius: 35, marginRight: 10, borderWidth: 1.5}]} /><Text style={[styles.winnerName, {marginTop: 0, fontSize: 27}]}>{gamePlayers[0].name}</Text></TouchableOpacity>
                           <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}}><Text style={[styles.winnerScore, {marginTop: 0}]}>{gamePlayers[0].total_score} točk</Text></View>
                           {renderRadelciDots(gamePlayers[0].id, true)}
                       </View>
@@ -884,10 +545,10 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                       <View key={player.id} style={styles.playerRowContainer}>
                       <View style={styles.rankContainer}>{rank === 1 && <Trophy size={20} color="#ffd700" />}{rank === 2 && <Trophy size={20} color="#c0c0c0" />}{rank === 3 && <Trophy size={20} color="#cd7f32" />}{rank > 3 && (<Text style={styles.rankNumber}>{rank}</Text>)}</View>
                       
-                      <View style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
+                      <TouchableOpacity onPress={() => openProfile(player.name)} activeOpacity={0.7} style={{flexDirection: 'row', alignItems: 'center', flex: 1}}>
                           <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 8}]} />
                           <Text style={[styles.playerName, {marginLeft: 0}]} numberOfLines={1}>{player.name || `Igralec ${player.position + 1}`}</Text>
-                      </View>
+                      </TouchableOpacity>
 
                       {renderRadelciDots(player.id, false)}
                       <Text style={[styles.playerScore, player.total_score > 0 ? styles.positiveScore : player.total_score < 0 ? styles.negativeScore : styles.neutralScore]}>{player.total_score}</Text>

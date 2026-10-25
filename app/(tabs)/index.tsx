@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import { Plus, Minus, Info, Trash2, RotateCcw, Play, ChevronLeft, Trophy, Search, UserPlus, CheckCircle2, Delete, Circle, Triangle, X } from 'lucide-react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { LinearGradient } from 'expo-linear-gradient'; 
@@ -109,6 +110,7 @@ const getAvatarUrl = (name: string) => {
 };
 
 export default function ActiveGame() {
+  const { openProfile } = usePlayerProfile();
   const [activeGamesList, setActiveGamesList] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -971,7 +973,7 @@ export default function ActiveGame() {
                     const isValat = lastEntry?.is_valat;
 
                     return (
-                    <View key={player.id} style={styles.leaderboardItem}>
+                    <TouchableOpacity key={player.id} style={styles.leaderboardItem} onPress={() => openProfile(player.name)} activeOpacity={0.7}>
                         <Text style={styles.rankText}>{rank}.</Text>
                         
                         <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 28, height: 28, borderRadius: 14, marginRight: 8}]} />
@@ -983,7 +985,7 @@ export default function ActiveGame() {
                             ))}
                         </View>
                         <Text style={[styles.leaderboardScore, isValat ? {color: COLORS.warning} : (player.total_score >= 0 ? styles.positivePoints : styles.negativePoints)]}>{player.total_score}</Text>
-                    </View>
+                    </TouchableOpacity>
                     );
                 })}
                 </ScrollView>

@@ -5,6 +5,7 @@ import { Bell, X } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { computeNotifications, AppNotification, GameSummary } from '@/lib/notifications';
 import { getAvatarUrl } from '@/lib/avatars';
+import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 
 // Ta telefon si zapomni, katera obvestila je že videl
 const SEEN_KEY = 'tarok_prebrana_obvestila_v1';
@@ -62,6 +63,7 @@ function SwipeToDismiss({ onDismiss, children }: { onDismiss: () => void; childr
 }
 
 export default function NotificationBell() {
+  const { openProfile } = usePlayerProfile();
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [seen, setSeen] = useState<Set<string> | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
@@ -193,7 +195,7 @@ export default function NotificationBell() {
                 {visible.map(item =>
                   item.type === 'live' ? (
                     <SwipeToDismiss key={item.key} onDismiss={() => dismissOne(item.key)}>
-                    <View style={[styles.card, isNew(item.key) && styles.cardNew]}>
+                    <TouchableOpacity activeOpacity={0.7} disabled={!item.n.player} onPress={() => item.n.player && openProfile(item.n.player)} style={[styles.card, isNew(item.key) && styles.cardNew]}>
                       <Text style={styles.icon}>{item.n.icon}</Text>
                       <View style={{ flex: 1 }}>
                         <View style={styles.metaRow}>
@@ -206,7 +208,7 @@ export default function NotificationBell() {
                       </View>
                       {item.n.player && <Image source={{ uri: getAvatarUrl(item.n.player) }} style={styles.avatar} />}
                       <TouchableOpacity onPress={() => dismissOne(item.key)} style={styles.closeOne} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><X size={16} color={C.muted} /></TouchableOpacity>
-                    </View>
+                    </TouchableOpacity>
                     </SwipeToDismiss>
                   ) : (
                     <SwipeToDismiss key={item.key} onDismiss={() => dismissOne(item.key)}>
@@ -216,23 +218,23 @@ export default function NotificationBell() {
                         {isNew(item.key) && <View style={styles.newDot} />}
                         <TouchableOpacity onPress={() => dismissOne(item.key)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><X size={16} color={C.muted} /></TouchableOpacity>
                       </View>
-                      <View style={styles.winnerRow}>
+                      <TouchableOpacity activeOpacity={0.7} onPress={() => openProfile(item.g.winners.split(' & ')[0])} style={styles.winnerRow}>
                         <Text style={styles.icon}>🏁</Text>
                         <Image source={{ uri: getAvatarUrl(item.g.winners.split(' & ')[0]) }} style={styles.avatar} />
                         <View style={{ flex: 1 }}>
                           <Text style={styles.itemTitle}>Zmagovalec: {item.g.winners}</Text>
                           <Text style={styles.itemText}>{item.g.winnerScore} točk</Text>
                         </View>
-                      </View>
+                      </TouchableOpacity>
                       {item.g.awards.length > 0 && <Text style={styles.awards}>{item.g.awards.join('   ')}</Text>}
                       {item.g.items.map(n => (
-                        <View key={n.id} style={styles.subItem}>
+                        <TouchableOpacity key={n.id} activeOpacity={0.7} disabled={!n.player} onPress={() => n.player && openProfile(n.player)} style={styles.subItem}>
                           <Text style={styles.subIcon}>{n.icon}</Text>
                           <View style={{ flex: 1 }}>
                             <Text style={styles.subTitle}>{n.title}</Text>
                             <Text style={styles.itemText}>{n.text}</Text>
                           </View>
-                        </View>
+                        </TouchableOpacity>
                       ))}
                     </View>
                     </SwipeToDismiss>
