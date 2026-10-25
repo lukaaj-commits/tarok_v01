@@ -683,7 +683,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
+  container: { flex: 1, backgroundColor: 'transparent' },
   mainHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 },
   headerTitle: { fontSize: 32, fontWeight: '800', color: COLORS.text },
   headerSub: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },

@@ -1243,7 +1243,7 @@ export default function ActiveGame() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
+  container: { flex: 1, backgroundColor: 'transparent' },
   centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   
   absoluteGradient: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 },
