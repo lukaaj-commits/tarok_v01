@@ -486,7 +486,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
       <Modal visible={showGlobalStatsModal} transparent animationType="slide" onRequestClose={() => setShowGlobalStatsModal(false)}>
          <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, styles.historyModal]}>
-                <Text style={[styles.modalTitle, { marginBottom: 20 }]}>Lestvica 🏆</Text>
+                <Text style={[styles.modalTitle, { marginBottom: 16 }]}>Lestvica</Text>
                 <View style={styles.tabContainer}>
                     <TouchableOpacity style={[styles.tabButton, globalStatsTab === 'classic' && styles.tabButtonActive]} onPress={() => setGlobalStatsTab('classic')}><Text style={[styles.tabText, globalStatsTab === 'classic' && styles.tabTextActive]}>Po zmagah</Text></TouchableOpacity>
                     <TouchableOpacity style={[styles.tabButton, globalStatsTab === 'index' && styles.tabButtonActive]} onPress={() => setGlobalStatsTab('index')}><Text style={[styles.tabText, globalStatsTab === 'index' && styles.tabTextActive]}>Indeks %</Text></TouchableOpacity>
@@ -504,13 +504,13 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                                     const rank = classicSortedStats.findIndex(s => s.wins === stat.wins && s.second === stat.second && s.third === stat.third) + 1;
                                     return (
                                         <TouchableOpacity key={stat.name} style={styles.leaderboardItem} onPress={() => openGlobalPlayerDetails(stat)}>
-                                            <View style={{width: 32, alignItems: 'center', justifyContent: 'center'}}>{rank === 1 ? <Trophy size={20} color="#ffd700" /> : rank === 2 ? <Trophy size={20} color="#c0c0c0" /> : rank === 3 ? <Trophy size={20} color="#cd7f32" /> : <Text style={[styles.rankText, {fontSize: 16}]}>{rank}.</Text>}</View>
-                                            <Image source={{ uri: getAvatarUrl(stat.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginLeft: 4, marginRight: 8}]} />
-                                            <View style={{flex: 1, justifyContent: 'center'}}><Text style={[styles.leaderboardName, {fontSize: 16}]}>{stat.name}</Text><Text style={{color: COLORS.textMuted, fontSize: 11}}>{stat.total_games} iger</Text></View>
+                                            <View style={{width: 32, alignItems: 'center', justifyContent: 'center'}}>{rank === 1 ? <Trophy size={20} color="#FFD60A" /> : rank === 2 ? <Trophy size={20} color="#D1D1D6" /> : rank === 3 ? <Trophy size={20} color="#FF9F0A" /> : <Text style={[styles.rankText, {fontSize: 15, color: COLORS.textMuted}]}>{rank}.</Text>}</View>
+                                            <Image source={{ uri: getAvatarUrl(stat.name) }} style={[styles.playerAvatar, {width: 34, height: 34, borderRadius: 17, marginLeft: 4, marginRight: 10}]} />
+                                            <View style={{flex: 1, justifyContent: 'center'}}><Text style={[styles.leaderboardName, {fontSize: 16}]}>{stat.name}</Text><Text style={{color: COLORS.textMuted, fontSize: 12}}>{stat.total_games} iger</Text></View>
                                             <View style={{flexDirection: 'row', gap: 6, alignItems: 'center'}}>
-                                                <View style={styles.medalBox}><Trophy size={14} color="#ffd700" /><Text style={styles.medalText}>{stat.wins}</Text></View>
-                                                <View style={styles.medalBox}><Trophy size={14} color="#c0c0c0" /><Text style={styles.medalText}>{stat.second}</Text></View>
-                                                <View style={styles.medalBox}><Trophy size={14} color="#cd7f32" /><Text style={styles.medalText}>{stat.third}</Text></View>
+                                                <View style={styles.medalBox}><Trophy size={14} color="#FFD60A" /><Text style={styles.medalText}>{stat.wins}</Text></View>
+                                                <View style={styles.medalBox}><Trophy size={14} color="#D1D1D6" /><Text style={styles.medalText}>{stat.second}</Text></View>
+                                                <View style={styles.medalBox}><Trophy size={14} color="#FF9F0A" /><Text style={styles.medalText}>{stat.third}</Text></View>
                                                 <ChevronRight size={16} color={COLORS.textMuted} style={{marginLeft: 2}} />
                                             </View>
                                         </TouchableOpacity>
@@ -526,19 +526,19 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                                         const showDown = stat.avg_performance < stat.prev_performance;
                                         return (
                                             <TouchableOpacity key={stat.name} style={styles.leaderboardItem} onPress={() => openGlobalPlayerDetails(stat)}>
-                                                <View style={{width: 32, alignItems: 'center', justifyContent: 'center'}}>{rank === 1 ? <Trophy size={20} color="#ffd700" /> : rank === 2 ? <Trophy size={20} color="#c0c0c0" /> : rank === 3 ? <Trophy size={20} color="#cd7f32" /> : <Text style={[styles.rankText, {fontSize: 16}]}>{rank}.</Text>}</View>
-                                                <Image source={{ uri: getAvatarUrl(stat.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginLeft: 4, marginRight: 8}]} />
-                                                <View style={{flex: 1, justifyContent: 'center'}}><Text style={[styles.leaderboardName, {fontSize: 16}]}>{stat.name}</Text><Text style={{color: COLORS.textMuted, fontSize: 11}}>{stat.total_games} iger</Text></View>
+                                                <View style={{width: 32, alignItems: 'center', justifyContent: 'center'}}>{rank === 1 ? <Trophy size={20} color="#FFD60A" /> : rank === 2 ? <Trophy size={20} color="#D1D1D6" /> : rank === 3 ? <Trophy size={20} color="#FF9F0A" /> : <Text style={[styles.rankText, {fontSize: 15, color: COLORS.textMuted}]}>{rank}.</Text>}</View>
+                                                <Image source={{ uri: getAvatarUrl(stat.name) }} style={[styles.playerAvatar, {width: 34, height: 34, borderRadius: 17, marginLeft: 4, marginRight: 10}]} />
+                                                <View style={{flex: 1, justifyContent: 'center'}}><Text style={[styles.leaderboardName, {fontSize: 16}]}>{stat.name}</Text><Text style={{color: COLORS.textMuted, fontSize: 12}}>{stat.total_games} iger</Text></View>
                                                 <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 4}}>
                                                     {showUp && <TrendingUp size={14} color={COLORS.success} style={{marginRight: 8}} />}
                                                     {showDown && <TrendingDown size={14} color={COLORS.danger} style={{marginRight: 8}} />}
-                                                    <Text style={{color: COLORS.text, fontSize: 18, fontWeight: '800'}}>{Math.round(stat.avg_performance)} %</Text>
+                                                    <Text style={{color: COLORS.text, fontSize: 18, fontWeight: '600'}}>{Math.round(stat.avg_performance)} %</Text>
                                                 </View>
                                             </TouchableOpacity>
                                         );
                                     })
                                 )}
-                                <Text style={{color: '#64748b', fontSize: 11, textAlign: 'center', marginTop: 10, marginBottom: 10}}>* Prikazani so le igralci z vsaj 5 odigranimi igrami. Puščica označuje spremembo po zadnji igri.</Text>
+                                <Text style={{color: '#636366', fontSize: 11, textAlign: 'center', marginTop: 12, marginBottom: 10, lineHeight: 15}}>* Prikazani so le igralci z vsaj 5 odigranimi igrami. Puščica označuje spremembo po zadnji igri.</Text>
                             </ScrollView>
                         )}
                     </>
@@ -788,23 +788,17 @@ const styles = StyleSheet.create({
   historyDate: { color: '#636366', fontSize: 12, flex: 1, textAlign: 'right' },
   playedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.playedDot },
   
-  tabContainer: { 
-      flexDirection: 'row', marginBottom: 20, backgroundColor: COLORS.inputBg, borderRadius: 12, padding: 4,
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)', borderTopColor: 'rgba(255, 255, 255, 0.15)', borderLeftColor: 'rgba(255, 255, 255, 0.10)', overflow: 'hidden'
-  },
-  tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-  tabButtonActive: { backgroundColor: COLORS.card },
-  tabText: { color: COLORS.textMuted, fontWeight: '600' },
-  tabTextActive: { color: '#fff', fontWeight: '700' },
+  tabContainer: { backgroundColor: 'rgba(0,0,0,0.30)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)', flexDirection: 'row', marginBottom: 8, borderRadius: 12, padding: 3 },
+  tabButton: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
+  tabButtonActive: { backgroundColor: COLORS.primary, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.25)' },
+  tabText: { color: '#AEAEB2', fontWeight: '500', fontSize: 13 },
+  tabTextActive: { color: '#fff', fontWeight: '600' },
   
-  leaderboardItem: { 
-      flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: COLORS.inputBg, borderRadius: 10, marginBottom: 10,
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)', borderTopColor: 'rgba(255, 255, 255, 0.18)', borderLeftColor: 'rgba(255, 255, 255, 0.12)', overflow: 'hidden'
-  },
-  rankText: { color: COLORS.text, fontSize: 20, fontWeight: '700' }, 
-  leaderboardName: { color: COLORS.text, fontSize: 18, fontWeight: '600', flex: 1 },
-  medalBox: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  medalText: { color: '#fff', fontWeight: '800', marginLeft: 4, fontSize: 15 },
+  leaderboardItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 2, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.10)' },
+  rankText: { color: COLORS.textMuted, fontSize: 15, fontWeight: '600' }, 
+  leaderboardName: { color: COLORS.text, fontSize: 16, fontWeight: '500', flex: 1 },
+  medalBox: { flexDirection: 'row', alignItems: 'center', minWidth: 34 },
+  medalText: { color: '#fff', fontWeight: '600', marginLeft: 4, fontSize: 15 },
   detailHeader: { alignItems: 'center', marginBottom: 20 },
   detailScroll: { flex: 1, marginBottom: 16 },
   sectionTitle: { color: COLORS.text, fontSize: 17, fontWeight: '600', marginBottom: 10 },

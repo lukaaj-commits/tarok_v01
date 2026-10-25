@@ -9,15 +9,15 @@ import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import { g } from '@/lib/gender';
 
 const C = {
-  card: '#1e293b',
-  inner: '#334155',
-  primary: '#556eeb',
+  card: '#121A2B',
+  inner: 'rgba(255,255,255,0.08)',
+  primary: '#0A84FF',
   text: '#FFFFFF',
-  muted: '#94A3B8',
-  gold: '#ffd700',
-  silver: '#c0c0c0',
-  bronze: '#cd7f32',
-  success: '#10B981',
+  muted: '#8E8E93',
+  gold: '#FFD60A',
+  silver: '#D1D1D6',
+  bronze: '#FF9F0A',
+  success: '#30D158',
 };
 
 type Props = { visible: boolean; onClose: () => void };
@@ -66,7 +66,7 @@ export default function SeasonModal({ visible, onClose }: Props) {
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>📅 Sezona</Text>
+          <Text style={styles.title}>Sezona</Text>
 
           {loading || !month ? (
             <ActivityIndicator size="large" color={C.primary} style={{ marginTop: 40, flex: 1 }} />
@@ -75,7 +75,7 @@ export default function SeasonModal({ visible, onClose }: Props) {
               {/* izbira meseca */}
               <View style={styles.monthRow}>
                 <TouchableOpacity disabled={index >= months.length - 1} onPress={() => setIndex(i => i + 1)} style={styles.arrow}>
-                  <ChevronLeft size={28} color={index >= months.length - 1 ? '#475569' : C.text} />
+                  <ChevronLeft size={22} color={index >= months.length - 1 ? '#48484A' : C.text} />
                 </TouchableOpacity>
                 <View style={{ alignItems: 'center', flex: 1 }}>
                   <Text style={styles.monthLabel}>{month.label.toUpperCase()}</Text>
@@ -84,7 +84,7 @@ export default function SeasonModal({ visible, onClose }: Props) {
                   </Text>
                 </View>
                 <TouchableOpacity disabled={index === 0} onPress={() => setIndex(i => i - 1)} style={styles.arrow}>
-                  <ChevronRight size={28} color={index === 0 ? '#475569' : C.text} />
+                  <ChevronRight size={22} color={index === 0 ? '#48484A' : C.text} />
                 </TouchableOpacity>
               </View>
 
@@ -106,7 +106,7 @@ export default function SeasonModal({ visible, onClose }: Props) {
                     const isChampion = !month.isCurrent && month.champions.includes(r.name);
                     return (
                       <TouchableOpacity key={r.name} onPress={() => openProfile(r.name)} activeOpacity={0.7} style={[styles.rowOuter, isChampion && styles.championRow, !r.eligible && { opacity: 0.45 }]}>
-                        {isChampion && <Text style={styles.championTag}>🏆  {g(r.name, 'IGRALEC', 'IGRALKA')} MESECA</Text>}
+                        {isChampion && <View style={styles.championTagRow}><Trophy size={13} color={C.gold} strokeWidth={2.4} /><Text style={styles.championTag}>{g(r.name, 'IGRALEC', 'IGRALKA')} MESECA</Text></View>}
                         <View style={styles.rowInner}>
                         <View style={styles.rankBox}>
                           {mc ? <Trophy size={20} color={mc} /> : <Text style={styles.rankText}>{r.eligible ? `${r.rank}.` : '–'}</Text>}
@@ -132,7 +132,7 @@ export default function SeasonModal({ visible, onClose }: Props) {
                 {pastChampions.length > 0 && (
                   <View style={styles.section}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>🏅 Prvaki mesecev</Text>
+                      <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Prvaki mesecev</Text>
                       {pastChampions.length > 3 && (
                         <TouchableOpacity onPress={() => setShowAllChampions(v => !v)}>
                           <Text style={styles.showAll}>{showAllChampions ? 'Pokaži manj' : `Pokaži vse (${pastChampions.length})`}</Text>
@@ -151,7 +151,7 @@ export default function SeasonModal({ visible, onClose }: Props) {
                 {/* pravila */}
                 <View style={styles.infoBox}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                    <Info size={16} color={C.muted} />
+                    <Info size={15} color={C.muted} />
                     <Text style={styles.infoTitle}>Info</Text>
                   </View>
                   <Text style={styles.infoLine}>1. mesto  <Text style={styles.infoPts}>{SEASON.placePoints[0]} točk</Text></Text>
@@ -174,44 +174,45 @@ export default function SeasonModal({ visible, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, height: '88%', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)' },
-  title: { color: C.text, fontSize: 22, fontWeight: '700', textAlign: 'center', marginBottom: 12 },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 28, height: '88%', borderWidth: 0.5, borderBottomWidth: 0, borderColor: 'rgba(100,170,255,0.14)', borderTopColor: 'rgba(120,190,255,0.40)' },
+  title: { color: C.text, fontSize: 21, fontWeight: '600', textAlign: 'center', marginBottom: 12 },
   monthRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  arrow: { padding: 6 },
-  monthLabel: { color: C.text, fontSize: 18, fontWeight: '800', letterSpacing: 1 },
-  monthSub: { color: C.muted, fontSize: 13, marginTop: 2 },
-  championRow: { paddingVertical: 16, borderColor: 'rgba(255,215,0,0.6)', borderWidth: 1.5, backgroundColor: 'rgba(255,215,0,0.07)' },
-  championTag: { color: C.gold, fontSize: 12, fontWeight: '800', letterSpacing: 1.5, textAlign: 'center', marginBottom: 10 },
-  championCard: { backgroundColor: C.inner, borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 14, borderWidth: 1, borderColor: 'rgba(255,215,0,0.35)' },
-  championLabel: { color: C.gold, fontSize: 14, fontWeight: '800', letterSpacing: 2 },
-  championAvatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: C.gold },
-  championName: { color: C.text, fontSize: 24, fontWeight: '800' },
-  championSub: { color: C.success, fontSize: 15, fontWeight: '700', marginTop: 2 },
+  arrow: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  monthLabel: { color: C.text, fontSize: 17, fontWeight: '600', letterSpacing: 1.5 },
+  monthSub: { color: C.muted, fontSize: 12, marginTop: 1 },
+  championRow: { borderRadius: 16, paddingTop: 10, paddingBottom: 12, paddingHorizontal: 10, marginBottom: 4, backgroundColor: 'rgba(10,132,255,0.15)', borderWidth: 0.5, borderBottomWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)', borderBottomColor: 'rgba(255,255,255,0.12)' },
+  championTagRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8 },
+  championTag: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '600', letterSpacing: 1.6 },
+  championCard: { backgroundColor: C.inner, borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 14 },
+  championLabel: { color: C.gold, fontSize: 14, fontWeight: '600', letterSpacing: 2 },
+  championAvatar: { width: 38, height: 38, borderRadius: 19 },
+  championName: { color: C.text, fontSize: 24, fontWeight: '600' },
+  championSub: { color: C.success, fontSize: 15, fontWeight: '600', marginTop: 2 },
   empty: { color: C.muted, textAlign: 'center', marginTop: 30 },
-  rowOuter: { backgroundColor: C.inner, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 12, marginBottom: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  rowOuter: { paddingVertical: 12, paddingHorizontal: 10, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.10)' },
   rowInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   rankBox: { width: 26, alignItems: 'center' },
-  rankText: { color: C.text, fontSize: 16, fontWeight: '700' },
-  avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.05)' },
-  name: { color: C.text, fontSize: 16, fontWeight: '600' },
+  rankText: { color: C.muted, fontSize: 15, fontWeight: '600' },
+  avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.10)' },
+  name: { color: C.text, fontSize: 15, fontWeight: '500' },
   sub: { color: C.muted, fontSize: 11 },
   places: { width: PLACES_WIDTH, flexDirection: 'row', justifyContent: 'space-between' },
   medal: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  medalText: { color: '#fff', fontSize: 14, fontWeight: '800', minWidth: 14 },
-  points: { color: C.text, fontSize: 22, fontWeight: '800', width: POINTS_WIDTH - 12, textAlign: 'right' },
+  medalText: { color: '#fff', fontSize: 14, fontWeight: '600', minWidth: 14 },
+  points: { color: C.text, fontSize: 18, fontWeight: '600', width: POINTS_WIDTH - 12, textAlign: 'right' },
   legend: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, paddingRight: 12 },
-  legendText: { color: C.muted, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
-  showAll: { color: C.primary, fontSize: 14, fontWeight: '600' },
-  section: { marginTop: 18 },
-  sectionTitle: { color: C.text, fontSize: 17, fontWeight: '700', marginBottom: 8 },
-  champRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' },
-  champMonth: { color: C.muted, fontSize: 14 },
-  champNames: { color: C.text, fontSize: 14, fontWeight: '700' },
-  infoBox: { marginTop: 18, backgroundColor: 'rgba(0,0,0,0.18)', borderRadius: 12, padding: 14 },
-  infoTitle: { color: C.muted, fontSize: 14, fontWeight: '700' },
-  infoLine: { color: C.muted, fontSize: 14, lineHeight: 20 },
-  infoPts: { color: C.text, fontWeight: '700' },
-  closeButton: { backgroundColor: '#5863ea', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 10 },
-  closeText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  legendText: { color: C.muted, fontSize: 10, fontWeight: '500', letterSpacing: 0.6, textTransform: 'uppercase' },
+  showAll: { color: C.primary, fontSize: 13, fontWeight: '500' },
+  section: { marginTop: 22 },
+  sectionTitle: { color: C.muted, fontSize: 13, fontWeight: '400', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 },
+  champRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 2, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.10)' },
+  champMonth: { color: '#AEAEB2', fontSize: 14 },
+  champNames: { color: C.text, fontSize: 15, fontWeight: '500' },
+  infoBox: { marginTop: 22, paddingHorizontal: 2 },
+  infoTitle: { color: C.muted, fontSize: 13, fontWeight: '500' },
+  infoLine: { color: '#AEAEB2', fontSize: 13, lineHeight: 19 },
+  infoPts: { color: C.text, fontWeight: '500' },
+  closeButton: { backgroundColor: C.primary, height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
+  closeText: { color: '#fff', fontSize: 16, fontWeight: '500' },
 });
