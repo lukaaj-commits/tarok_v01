@@ -25,6 +25,7 @@ import ConfettiCannon from 'react-native-confetti-cannon';
 import { fetchPlayerStats, PlayerStats } from '@/lib/playerStats';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import SeasonModal from '@/components/SeasonModal';
+import HallOfFame from '@/components/HallOfFame';
 
 type PlayerSummary = { name: string; total_score: number; };
 
@@ -109,7 +110,7 @@ export default function History() {
   const [globalStats, setGlobalStats] = useState<PlayerStats[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
   
-  const [globalStatsTab, setGlobalStatsTab] = useState<'classic' | 'index'>('classic');
+  const [globalStatsTab, setGlobalStatsTab] = useState<'classic' | 'index' | 'records'>('classic');
   
   
   const [showPlayerSelectModal, setShowPlayerSelectModal] = useState(false);
@@ -466,10 +467,15 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                 <View style={styles.tabContainer}>
                     <TouchableOpacity style={[styles.tabButton, globalStatsTab === 'classic' && styles.tabButtonActive]} onPress={() => setGlobalStatsTab('classic')}><Text style={[styles.tabText, globalStatsTab === 'classic' && styles.tabTextActive]}>Po zmagah</Text></TouchableOpacity>
                     <TouchableOpacity style={[styles.tabButton, globalStatsTab === 'index' && styles.tabButtonActive]} onPress={() => setGlobalStatsTab('index')}><Text style={[styles.tabText, globalStatsTab === 'index' && styles.tabTextActive]}>Indeks %</Text></TouchableOpacity>
+                    <TouchableOpacity style={[styles.tabButton, globalStatsTab === 'records' && styles.tabButtonActive]} onPress={() => setGlobalStatsTab('records')}><Text style={[styles.tabText, globalStatsTab === 'records' && styles.tabTextActive]}>Rekordi</Text></TouchableOpacity>
                 </View>
                 {statsLoading ? (<ActivityIndicator size="large" color={COLORS.primary} style={{marginTop: 20}} />) : (
                     <>
-                        {globalStatsTab === 'classic' ? (
+                        {globalStatsTab === 'records' ? (
+                            <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
+                                <HallOfFame />
+                            </ScrollView>
+                        ) : globalStatsTab === 'classic' ? (
                             <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
                                 {classicSortedStats.map((stat, index) => {
                                     const rank = classicSortedStats.findIndex(s => s.wins === stat.wins && s.second === stat.second && s.third === stat.third) + 1;

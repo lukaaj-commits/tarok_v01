@@ -5,6 +5,7 @@ import { TrendingUp, Calendar, Swords, Trophy, Zap, Lock } from 'lucide-react-na
 import { LinearGradient } from 'expo-linear-gradient';
 import { PlayerStats, getFormStatus, getRivals } from '@/lib/playerStats';
 import { getAvatarUrl } from '@/lib/avatars';
+import DuelModal from '@/components/DuelModal';
 
 const COLORS = {
   bg: '#0d1321',
@@ -31,6 +32,7 @@ type Props = { player: PlayerStats | null; visible: boolean; onClose: () => void
 export default function PlayerProfileModal({ player, visible, onClose }: Props) {
   const [showAllGames, setShowAllGames] = useState(false);
   const [chartWidth, setChartWidth] = useState(0);
+  const [showDuel, setShowDuel] = useState(false);
   const detailScrollRef = useRef<ScrollView>(null);
 
   // ob odprtju novega igralca: začni na vrhu in pokaži zadnjih 5 iger
@@ -48,6 +50,7 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
   };
 
   return (
+    <>
       <Modal 
           visible={visible} 
           transparent 
@@ -62,6 +65,9 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                             <View style={styles.detailHeader}>
                                 <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 80, height: 80, borderRadius: 40, marginRight: 0, marginBottom: 12, borderWidth: 2}]} />
                                 <Text style={styles.modalTitle}>{player.name}   <Text style={{ color: 'rgb(148, 163, 184)' }}>{Math.round(player.avg_performance)}%</Text></Text>
+                                <TouchableOpacity onPress={() => setShowDuel(true)} activeOpacity={0.7} style={{ marginTop: 10, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: 'rgba(85,110,235,0.18)', borderWidth: 1, borderColor: 'rgba(85,110,235,0.5)' }}>
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>⚔️ Primerjaj z …</Text>
+                                </TouchableOpacity>
                             </View>
 
                             <View style={styles.formSection}>
@@ -178,6 +184,8 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
              </View>
          </View>
       </Modal>
+    {showDuel && player && <DuelModal playerA={player.name} onClose={() => setShowDuel(false)} />}
+    </>
   );
 }
 

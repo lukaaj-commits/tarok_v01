@@ -41,6 +41,24 @@ export type PlayerStats = {
     month_titles?: string[];   // naslovi "Igralec meseca" (npr. "Oktober 2026")
 };
 
+// Vsi podatki naenkrat (za Dvoboj): igre, igralci, vpisi in statistika
+export type AllData = { games: any[]; players: any[]; entries: any[]; stats: PlayerStats[] };
+export async function fetchAllData(): Promise<AllData> {
+  const [g, p, e] = await Promise.all([
+    supabase.from('games').select('id, name, created_at').order('created_at', { ascending: false }),
+    supabase.from('players').select('*'),
+    supabase.from('score_entries').select('*').order('created_at', { ascending: true }),
+  ]);
+  if (g.error) throw g.error;
+  if (p.error) throw p.error;
+  if (e.error) throw e.error;
+  const games = g.data || [], players = p.data || [], entries = e.data || [];
+  const stats = computePlayerStats(games, players, entries);
+  const titles = monthTitles(computeSeasons(games, players));
+  stats.forEach(s => { s.month_titles = (titles[s.name] || []).map(m => m.label); });
+  return { games, players, entries, stats };
+}
+
 // Naloži podatke iz baze in izračuna statistiko vseh igralcev
 export async function fetchPlayerStats(): Promise<PlayerStats[]> {
         const { data: finishedGames } = await supabase.from('games').select('id, name, created_at').order('created_at', { ascending: false }); 
