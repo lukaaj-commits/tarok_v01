@@ -20,7 +20,7 @@ import { supabase } from '@/lib/supabase';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import { g, loadGenders } from '@/lib/gender';
 import GamePhotoButton from '@/components/GamePhotoButton';
-import { Plus, Minus, Info, Trash2, RotateCcw, Play, ChevronLeft, Trophy, Search, UserPlus, CheckCircle2, Delete, Circle, Triangle, X } from 'lucide-react-native';
+import { Plus, Minus, Info, Trash2, RotateCcw, Play, ChevronLeft, Trophy, Search, UserPlus, Check, Delete, Circle, Triangle, X } from 'lucide-react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { LinearGradient } from 'expo-linear-gradient'; 
 import * as Haptics from 'expo-haptics';
@@ -56,23 +56,25 @@ type Game = {
 type PlayerSummary = { name: string; total_score: number; };
 
 const COLORS = {
-  bg: '#0d1321', 
-  card: '#1e293b',
-  primary: '#556eeb',
+  bg: '#000000',
+  card: 'rgba(255,255,255,0.09)',
+  primary: '#0A84FF',
   text: '#FFFFFF',
-  textMuted: '#94A3B8',
-  border: '#334155',
-  success: '#10B981', 
-  danger: '#EF4444',  
-  warning: '#F59E0B', 
-  inputBg: '#334155',
-  radelcBorder: '#20B2AA', 
-  radelcFill: '#28323e',
+  textMuted: '#8E8E93',
+  border: 'rgba(255,255,255,0.10)',
+  success: '#30D158',
+  danger: '#FF453A',
+  warning: '#FF9F0A',
+  inputBg: 'rgba(255,255,255,0.08)',
+  radelcBorder: '#64D2FF',
+  radelcFill: '#3A3A3C',
   playedDot: '#FFFFFF',
-  slateBlue: 'rgb(74, 87, 106)',
-  winnerGrey: 'rgb(148, 163, 184)',
-  closeBtn: 'rgb(88, 99, 234)',
-  confirmTeal: '#20B2AA'
+  slateBlue: 'rgba(255,255,255,0.09)',
+  winnerGrey: '#8E8E93',
+  closeBtn: '#0A84FF',
+  confirmTeal: '#0A84FF',
+  sheet: '#121A2B',
+  chartBg: '#0C111D',
 };
 
 // Sporočilo, ki deluje tudi na spletu (Alert.alert na spletu ne prikaže ničesar)
@@ -84,9 +86,10 @@ const showAlert = (title: string, message: string) => {
   }
 };
 
-const GRADIENT_COLORS = ['#556eeb', '#6050ea']; 
+const GRADIENT_COLORS = ['#0A84FF', '#0A84FF']; 
+const MONTHS_SHORT = ['JAN', 'FEB', 'MAR', 'APR', 'MAJ', 'JUN', 'JUL', 'AVG', 'SEP', 'OKT', 'NOV', 'DEC'];
 const CHART_COLORS = [
-  '#FF6B6B', '#4ECDC4', '#FFE66D', '#1A535C', '#FF9F1C', '#C7F464', '#9D4EDD', '#F72585'
+  '#0A84FF', '#FF9F0A', '#30D158', '#FF453A', '#BF5AF2', '#64D2FF', '#FFD60A', '#FF375F'
 ];
 
 // Seznam naših pravih igralcev in njihovih slik (USKLAJENO Z BAZO)
@@ -218,6 +221,7 @@ export default function ActiveGame() {
       const { data: newGame, error } = await supabase.from('games').insert({ name: newName, is_active: true }).select().single();
       if (error) throw error;
       await fetchActiveGamesList(); await enterGame(newGame);
+      openAddPlayerModal(); // nova igra: takoj odpri dodajanje igralcev
     } catch (error) { showAlert("Napaka", "Ni bilo mogoče ustvariti igre."); } finally { setLoading(false); }
   };
 
@@ -643,17 +647,18 @@ export default function ActiveGame() {
             
             <Image source={{ uri: getAvatarUrl(item.name) }} style={styles.playerAvatar} />
 
-            <Text style={styles.playerNameText}>{item.name}</Text>
-            <TouchableOpacity onPress={() => loadPlayerHistory(item.id)} style={styles.infoButton}>
-              <Info size={20} color={COLORS.textMuted} />
+            <Text style={styles.playerNameText} numberOfLines={1}>{item.name}</Text>
+            <TouchableOpacity onPress={() => loadPlayerHistory(item.id)} style={styles.infoButton} hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+              <Info size={19} color={COLORS.textMuted} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => promptDeletePlayer(item.id)} style={styles.deleteButton}>
-              <Trash2 size={20} color={COLORS.danger} />
+            <View style={{ flex: 1 }} />
+            <TouchableOpacity onPress={() => promptDeletePlayer(item.id)} style={styles.deleteButton} hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+              <Trash2 size={19} color={COLORS.danger} />
             </TouchableOpacity>
           </View>
         </View>
-        <TouchableOpacity style={styles.scoreContainer} onPress={() => openScoreInput(item.id)}>
-          <Text style={styles.scoreText}>{item.total_score}</Text>
+        <TouchableOpacity style={styles.scoreContainer} onPress={() => openScoreInput(item.id)} activeOpacity={0.7}>
+          <Text style={[styles.scoreText, item.total_score < 0 && { color: COLORS.danger }]}>{item.total_score}</Text>
         </TouchableOpacity>
         <ScrollView horizontal style={styles.radelciContainer} showsHorizontalScrollIndicator={false}>
           {pRadelci.map(r => (
@@ -685,9 +690,8 @@ export default function ActiveGame() {
         <Text style={styles.welcomeTitle}>Tarok</Text>
         <Text style={styles.welcomeSubtitle}>Ni aktivne igre</Text>
         <TouchableOpacity style={styles.bigStartButton} onPress={handleStartNewGame} activeOpacity={0.8}>
-            <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} />
-            <View style={[styles.relativeContent, { gap: 12 }]}>
-                <Play size={32} color="#fff" fill="#fff" />
+            <View style={[styles.relativeContent, { gap: 10 }]}>
+                <Play size={22} color="#fff" fill="#fff" />
                 <Text style={styles.bigStartButtonText}>Začni novo igro</Text>
             </View>
         </TouchableOpacity>
@@ -703,20 +707,23 @@ export default function ActiveGame() {
                 keyExtractor={(item) => item.id} 
                 contentContainerStyle={styles.listContainer} 
                 renderItem={({ item }) => (
-                    <TouchableOpacity style={styles.gameCard} onPress={() => enterGame(item)}>
-                        <View>
+                    <TouchableOpacity style={styles.gameCard} onPress={() => enterGame(item)} activeOpacity={0.7}>
+                        <View style={styles.calLeaf}>
+                            <Text style={styles.calMonth}>{MONTHS_SHORT[new Date(item.created_at).getMonth()]}</Text>
+                            <Text style={styles.calDay}>{new Date(item.created_at).getDate()}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
                             <Text style={styles.gameName}>{getFormattedTitle(item)}</Text>
                             {renderListWinner(item)}
                         </View>
-                        <Play size={24} color={COLORS.primary} fill={COLORS.primary} />
+                        <View style={styles.playCircle}><Play size={15} color={COLORS.primary} fill={COLORS.primary} /></View>
                     </TouchableOpacity>
                 )} 
             />
             <View style={{ padding: 16, alignItems: 'center' }}>
                 <TouchableOpacity style={styles.bigStartButton} onPress={handleStartNewGame} activeOpacity={0.8}>
-                    <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} />
-                    <View style={[styles.relativeContent, { gap: 12 }]}>
-                        <Plus size={24} color="#fff" />
+                    <View style={[styles.relativeContent, { gap: 10 }]}>
+                        <Plus size={22} color="#fff" />
                         <Text style={styles.bigStartButtonText}>Začni še eno igro</Text>
                     </View>
                 </TouchableOpacity>
@@ -739,78 +746,36 @@ export default function ActiveGame() {
         </View>
       </View>
 
-      <View style={styles.headerContainer}>
-          
-          {/* 1. VRSTICA */}
-          <View style={styles.headerRow}>
-            
-            {/* LEVA STRAN: Igralec (Zavzame natanko 50% širine) */}
-            <View style={{ flex: 1 }}>
-                <TouchableOpacity style={styles.gradientHeaderBtn} onPress={openAddPlayerModal} activeOpacity={0.8}>
-                    <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} />
-                    <View style={[styles.relativeContent, { gap: 4 }]}>
-                        <Plus size={20} color="#fff" />
-                        <Text style={styles.addButtonText}>Igralec</Text>
-                    </View>
-                </TouchableOpacity>
-            </View>
-
-            {/* DESNA STRAN: Radelc + Pokal (Zavzameta preostalih 50% širine) */}
-            <View style={{ flex: 1, flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                    <TouchableOpacity style={styles.gradientHeaderBtn} onPress={addGlobalRadelc} activeOpacity={0.8}>
-                         <LinearGradient colors={['#20B2AA', '#20B2AA']} style={styles.absoluteGradient} />
-                         <View style={[styles.relativeContent, { gap: 4 }]}>
-                             <Plus size={20} color="#fff" />
-                             <Text style={styles.addButtonText}>Radelc</Text>
-                         </View>
-                    </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity style={styles.gradientIconBtn} onPress={openLeaderboard} activeOpacity={0.8}>
-                     <LinearGradient colors={['#5863ea', '#5863ea']} style={styles.absoluteGradient} />
-                     <View style={styles.relativeContent}>
-                         <Trophy size={24} color="#fff" />
-                     </View>
-                </TouchableOpacity>
-            </View>
-
-          </View>
-          
-          {/* 2. VRSTICA */}
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <TouchableOpacity 
-                style={{ flex: 1, backgroundColor: COLORS.card, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.10)', borderTopColor: 'rgba(255, 255, 255, 0.22)', borderLeftColor: 'rgba(255, 255, 255, 0.14)', overflow: 'hidden' }} 
-                onPress={handleUndo} 
-                disabled={isUndoing} 
-                activeOpacity={0.8}
-            >
-                <View style={styles.relativeContent}>
-                    {isUndoing ? <ActivityIndicator size="small" color={COLORS.textMuted} /> : <RotateCcw size={20} color={COLORS.textMuted} />}
-                    <Text style={styles.undoButtonText}>Razveljavi</Text>
-                </View>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.20)', borderTopColor: 'rgba(255, 255, 255, 0.55)', borderLeftColor: 'rgba(255, 255, 255, 0.35)', overflow: 'hidden' }} 
-                onPress={() => setShowFinishGameModal(true)} 
-                activeOpacity={0.8}
-            >
-                <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} />
-                <View style={styles.relativeContent}>
-                    <CheckCircle2 size={20} color="#fff" />
-                    <Text style={styles.finishGameText}>Zaključi igro</Text>
-                </View>
-            </TouchableOpacity>
-          </View>
-
+      <View style={styles.tileRow}>
+        <TouchableOpacity style={styles.tile} onPress={openAddPlayerModal} activeOpacity={0.7}>
+          <UserPlus size={21} color={COLORS.primary} />
+          <Text style={styles.tileText}>Igralec</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tile} onPress={addGlobalRadelc} activeOpacity={0.7}>
+          <Plus size={21} color={COLORS.radelcBorder} />
+          <Text style={styles.tileText}>Radelc</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tile} onPress={handleUndo} disabled={isUndoing} activeOpacity={0.7}>
+          {isUndoing ? <ActivityIndicator size="small" color={COLORS.primary} /> : <RotateCcw size={21} color={COLORS.primary} />}
+          <Text style={styles.tileText}>Razveljavi</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tile} onPress={openLeaderboard} activeOpacity={0.7}>
+          <Trophy size={21} color={COLORS.primary} />
+          <Text style={styles.tileText}>Lestvica</Text>
+        </TouchableOpacity>
       </View>
 
       <FlatList data={sortedPlayers} keyExtractor={(item) => item.id} renderItem={renderPlayer} contentContainerStyle={styles.listContainer} ListEmptyComponent={<Text style={styles.emptyText}>Dodaj igralce za začetek.</Text>} />
 
+      <View style={styles.finishBar}>
+        <TouchableOpacity style={styles.finishButton} onPress={() => setShowFinishGameModal(true)} activeOpacity={0.8}>
+          <Text style={styles.finishGameText}>Zaključi igro</Text>
+        </TouchableOpacity>
+      </View>
+
       <Modal visible={showAddPlayerModal} animationType="slide" transparent onRequestClose={() => setShowAddPlayerModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { height: '90%', maxHeight: '90%' }]}>
+        <View style={styles.sheetOverlay}>
+          <View style={[styles.sheetContent, { height: '90%', maxHeight: '90%' }]}>
             <Text style={styles.modalTitle}>Dodaj igralce</Text>
             {isInputActive ? (
                 <View style={styles.searchContainer}>
@@ -843,8 +808,8 @@ export default function ActiveGame() {
                                 <Image source={{ uri: getAvatarUrl(item.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 10}]} />
                                 <Text style={styles.profileName}>{item.name}</Text>
                             </View>
-                            <View style={{ backgroundColor: isSelected ? COLORS.danger : COLORS.primary, padding: 8, borderRadius: 20 }}>
-                                {isSelected ? <Minus size={24} color="#fff" /> : <Plus size={24} color="#fff" />}
+                            <View style={[styles.pickCircle, isSelected && styles.pickCircleOn]}>
+                                {isSelected ? <Check size={26} color="#fff" strokeWidth={2.8} /> : <Plus size={30} color={COLORS.primary} strokeWidth={2.4} />}
                             </View>
                         </TouchableOpacity>
                     );
@@ -852,11 +817,11 @@ export default function ActiveGame() {
                 ListEmptyComponent={
                     searchQuery.length > 0 ? (
                         <View style={[styles.createNewButton, { flexDirection: 'column', gap: 8 }]}>
-                            <UserPlus size={28} color="#fff" />
+                            <UserPlus size={26} color="#fff" />
                             <Text style={styles.createNewText}>Ustvari: "{searchQuery}"</Text>
                             <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
-                                <TouchableOpacity style={styles.genderButton} onPress={() => createNewProfileAndSelect('M')}><Text style={styles.genderText}>♂ Moški</Text></TouchableOpacity>
-                                <TouchableOpacity style={styles.genderButton} onPress={() => createNewProfileAndSelect('Z')}><Text style={styles.genderText}>♀ Ženska</Text></TouchableOpacity>
+                                <TouchableOpacity style={styles.genderButton} onPress={() => createNewProfileAndSelect('M')}><Text style={styles.genderText}>Moški</Text></TouchableOpacity>
+                                <TouchableOpacity style={styles.genderButton} onPress={() => createNewProfileAndSelect('Z')}><Text style={styles.genderText}>Ženska</Text></TouchableOpacity>
                             </View>
                         </View>
                     ) : (<Text style={styles.emptyText}>Začni pisati ime...</Text>)
@@ -867,35 +832,25 @@ export default function ActiveGame() {
                     <Text style={styles.modalButtonText}>Potrdi izbiro ({selectedProfileIds.size})</Text>
                 </TouchableOpacity>
             )}
-            <TouchableOpacity style={styles.closeButton} onPress={() => setShowAddPlayerModal(false)}><Text style={styles.modalButtonText}>Zapri</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.closeButton, styles.cancelButton]} onPress={() => setShowAddPlayerModal(false)}><Text style={styles.modalButtonText}>Zapri</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
 
       <Modal visible={showScoreModal} transparent animationType="fade" onRequestClose={() => setShowScoreModal(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            
-            {/* AVATAR V NASLOVU ZA VNOS TOČK */}
-            <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 16}}>
+          <View style={[styles.modalContent, { maxHeight: '92%' }]}>
+
+            {/* igralec in trenutne točke v eni vrstici */}
+            <View style={styles.scoreHead}>
                 {selectedPlayerId && (
-                   <Image source={{ uri: getAvatarUrl(getSelectedPlayerName()) }} style={[styles.playerAvatar, {width: 28, height: 28, borderRadius: 14, marginRight: 8}]} />
+                   <Image source={{ uri: getAvatarUrl(getSelectedPlayerName()) }} style={[styles.playerAvatar, {width: 40, height: 40, borderRadius: 20, marginRight: 0}]} />
                 )}
-                <Text style={[styles.modalTitle, { marginBottom: 0 }]}>Vnesi točke ({getSelectedPlayerName()})</Text>
+                <Text style={styles.scoreHeadName} numberOfLines={1}>{getSelectedPlayerName()}</Text>
+                <Text style={styles.scoreHeadCurrent}>Trenutno: {players.find(p => p.id === selectedPlayerId)?.total_score ?? 0} točk</Text>
             </View>
             
-            <View style={styles.scoreDisplay}><Text style={styles.scoreDisplayText}>{scoreInput || '0'}</Text></View>
-            
-            <View style={styles.numpadContainer}>
-                <View style={styles.numpadRow}>{[1, 2, 3].map(n => (<TouchableOpacity key={n} style={styles.numpadButton} onPress={() => handleNumpadPress(n.toString())}><Text style={styles.numpadText}>{n}</Text></TouchableOpacity>))}</View>
-                <View style={styles.numpadRow}>{[4, 5, 6].map(n => (<TouchableOpacity key={n} style={styles.numpadButton} onPress={() => handleNumpadPress(n.toString())}><Text style={styles.numpadText}>{n}</Text></TouchableOpacity>))}</View>
-                <View style={styles.numpadRow}>{[7, 8, 9].map(n => (<TouchableOpacity key={n} style={styles.numpadButton} onPress={() => handleNumpadPress(n.toString())}><Text style={styles.numpadText}>{n}</Text></TouchableOpacity>))}</View>
-                <View style={styles.numpadRow}>
-                    <TouchableOpacity style={[styles.numpadButton, styles.numpadActionButton]} onPress={() => handleNumpadPress('-')}><Text style={styles.numpadText}>-</Text></TouchableOpacity>
-                    <TouchableOpacity style={styles.numpadButton} onPress={() => handleNumpadPress('0')}><Text style={styles.numpadText}>0</Text></TouchableOpacity>
-                    <TouchableOpacity style={[styles.numpadButton, styles.numpadActionButton]} onPress={() => handleNumpadPress('DEL')}><Delete size={28} color="#fff" /></TouchableOpacity>
-                </View>
-            </View>
+            <View style={styles.scoreDisplay}><Text style={styles.scoreDisplayText}>{scoreInput ? (scoreInput.startsWith('-') ? scoreInput : `+${scoreInput}`) : '0'}</Text></View>
 
             <View style={styles.modeSelectorContainer}>
                 <TouchableOpacity style={[styles.modeButton, scoreMode === 'played' && styles.modeButtonActive]} onPress={() => setScoreMode(scoreMode === 'played' ? 'none' : 'played')}>
@@ -908,25 +863,31 @@ export default function ActiveGame() {
                     <Text style={[styles.modeButtonText, scoreMode === 'beggar' && styles.modeButtonTextActive]}>Berač</Text>
                 </TouchableOpacity>
             </View>
+            
+            <View style={styles.numpadContainer}>
+                <View style={styles.numpadRow}>{[1, 2, 3].map(n => (<TouchableOpacity key={n} style={styles.numpadButton} onPress={() => handleNumpadPress(n.toString())}><Text style={styles.numpadText}>{n}</Text></TouchableOpacity>))}</View>
+                <View style={styles.numpadRow}>{[4, 5, 6].map(n => (<TouchableOpacity key={n} style={styles.numpadButton} onPress={() => handleNumpadPress(n.toString())}><Text style={styles.numpadText}>{n}</Text></TouchableOpacity>))}</View>
+                <View style={styles.numpadRow}>{[7, 8, 9].map(n => (<TouchableOpacity key={n} style={styles.numpadButton} onPress={() => handleNumpadPress(n.toString())}><Text style={styles.numpadText}>{n}</Text></TouchableOpacity>))}</View>
+                <View style={styles.numpadRow}>
+                    <TouchableOpacity style={[styles.numpadButton, styles.numpadActionButton]} onPress={() => handleNumpadPress('-')}><Text style={[styles.numpadText, { fontSize: 20, letterSpacing: 3 }]}>+/−</Text></TouchableOpacity>
+                    <TouchableOpacity style={styles.numpadButton} onPress={() => handleNumpadPress('0')}><Text style={styles.numpadText}>0</Text></TouchableOpacity>
+                    <TouchableOpacity style={[styles.numpadButton, styles.numpadActionButton]} onPress={() => handleNumpadPress('DEL')}><Delete size={24} color="#fff" /></TouchableOpacity>
+                </View>
+            </View>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowScoreModal(false)}><Text style={styles.modalButtonText}>Prekliči</Text></TouchableOpacity>
-              
               <TouchableOpacity style={[styles.modalButton, styles.primaryModalButton]} onPress={submitScore} disabled={submitting}>
-                 <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} />
-                 <View style={styles.relativeContent}>
-                     {submitting ? (<ActivityIndicator size="small" color="#fff" />) : (<Text style={styles.modalButtonText}>Potrdi</Text>)}
-                 </View>
+                 {submitting ? (<ActivityIndicator size="small" color="#fff" />) : (<Text style={styles.modalButtonText}>Potrdi</Text>)}
               </TouchableOpacity>
-
             </View>
           </View>
         </View>
       </Modal>
 
       <Modal visible={showHistoryModal} transparent animationType="slide" onRequestClose={() => setShowHistoryModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, styles.historyModal]}>
+        <View style={styles.sheetOverlay}>
+          <View style={[styles.sheetContent, styles.historyModal]}>
             <Text style={[styles.modalTitle, { marginBottom: 16 }]}>Zgodovina igralca</Text>
             <ScrollView style={styles.historyList}>
               {playerHistory.map((entry, index) => {
@@ -954,8 +915,8 @@ export default function ActiveGame() {
       </Modal>
 
       <Modal visible={showLeaderboardModal} transparent animationType="slide" onRequestClose={() => setShowLeaderboardModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, styles.historyModal]}>
+        <View style={styles.sheetOverlay}>
+          <View style={[styles.sheetContent, styles.historyModal]}>
             <View style={styles.leaderboardHeader}>
                 <Text style={[styles.modalTitle, { marginBottom: 0 }]}>Stanje igre</Text>
                 <TouchableOpacity onPress={() => setShowAllHistoryModal(true)} style={styles.statsButton}>
@@ -1008,16 +969,18 @@ export default function ActiveGame() {
                                     width={Math.max(Dimensions.get("window").width - 60, chartData.labels.length * 40)}
                                     height={280}
                                     chartConfig={{
-                                        backgroundColor: COLORS.card,
-                                        backgroundGradientFrom: COLORS.card,
-                                        backgroundGradientTo: COLORS.card,
+                                        backgroundColor: COLORS.chartBg,
+                                        backgroundGradientFrom: COLORS.chartBg,
+                                        backgroundGradientTo: COLORS.chartBg,
                                         decimalPlaces: 0,
-                                        color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-                                        labelColor: (opacity = 1) => `rgba(148, 163, 184, ${opacity})`,
+                                        color: (opacity = 1) => `rgba(255, 255, 255, ${opacity * 0.6})`,
+                                        labelColor: (opacity = 1) => `rgba(142, 142, 147, ${opacity})`,
                                         style: { borderRadius: 16 },
-                                        propsForDots: { r: "4", strokeWidth: "2", stroke: COLORS.card }
+                                        propsForDots: { r: "4", strokeWidth: "2", stroke: COLORS.chartBg },
+                                        propsForBackgroundLines: { stroke: 'rgba(255,255,255,0.07)', strokeDasharray: '' }
                                     }}
                                     bezier
+                                    withShadow={false}
                                     style={{ marginVertical: 8, borderRadius: 16 }}
                                     withLegend={false} 
                                 />
@@ -1034,7 +997,7 @@ export default function ActiveGame() {
                                             onPress={() => toggleFocusPlayer(p.id)}
                                         >
                                             <View style={[styles.legendDot, { backgroundColor: color }, isActive && { backgroundColor: '#fff' }]} />
-                                            <Text style={[styles.legendText, isActive && { color: '#fff', fontWeight: '700' }]}>{p.name}</Text>
+                                            <Text style={[styles.legendText, isActive && { color: '#fff', fontWeight: '600' }]}>{p.name}</Text>
                                         </TouchableOpacity>
                                     );
                                 })}
@@ -1052,9 +1015,9 @@ export default function ActiveGame() {
       </Modal>
 
       <Modal visible={showAllHistoryModal} transparent animationType="slide" onRequestClose={() => setShowAllHistoryModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, styles.historyModal]}>
-            <Text style={[styles.modalTitle, { marginBottom: 0 }]}>Vsi igralci - Zgodovina</Text>
+        <View style={styles.sheetOverlay}>
+          <View style={[styles.sheetContent, styles.historyModal]}>
+            <Text style={[styles.modalTitle, { marginBottom: 0 }]}>Potek igre</Text>
             <ScrollView style={[styles.historyList, { marginTop: 20 }]}>
               {[...players].sort((a, b) => b.total_score - a.total_score).map((player, playerIndex, array) => {
                   const playerEntries = allGameHistory.filter((e) => e.player_id === player.id);
@@ -1249,40 +1212,26 @@ const styles = StyleSheet.create({
   absoluteGradient: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 },
   relativeContent: { position: 'relative', zIndex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
 
-  lobbyTitle: { fontSize: 32, fontWeight: '800', color: COLORS.text, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 },
+  lobbyTitle: { fontSize: 32, fontWeight: '700', color: COLORS.text, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 },
   
-  gameCard: { 
-      backgroundColor: COLORS.card, padding: 20, borderRadius: 16, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.10)',
-      borderTopColor: 'rgba(255, 255, 255, 0.22)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.14)',
-      overflow: 'hidden'
-  },
+  gameCard: { backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)', padding: 12, paddingRight: 14, borderRadius: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 12 },
   
-  gameName: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
+  gameName: { fontSize: 15, fontWeight: '600', color: COLORS.text, marginBottom: 2 },
   gameDate: { fontSize: 14, color: COLORS.textMuted },
   
-  bigStartButton: { 
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 20, paddingHorizontal: 32, borderRadius: 16, gap: 12, width: '100%', maxWidth: 400,
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.20)',
-      borderTopColor: 'rgba(255, 255, 255, 0.55)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.35)',
-      overflow: 'hidden'
-  },
-  bigStartButtonText: { color: '#fff', fontSize: 20, fontWeight: '700' },
+  bigStartButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, paddingHorizontal: 24, borderRadius: 16, width: '100%', maxWidth: 400, backgroundColor: COLORS.primary },
+  bigStartButtonText: { color: '#fff', fontSize: 17, fontWeight: '600' },
   
-  welcomeTitle: { fontSize: 48, fontWeight: '800', color: COLORS.text, marginBottom: 8 },
-  welcomeSubtitle: { fontSize: 18, color: COLORS.textMuted, marginBottom: 40 },
+  welcomeTitle: { fontSize: 44, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
+  welcomeSubtitle: { fontSize: 17, color: COLORS.textMuted, marginBottom: 36 },
   
   gameHeaderBar: { 
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', 
       paddingTop: 16, paddingHorizontal: 16, paddingBottom: 10, backgroundColor: 'transparent' 
   },
   backButton: { flexDirection: 'row', alignItems: 'center' },
-  backButtonText: { color: COLORS.textMuted, fontSize: 16, fontWeight: '600' },
-  headerGameTitle: { color: COLORS.textMuted, fontSize: 15, fontWeight: '600', textAlign: 'right', flex: 1, marginLeft: 16 },
+  backButtonText: { color: COLORS.primary, fontSize: 16, fontWeight: '500' },
+  headerGameTitle: { color: COLORS.textMuted, fontSize: 14, fontWeight: '400', textAlign: 'right', flex: 1, marginLeft: 16 },
   headerLeaderText: { color: COLORS.winnerGrey, fontSize: 13, fontWeight: '400', marginTop: 2 },
   
   headerContainer: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
@@ -1310,282 +1259,141 @@ const styles = StyleSheet.create({
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12,
       borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.20)', borderTopColor: 'rgba(255, 255, 255, 0.55)', borderLeftColor: 'rgba(255, 255, 255, 0.35)', overflow: 'hidden'
   },
-  finishGameText: { color: '#fff', fontSize: 14, fontWeight: '700', marginLeft: 6 },
+  finishGameText: { color: '#fff', fontSize: 17, fontWeight: '600' },
   
-  listContainer: { padding: 16, paddingTop: 0, gap: 16 },
+  listContainer: { padding: 16, paddingTop: 4, gap: 12 },
 
-  playerCard: { 
-      backgroundColor: '#1e293b', borderRadius: 20, padding: 14, marginBottom: 12,
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.08)',
-      borderTopColor: 'rgba(255, 255, 255, 0.20)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.12)',
-      overflow: 'hidden'
-  },
-  playerHeader: { marginBottom: 8 },
-  playerNameContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  playerCard: { backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)', borderRadius: 16, paddingTop: 10, paddingBottom: 12, paddingHorizontal: 12 },
+  playerHeader: { marginBottom: 10 },
+  playerNameContainer: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   
-  playerAvatar: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-      borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.15)',
-      borderTopColor: 'rgba(255, 255, 255, 0.3)', 
-      marginRight: 4, 
-  },
+  playerAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.10)' },
   
-  playerNameText: { flex: 1, color: COLORS.text, fontSize: 18, fontWeight: '700' },
-  infoButton: { padding: 8 },
+  playerNameText: { color: COLORS.text, fontSize: 17, fontWeight: '600', flexShrink: 1 },
+  infoButton: { padding: 4, marginLeft: -4 },
   deleteButton: { padding: 8 },
   
-  scoreContainer: { 
-      alignItems: 'center', paddingVertical: 14, backgroundColor: '#2b3648', borderRadius: 16, marginBottom: 8,
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.10)',
-      borderTopColor: 'rgba(255, 255, 255, 0.22)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.14)',
-      overflow: 'hidden'
-  },
+  scoreContainer: { backgroundColor: 'rgba(0,0,0,0.30)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center', height: 64, borderRadius: 14, marginBottom: 10 },
 
-  scoreText: { color: COLORS.text, fontSize: 40, fontWeight: '700' },
-  radelciContainer: { flexDirection: 'row', paddingVertical: 4 },
-  radelcBase: { width: 16, height: 16, borderRadius: 8, marginHorizontal: 4 }, // ZMANJŠANI RADELCI
+  scoreText: { color: COLORS.text, fontSize: 34, fontWeight: '600', letterSpacing: -0.5 },
+  radelciContainer: { flexDirection: 'row', paddingVertical: 4, paddingLeft: 2 },
+  radelcBase: { width: 14, height: 14, borderRadius: 7, marginRight: 8 }, // ZMANJŠANI RADELCI
   radelcUsed: { backgroundColor: COLORS.radelcFill, borderWidth: 0 }, 
   radelcUnused: { backgroundColor: 'transparent', borderWidth: 2, borderColor: COLORS.radelcBorder },
-  miniRadelc: { width: 12, height: 12, borderRadius: 6 },
+  miniRadelc: { width: 8, height: 8, borderRadius: 4 },
   
   emptyText: { color: COLORS.textMuted, fontSize: 16, textAlign: 'center', marginTop: 40 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.93)', justifyContent: 'center', alignItems: 'center' },
   
-  modalContent: { 
-      backgroundColor: COLORS.card, borderRadius: 16, padding: 16, width: '90%', maxWidth: 400, maxHeight: '80%',
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.10)',
-      borderTopColor: 'rgba(255, 255, 255, 0.22)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.12)',
-      overflow: 'hidden'
-  },
+  modalContent: { backgroundColor: COLORS.sheet, borderRadius: 24, padding: 20, width: '90%', maxWidth: 400, maxHeight: '80%', borderWidth: 0.5, borderColor: 'rgba(100,170,255,0.14)', borderTopColor: 'rgba(120,190,255,0.40)', overflow: 'hidden' },
   
   leaderboardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   statsButton: { position: 'absolute', right: 0, padding: 8 },
   
-  modalTitle: { color: COLORS.text, fontSize: 20, fontWeight: '700', textAlign: 'center', marginBottom: 16 },
+  modalTitle: { color: COLORS.text, fontSize: 20, fontWeight: '600', textAlign: 'center', marginBottom: 16 },
   
-  searchContainer: { 
-      flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.inputBg, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16, marginBottom: 20,
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.08)',
-      borderTopColor: 'rgba(255, 255, 255, 0.18)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.12)',
-      overflow: 'hidden'
-  },
-  searchInput: { flex: 1, color: COLORS.text, fontSize: 20, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent' },
+  searchContainer: { backgroundColor: 'rgba(0,0,0,0.30)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, marginBottom: 8 },
+  searchInput: { flex: 1, color: COLORS.text, fontSize: 17, borderWidth: 0, borderColor: 'transparent', backgroundColor: 'transparent' },
   
-  profileItem: { 
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 20, paddingHorizontal: 16, backgroundColor: COLORS.inputBg, borderRadius: 16, marginBottom: 10,
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.08)',
-      borderTopColor: 'rgba(255, 255, 255, 0.18)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.12)',
-      overflow: 'hidden'
-  },
-  profileName: { color: COLORS.text, fontSize: 20, fontWeight: '600' },
+  profileItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 11, paddingHorizontal: 4, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.10)' },
+  profileName: { color: COLORS.text, fontSize: 16, fontWeight: '500' },
   
-  createNewButton: { 
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 20, backgroundColor: COLORS.inputBg, borderRadius: 16, gap: 12, marginTop: 10,
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.08)',
-      borderTopColor: 'rgba(255, 255, 255, 0.18)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.12)',
-      overflow: 'hidden'
-  },
-  createNewText: { color: COLORS.primary, fontSize: 18, fontWeight: '700' },
-  genderButton: { paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10, backgroundColor: COLORS.primary },
-  genderText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  confirmButton: { 
-      backgroundColor: COLORS.confirmTeal, padding: 16, borderRadius: 12, alignItems: 'center', 
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.20)',
-      borderTopColor: 'rgba(255, 255, 255, 0.55)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.35)',
-      overflow: 'hidden'
-  },
+  createNewButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 18, borderRadius: 16, gap: 12, marginTop: 10, backgroundColor: 'rgba(10,132,255,0.15)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
+  createNewText: { color: COLORS.text, fontSize: 17, fontWeight: '500' },
+  genderButton: { paddingVertical: 12, paddingHorizontal: 26, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.25)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.14)' },
+  genderText: { color: '#fff', fontSize: 15, fontWeight: '500' },
+  confirmButton: { backgroundColor: COLORS.primary, padding: 15, borderRadius: 16, alignItems: 'center' },
 
-  scoreDisplay: { 
-      backgroundColor: COLORS.inputBg, borderRadius: 12, padding: 12, alignItems: 'center', marginBottom: 12,
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.10)',
-      borderTopColor: 'rgba(255, 255, 255, 0.22)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.14)',
-      overflow: 'hidden'
-  },
-  scoreDisplayText: { color: COLORS.text, fontSize: 48, fontWeight: '700' },
-  numpadContainer: { width: '100%', gap: 8, marginBottom: 15 },
-  numpadRow: { flexDirection: 'row', gap: 8, justifyContent: 'space-between' },
+  scoreDisplay: { backgroundColor: 'rgba(0,0,0,0.30)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)', borderRadius: 16, paddingVertical: 14, alignItems: 'center', marginBottom: 12 },
+  scoreDisplayText: { color: COLORS.text, fontSize: 52, fontWeight: '700', letterSpacing: -1 },
+  numpadContainer: { width: '100%', gap: 9, marginBottom: 14 },
+  numpadRow: { flexDirection: 'row', gap: 9, justifyContent: 'space-between' },
   
-  numpadButton: { 
-      flex: 1, backgroundColor: COLORS.inputBg, paddingVertical: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 12,
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.08)', 
-      borderTopColor: 'rgba(255, 255, 255, 0.18)',
-      borderLeftColor: 'rgba(255, 255, 255, 0.12)',
-      overflow: 'hidden'
-  },
-  numpadActionButton: { backgroundColor: '#2D3546' },
-  numpadText: { color: COLORS.text, fontSize: 24, fontWeight: '600' },
+  numpadButton: { flex: 1, height: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.10)', borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.14)' },
+  numpadActionButton: { backgroundColor: 'rgba(255,255,255,0.17)' },
+  numpadText: { color: COLORS.text, fontSize: 24, fontWeight: '500' },
   
-  modeSelectorContainer: { flexDirection: 'row', gap: 8, marginBottom: 20, justifyContent: 'space-between' },
+  modeSelectorContainer: { backgroundColor: 'rgba(0,0,0,0.30)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)', flexDirection: 'row', gap: 3, padding: 3, borderRadius: 12, marginBottom: 14 },
   
-  modeButton: { 
-      flex: 1, 
-      backgroundColor: '#202a3a', 
-      paddingVertical: 14, 
-      borderRadius: 20, 
-      alignItems: 'center', 
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.12)',
-      borderTopColor: 'rgba(255, 255, 255, 0.25)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.18)',
-      overflow: 'hidden'
-  },
-  modeButtonActive: { 
-      backgroundColor: COLORS.primary, 
-      borderWidth: 1, 
-      borderColor: COLORS.primary,
-      borderTopColor: 'rgba(255, 255, 255, 0.40)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.25)',
-      shadowColor: COLORS.primary, 
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.6,
-      shadowRadius: 8,
-      elevation: 5
-  },
+  modeButton: { flex: 1, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  modeButtonActive: { backgroundColor: COLORS.primary },
 
-  modeButtonText: { color: COLORS.textMuted, fontSize: 14, fontWeight: '700' },
-  modeButtonTextActive: { color: '#fff', fontWeight: '800' },
+  modeButtonText: { color: '#AEAEB2', fontSize: 14, fontWeight: '500' },
+  modeButtonTextActive: { color: '#fff', fontWeight: '600' },
   
-  modalButtons: { flexDirection: 'row', width: '100%', gap: 12 },
-  modalButton: { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center', overflow: 'hidden' },
-  primaryModalButton: {
-      justifyContent: 'center',
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.20)',
-      borderTopColor: 'rgba(255, 255, 255, 0.55)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.35)',
-  },
-  dangerModalButton: {
-      backgroundColor: COLORS.danger,
-      justifyContent: 'center',
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.20)',
-      borderTopColor: 'rgba(255, 255, 255, 0.55)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.35)',
-  },
-  cancelButton: { 
-      backgroundColor: COLORS.inputBg,
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.08)',
-      borderTopColor: 'rgba(255, 255, 255, 0.18)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.12)',
-      overflow: 'hidden'
-  },
-  modalButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  modalButtons: { flexDirection: 'row', width: '100%', gap: 10 },
+  modalButton: { flex: 1, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  primaryModalButton: { backgroundColor: COLORS.primary, justifyContent: 'center' },
+  dangerModalButton: { backgroundColor: COLORS.danger, justifyContent: 'center' },
+  cancelButton: { backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)' },
+  modalButtonText: { color: '#fff', fontSize: 16, fontWeight: '500' },
   
   historyModal: { height: '70%' },
   historyList: { flex: 1, marginBottom: 16 },
   
-  historyItem: { 
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: COLORS.inputBg, borderRadius: 8, marginBottom: 12,
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.08)',
-      borderTopColor: 'rgba(255, 255, 255, 0.18)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.12)',
-      overflow: 'hidden'
-  },
+  historyItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.08)' },
   pointsWrapper: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'center', gap: 6 },
   fixedPointsWidth: { width: 60, alignItems: 'flex-end', paddingRight: 5 },
   dotContainer: { width: 20, alignItems: 'center', justifyContent: 'center' },
-  historyPoints: { fontSize: 20, fontWeight: '700' },
+  historyPoints: { fontSize: 16, fontWeight: '600' },
   positivePoints: { color: COLORS.success },
   negativePoints: { color: COLORS.danger },
   neutralScore: { color: COLORS.text },
-  historyTotal: { color: COLORS.text, fontSize: 18, fontWeight: '600', flex: 1, textAlign: 'center' },
-  historyDate: { color: COLORS.textMuted, fontSize: 12, flex: 1, textAlign: 'right' },
+  historyTotal: { color: '#AEAEB2', fontSize: 15, fontWeight: '400', flex: 1, textAlign: 'center' },
+  historyDate: { color: '#636366', fontSize: 12, flex: 1, textAlign: 'right' },
   playedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFFFFF' },
   
-  tabContainer: { 
-      flexDirection: 'row', marginBottom: 20, backgroundColor: COLORS.inputBg, borderRadius: 12, padding: 4,
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.08)',
-      borderTopColor: 'rgba(255, 255, 255, 0.15)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.10)',
-      overflow: 'hidden'
-  },
-  tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-  tabButtonActive: { backgroundColor: COLORS.card },
-  tabText: { color: COLORS.textMuted, fontWeight: '600' },
-  tabTextActive: { color: '#fff', fontWeight: '700' },
+  tabContainer: { backgroundColor: 'rgba(0,0,0,0.30)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)', flexDirection: 'row', marginBottom: 14, borderRadius: 12, padding: 3 },
+  tabButton: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
+  tabButtonActive: { backgroundColor: COLORS.primary },
+  tabText: { color: '#AEAEB2', fontWeight: '500', fontSize: 13 },
+  tabTextActive: { color: '#fff', fontWeight: '600' },
   
   chartContainer: { flex: 1, justifyContent: 'center' },
   legendContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 10 },
-  legendChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.inputBg, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1, borderColor: 'transparent' },
+  legendChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)' },
   legendDot: { width: 10, height: 10, borderRadius: 5, marginRight: 6 },
-  legendText: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600' },
+  legendText: { color: '#AEAEB2', fontSize: 12, fontWeight: '500' },
   
-  leaderboardItem: { 
-      flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: COLORS.inputBg, borderRadius: 8, marginBottom: 10,
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.08)',
-      borderTopColor: 'rgba(255, 255, 255, 0.18)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.12)',
-      overflow: 'hidden'
-  },
-  rankText: { color: COLORS.textMuted, fontSize: 18, fontWeight: '700', marginRight: 12 },
-  leaderboardName: { color: COLORS.text, fontSize: 18, fontWeight: '600', flex: 1 },
-  leaderboardScore: { fontSize: 22, fontWeight: '800', width: 60, textAlign: 'right' },
-  miniRadelciContainer: { flexDirection: 'row', gap: 2 },
+  leaderboardItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.10)' },
+  rankText: { color: COLORS.textMuted, fontSize: 15, fontWeight: '600', marginRight: 10, width: 24 },
+  leaderboardName: { color: COLORS.text, fontSize: 16, fontWeight: '500', flex: 1 },
+  leaderboardScore: { fontSize: 18, fontWeight: '600', width: 60, textAlign: 'right' },
+  miniRadelciContainer: { flexDirection: 'row', gap: 4 },
   
-  closeButton: { 
-      backgroundColor: COLORS.closeBtn, padding: 16, borderRadius: 12, alignItems: 'center', 
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.20)',
-      borderTopColor: 'rgba(255, 255, 255, 0.55)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.35)',
-      overflow: 'hidden' 
-  },
+  closeButton: { backgroundColor: COLORS.primary, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   
   emptyHistoryContainer: { paddingVertical: 40, alignItems: 'center' },
   emptyHistoryText: { color: COLORS.textMuted, fontSize: 16, textAlign: 'center' },
   confirmText: { color: COLORS.textMuted, fontSize: 15, textAlign: 'center', marginBottom: 20, lineHeight: 22 },
-  klopTitle: { color: COLORS.warning, fontSize: 28, fontWeight: '800', marginBottom: 24, textAlign: 'center' },
-  klopButton: { 
-      backgroundColor: COLORS.closeBtn, padding: 16, borderRadius: 12, alignItems: 'center',
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.20)',
-      borderTopColor: 'rgba(255, 255, 255, 0.55)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.35)',
-      overflow: 'hidden'
-  },
+  klopTitle: { color: COLORS.warning, fontSize: 26, fontWeight: '600', marginBottom: 24, textAlign: 'center' },
+  klopButton: { backgroundColor: COLORS.primary, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
 
   playerHistorySection: { marginBottom: 24 },
   
-  playerHistoryHeader: { 
-      flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, marginBottom: 8, gap: 12,
-      borderWidth: 1, 
-      borderColor: 'rgba(255, 255, 255, 0.10)',
-      borderTopColor: 'rgba(255, 255, 255, 0.20)', 
-      borderLeftColor: 'rgba(255, 255, 255, 0.14)',
-      overflow: 'hidden'
-  },
+  playerHistoryHeader: { backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)', flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 16, marginBottom: 4, gap: 10 },
   playerRankBadge: { width: 28, alignItems: 'center', justifyContent: 'center' },
   playerRankText: { color: COLORS.textMuted, fontSize: 14, fontWeight: '700' },
-  playerHistorySectionTitle: { flex: 1, color: COLORS.text, fontSize: 18, fontWeight: '600' },
-  playerTotalScore: { fontSize: 22, fontWeight: '700' },
+  playerHistorySectionTitle: { flex: 1, color: COLORS.text, fontSize: 16, fontWeight: '600' },
+  playerTotalScore: { fontSize: 18, fontWeight: '600' },
   
-  winnerPopupCard: {
-      backgroundColor: COLORS.card, padding: 30, borderRadius: 24, alignItems: 'center', width: '80%', zIndex: 10,
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.10)', borderTopColor: 'rgba(255, 255, 255, 0.22)', borderLeftColor: 'rgba(255, 255, 255, 0.14)', overflow: 'hidden'
-  },
+  winnerPopupCard: { backgroundColor: COLORS.sheet, padding: 28, borderRadius: 28, alignItems: 'center', width: '84%', maxWidth: 380, zIndex: 10, borderWidth: 0.5, borderColor: 'rgba(100,170,255,0.14)', borderTopColor: 'rgba(120,190,255,0.40)', overflow: 'hidden' },
+
+  // --- nov dizajn (D2) ---
+  calLeaf: { width: 46, height: 50, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.30)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' },
+  calMonth: { fontSize: 10, fontWeight: '600', letterSpacing: 0.5, color: COLORS.primary },
+  calDay: { fontSize: 20, lineHeight: 24, fontWeight: '600', color: COLORS.text },
+  playCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(10,132,255,0.16)', alignItems: 'center', justifyContent: 'center' },
+  tileRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 14 },
+  tile: { flex: 1, height: 66, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  tileText: { color: COLORS.text, fontSize: 12, fontWeight: '500' },
+  finishBar: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
+  finishButton: { height: 54, borderRadius: 16, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end', alignItems: 'center' },
+  sheetContent: { width: '100%', maxWidth: 560, maxHeight: '92%', backgroundColor: COLORS.sheet, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 28, borderWidth: 0.5, borderBottomWidth: 0, borderColor: 'rgba(100,170,255,0.14)', borderTopColor: 'rgba(120,190,255,0.40)', overflow: 'hidden' },
+  scoreHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
+  scoreHeadName: { flex: 1, color: COLORS.text, fontSize: 18, fontWeight: '600' },
+  scoreHeadCurrent: { color: COLORS.textMuted, fontSize: 13 },
+  pickCircle: { width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  pickCircleOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
 });

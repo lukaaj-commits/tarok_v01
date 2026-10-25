@@ -13,7 +13,7 @@ export function ScreenWithGlow({ children }: { children: ReactNode }) {
   return (
     <View style={styles.root}>
       {Platform.OS === 'web' && (
-        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]}>
           <View style={[styles.glow, styles.glowTop]} />
           <View style={[styles.glow, styles.glowBottom]} />
         </View>
@@ -29,11 +29,11 @@ const styles = StyleSheet.create({
   glowTop: {
     top: 10, left: -90, width: 340, height: 340,
     // @ts-ignore – samo splet
-    backgroundImage: 'radial-gradient(circle, rgba(10,132,255,0.16) 0%, rgba(0,0,0,0) 70%)',
+    backgroundImage: 'radial-gradient(circle, rgba(10,132,255,0.10) 0%, rgba(0,0,0,0) 70%)',
   },
   glowBottom: {
     top: 330, right: -160, width: 360, height: 360,
     // @ts-ignore – samo splet
-    backgroundImage: 'radial-gradient(circle, rgba(10,132,255,0.11) 0%, rgba(0,0,0,0) 70%)',
+    backgroundImage: 'radial-gradient(circle, rgba(10,132,255,0.065) 0%, rgba(0,0,0,0) 70%)',
   },
 });
