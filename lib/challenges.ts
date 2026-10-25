@@ -25,11 +25,11 @@ export const CHALLENGES: ChallengeDef[] = [
   { id: 'nedosegljiv', icon: '🚀', title: 'Nedosegljiv', desc: 'Zmagaj partijo z vsaj 500 točkami prednosti pred drugim.', threshold: 1, live: false },
   { id: 'dvojcka', icon: '👯', title: 'Dvojčka', desc: 'Končaj partijo z enakim številom točk kot drug igralec.', threshold: 1, live: false },
   { id: 'nicla', icon: '0️⃣', title: 'Ničla', desc: 'Končaj partijo s točno 0 točkami (po kazni za radelce).', threshold: 1, live: false },
-  { id: 'cistilec', icon: '🧽', title: 'Čistilec', desc: 'Imej vsaj 3 radelce in jih do konca partije porabi vse.', threshold: 1, live: false },
+  { id: 'cistilec', icon: '🧽', title: 'Čistilec', desc: 'Trikrat imej vsaj 3 radelce in jih do konca partije porabi vse.', threshold: 3, live: false },
   { id: 'tisocak', icon: '💶', title: 'Tisočak', desc: 'Končaj partijo z 1000 točkami ali več.', threshold: 1, live: false },
   { id: 'opazovalec', icon: '👀', title: 'Opazovalec', desc: 'V partiji z vsaj 4 igrami ne igraj niti enkrat.', threshold: 1, live: false },
   { id: 'kralj_ulice', icon: '👑', title: 'Kralj ulice', desc: 'Dobi dva berača v isti partiji.', threshold: 1, live: true },
-  { id: 'klopar', icon: '🪲', title: 'Klopar', desc: 'Bodi kriv za obvezen klop (pristani točno na 0).', threshold: 1, live: true },
+  { id: 'klopar', icon: '🪲', title: 'Klopar', desc: 'Dvakrat bodi kriv za obvezen klop (pristani točno na 0).', threshold: 2, live: true },
   { id: 'senca', icon: '🤝', title: 'Senca', desc: 'Bodi klican 5 iger zapored.', threshold: 1, live: true },
   { id: 'neustavljiv', icon: '🚂', title: 'Neustavljiv', desc: 'Igraj 5 iger zapored.', threshold: 1, live: true },
 ];

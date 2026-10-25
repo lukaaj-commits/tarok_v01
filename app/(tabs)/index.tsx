@@ -125,6 +125,7 @@ export default function ActiveGame() {
   const [gameName, setGameName] = useState<string>('');
   const [players, setPlayers] = useState<Player[]>([]);
   const [radelci, setRadelci] = useState<Radelc[]>([]);
+  const [playedCounts, setPlayedCounts] = useState<Record<string, number>>({}); // kolikokrat je igralec igral (tudi berač)
   const [allProfiles, setAllProfiles] = useState<PlayerProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -234,6 +235,21 @@ export default function ActiveGame() {
     const { data } = await supabase.from('radelci').select('*').eq('game_id', gId).order('position');
     setRadelci(data || []);
   };
+
+  // Kolikokrat je vsak igralec v tej igri igral (igral ali berač; klican ne šteje).
+  // Osveži se ob vsaki spremembi igralcev (vnos, razveljavitev, sprememba z drugega telefona).
+  useEffect(() => {
+    if (!gameId) { setPlayedCounts({}); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from('score_entries').select('player_id, played, is_beggar').eq('game_id', gameId);
+      if (cancelled || !data) return;
+      const counts: Record<string, number> = {};
+      data.forEach((e: any) => { if (e.played || e.is_beggar) counts[e.player_id] = (counts[e.player_id] || 0) + 1; });
+      setPlayedCounts(counts);
+    })();
+    return () => { cancelled = true; };
+  }, [gameId, players]);
 
   // REZULTATI V ŽIVO: ko je igra odprta, poslušamo spremembe igralcev in radelcev te igre
   // (točke, razveljavitve, radelci z drugih naprav) in ob spremembi ponovno naložimo stanje.
@@ -648,6 +664,7 @@ export default function ActiveGame() {
             <Image source={{ uri: getAvatarUrl(item.name) }} style={styles.playerAvatar} />
 
             <Text style={styles.playerNameText} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.playedCount}>({g(item.name, 'Igral', 'Igrala')}: {playedCounts[item.id] || 0})</Text>
             <TouchableOpacity onPress={() => loadPlayerHistory(item.id)} style={styles.infoButton} hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
               <Info size={19} color={COLORS.textMuted} />
             </TouchableOpacity>
@@ -1395,5 +1412,6 @@ const styles = StyleSheet.create({
   scoreHeadName: { flex: 1, color: COLORS.text, fontSize: 18, fontWeight: '600' },
   scoreHeadCurrent: { color: COLORS.textMuted, fontSize: 13 },
   pickCircle: { width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  playedCount: { color: COLORS.textMuted, fontSize: 13, fontWeight: '400', marginLeft: -4 },
   pickCircleOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
 });

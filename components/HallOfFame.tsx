@@ -40,8 +40,8 @@ export default function HallOfFame() {
           {(() => { const Ic = ICONS[r.id] || Award; return <View style={styles.iconBox}><Ic size={18} color="#64D2FF" strokeWidth={2} /></View>; })()}
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>{r.title}</Text>
-            {r.holders.length > 0 && <Text style={styles.holder}>{r.holders.join(' & ')}</Text>}
-            {!!r.detail && <Text style={styles.detail}>{r.detail}</Text>}
+            {r.holders.length > 0 && <Text style={styles.holder}>{r.holders.length > 3 ? `${r.holders.length} ${r.holders.length === 4 ? 'igralci' : 'igralcev'}` : r.holders.join(' & ')}</Text>}
+            {!!r.detail && r.holders.length <= 3 && <Text style={styles.detail}>{r.detail}</Text>}
           </View>
           <View style={{ alignItems: 'flex-end', gap: 4 }}>
             {r.holders.length > 0 && (

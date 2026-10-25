@@ -11,6 +11,7 @@
 
 import { standingsFor, computeSeasons, monthKeyOf, MONTH_LOCATIVE, SeasonPlayer } from '@/lib/season';
 import { computeChallenges, CHALLENGES, IZZIVI, CRadelc } from '@/lib/challenges';
+import { isExcludedEntryRecord } from '@/lib/records';
 import { g as gw } from '@/lib/gender';
 
 export type NotifGame = { id: string; name: string; created_at: string; is_active: boolean };
@@ -270,11 +271,12 @@ export function computeNotifications(
       }
 
       // 2) + 3) Rekordni vpis / rekordni minus vseh časov
+      const skipMax = isExcludedEntryRecord(name, pts, e.created_at); // izjema (vse točke vpisane naenkrat)
       if (entryCount > SETTINGS.minEntriesForEntryRecord) {
-        if (maxEntry !== null && pts > maxEntry) push({ id: `rec-max:${e.id}`, kind: 'live', time: t, gameId: e.game_id, icon: '💥', title: 'Rekordni vpis vseh časov', text: `${name}: ${fmt(pts)} (prej ${fmt(maxEntry)})`, player: name });
+        if (!skipMax && maxEntry !== null && pts > maxEntry) push({ id: `rec-max:${e.id}`, kind: 'live', time: t, gameId: e.game_id, icon: '💥', title: 'Rekordni vpis vseh časov', text: `${name}: ${fmt(pts)} (prej ${fmt(maxEntry)})`, player: name });
         if (minEntry !== null && pts < minEntry) push({ id: `rec-min:${e.id}`, kind: 'live', time: t, gameId: e.game_id, icon: '💀', title: 'Rekordni minus vseh časov', text: `${name}: ${fmt(pts)} (prej ${fmt(minEntry)})`, player: name });
       }
-      maxEntry = maxEntry === null ? pts : Math.max(maxEntry, pts);
+      if (!skipMax) maxEntry = maxEntry === null ? pts : Math.max(maxEntry, pts);
       minEntry = minEntry === null ? pts : Math.min(minEntry, pts);
 
       // 4) Vroča roka: dobljene igre zapored kot igralec (igral ali berač)

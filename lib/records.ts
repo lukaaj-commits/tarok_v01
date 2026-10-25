@@ -27,6 +27,13 @@ const holdersOf = <T,>(items: T[], val: (x: T) => number, best: 'max' | 'min') =
 };
 const uniq = (a: string[]) => [...new Set(a)];
 
+// Vpisi, ki ne štejejo za rekord "največji posamezni vpis" (igra in točke veljajo).
+// Tina +545, 24. 3. 2026: takrat so bile vse točke vpisane naenkrat, zato to ni pravi posamezni vpis.
+const EXCLUDED_ENTRY_RECORDS = [{ name: 'Tina', points: 545, date: '2026-03-24' }];
+const localDay = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+export const isExcludedEntryRecord = (name: string | undefined, points: number, createdAt: string) =>
+  EXCLUDED_ENTRY_RECORDS.some(x => x.name === name && x.points === points && x.date === localDay(createdAt));
+
 export function computeRecords(games: RecGame[], players: RecPlayer[], entries: RecEntry[]): HallRecord[] {
   const gameById = new Map(games.map(g => [g.id, g]));
   const playerById = new Map(players.map(p => [p.id, p]));
@@ -48,7 +55,7 @@ export function computeRecords(games: RecGame[], players: RecPlayer[], entries: 
   if (lo.items.length) out.push({ id: 'worst-game', icon: '💀', title: 'Najnižji rezultat igre', holders: uniq(lo.items.map(p => p.name)), value: fmt(lo.value), detail: lo.items.map(p => date(gameById.get(p.game_id)!.created_at)).join(', ') });
 
   // 3-4) največji posamezni vpis / minus
-  const eHi = holdersOf(vEntries, e => e.points, 'max');
+  const eHi = holdersOf(vEntries.filter(e => !isExcludedEntryRecord(playerById.get(e.player_id)?.name, e.points, e.created_at)), e => e.points, 'max');
   if (eHi.items.length) out.push({ id: 'best-entry', icon: '💥', title: 'Največji posamezni vpis', holders: uniq(eHi.items.map(e => playerById.get(e.player_id)?.name || '?')), value: fmt(eHi.value), detail: eHi.items.map(e => date(e.created_at)).join(', ') });
   const eLo = holdersOf(vEntries, e => e.points, 'min');
   if (eLo.items.length) out.push({ id: 'worst-entry', icon: '🧨', title: 'Največji posamezni minus', holders: uniq(eLo.items.map(e => playerById.get(e.player_id)?.name || '?')), value: fmt(eLo.value), detail: eLo.items.map(e => date(e.created_at)).join(', ') });

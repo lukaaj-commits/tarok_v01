@@ -169,10 +169,10 @@ export default function DuelModal({ playerA, onClose }: Props) {
                             <View style={{ flex: Math.max(x.n - x.won, 0.01), backgroundColor: '#FF453A' }} />
                           </View>
                           {x.all > 0 && (
-                            <Text style={styles.pairCompare}>
+                            <Text style={styles.pairCompare} numberOfLines={1} adjustsFontSizeToFit>
                               {x.decl} sicer dobi {usual} % svojih iger{' '}
                               <Text style={{ color: p > usual ? C.success : p < usual ? '#FF453A' : C.muted, fontWeight: '600' }}>
-                                {p > usual ? `▲ s tem partnerjem +${p - usual} %` : p < usual ? `▼ s tem partnerjem −${usual - p} %` : '= enako'}
+                                {p > usual ? `▲ +${p - usual} %` : p < usual ? `▼ −${usual - p} %` : '= enako'}
                               </Text>
                             </Text>
                           )}
