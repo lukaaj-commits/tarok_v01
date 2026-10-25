@@ -25,6 +25,13 @@ import ConfettiCannon from 'react-native-confetti-cannon';
 import { fetchPlayerStats, PlayerStats } from '@/lib/playerStats';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import SeasonModal from '@/components/SeasonModal';
+import { g } from '@/lib/gender';
+
+// "Zmagovalec" / "Zmagovalka" / "Zmagovalci" glede na spol in število zmagovalcev
+const winnerWord = (names: string, upper = false) => {
+  const w = names.includes(' & ') ? 'Zmagovalci' : g(names, 'Zmagovalec', 'Zmagovalka');
+  return upper ? w.toUpperCase() : w;
+};
 import HallOfFame from '@/components/HallOfFame';
 
 type PlayerSummary = { name: string; total_score: number; };
@@ -337,7 +344,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
       if (Platform.OS === 'web') {
           // 1. NA SPLETU: Knjižnica za slikanje ne deluje, zato delimo tekstovno lestvico!
           let text = `🏆 REZULTATI TAROKA 🏆\n\n`;
-          if (winnerData?.names) text += `Zmagovalec: ${winnerData.names} (${winnerData.score} točk)\n\n`;
+          if (winnerData?.names) text += `${winnerWord(winnerData.names)}: ${winnerData.names} (${winnerData.score} točk)\n\n`;
           
           const sortedPlayers = [...gamePlayers].sort((a,b) => b.total_score - a.total_score);
           sortedPlayers.forEach((p, i) => {
@@ -395,7 +402,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
     const names = winners.map(w => w.name).join(' & ');
     return (
         <Text style={{ color: COLORS.winnerGrey, fontSize: 13, marginTop: 4 }}>
-            {game.is_active ? "Trenutno vodilni: " : "Zmagovalec: "} <Text style={{ fontWeight: '700', color: COLORS.winnerGrey }}>{names} ({maxScore})</Text>
+            {game.is_active ? "Trenutno vodilni: " : `${winnerWord(names)}: `} <Text style={{ fontWeight: '700', color: COLORS.winnerGrey }}>{names} ({maxScore})</Text>
         </Text>
     );
   };
@@ -545,7 +552,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                   
                   {!selectedGame?.is_active && gamePlayers.length > 0 && (
                       <View style={styles.winnerCard}>
-                          <View style={{flexDirection: 'row', alignItems: 'center', marginBottom:15, justifyContent: 'center', width: '100%'}}><Trophy size={24} color="#ffd700" style={{marginRight: 8}} /><Text style={[styles.winnerText, {fontSize: 16, letterSpacing: 2}]}>ZMAGOVALEC</Text></View>
+                          <View style={{flexDirection: 'row', alignItems: 'center', marginBottom:15, justifyContent: 'center', width: '100%'}}><Trophy size={24} color="#ffd700" style={{marginRight: 8}} /><Text style={[styles.winnerText, {fontSize: 16, letterSpacing: 2}]}>{winnerWord(gamePlayers[0].name, true)}</Text></View>
                           <TouchableOpacity onPress={() => openProfile(gamePlayers[0].name)} activeOpacity={0.7} style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10, width: '100%'}}><Image source={{ uri: getAvatarUrl(gamePlayers[0].name) }} style={[styles.playerAvatar, {width: 70, height: 70, borderRadius: 35, marginRight: 10, borderWidth: 1.5}]} /><Text style={[styles.winnerName, {marginTop: 0, fontSize: 27}]}>{gamePlayers[0].name}</Text></TouchableOpacity>
                           <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}}><Text style={[styles.winnerScore, {marginTop: 0}]}>{gamePlayers[0].total_score} točk</Text></View>
                           {renderRadelciDots(gamePlayers[0].id, true)}
@@ -647,7 +654,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
             <View style={styles.winnerPopupCard}>
                 <TouchableOpacity style={{position: 'absolute', top: 12, right: 12, padding: 8}} onPress={() => setShowWinnerPopup(false)}><X size={24} color={COLORS.textMuted} /></TouchableOpacity>
                 <Trophy size={60} color="#ffd700" style={{marginBottom: 15}} />
-                <Text style={{color: '#ffd700', fontSize: 14, fontWeight: '800', letterSpacing: 3, marginBottom: 10}}>ZMAGOVALEC</Text>
+                <Text style={{color: '#ffd700', fontSize: 14, fontWeight: '800', letterSpacing: 3, marginBottom: 10}}>{winnerWord(winnerData?.names || '', true)}</Text>
                 {winnerData?.names && (<Image source={{ uri: getAvatarUrl(winnerData.names.split(' & ')[0]) }} style={[styles.playerAvatar, {width: 80, height: 80, borderRadius: 40, marginVertical: 10, borderWidth: 2}]} />)}
                 <Text style={{color: COLORS.text, fontSize: 32, fontWeight: '900', textAlign: 'center', marginBottom: 10}}>{winnerData?.names}</Text>
                 <View style={{backgroundColor: 'rgba(16, 185, 129, 0.1)', paddingHorizontal: 20, paddingVertical: 8, borderRadius: 12, marginTop: 5}}>

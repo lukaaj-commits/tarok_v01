@@ -6,6 +6,7 @@
 import { supabase } from '@/lib/supabase';
 import { computeSeasons, monthTitles } from '@/lib/season';
 import { computeChallenges } from '@/lib/challenges';
+import { loadGenders } from '@/lib/gender';
 
 export type H2HStat = { 
     opponent: string; 
@@ -46,6 +47,7 @@ export type PlayerStats = {
 // Vsi podatki naenkrat (za Dvoboj): igre, igralci, vpisi in statistika
 export type AllData = { games: any[]; players: any[]; entries: any[]; radelci: any[]; stats: PlayerStats[] };
 export async function fetchAllData(): Promise<AllData> {
+  await loadGenders();
   const [g, p, e, r] = await Promise.all([
     supabase.from('games').select('id, name, created_at, is_active').order('created_at', { ascending: false }),
     supabase.from('players').select('*'),

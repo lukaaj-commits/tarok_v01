@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { computeNotifications, AppNotification, GameSummary } from '@/lib/notifications';
 import { getAvatarUrl } from '@/lib/avatars';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
+import { loadGenders, g } from '@/lib/gender';
 
 // Ta telefon si zapomni, katera obvestila je že videl
 const SEEN_KEY = 'tarok_prebrana_obvestila_v1';
@@ -73,14 +74,15 @@ export default function NotificationBell() {
 
   const load = useCallback(async () => {
     try {
-      const [g, p, e, r] = await Promise.all([
+      await loadGenders();
+      const [gm, p, e, r] = await Promise.all([
         supabase.from('games').select('id, name, created_at, is_active'),
         supabase.from('players').select('id, game_id, name, total_score'),
         supabase.from('score_entries').select('id, player_id, game_id, points, created_at, played, is_partner, is_beggar, is_valat, is_penalty'),
         supabase.from('radelci').select('player_id, game_id'),
       ]);
-      if (g.error || p.error || e.error) return;
-      const { live, summaries } = computeNotifications(g.data || [], p.data || [], e.data || [], r.data || []);
+      if (gm.error || p.error || e.error) return;
+      const { live, summaries } = computeNotifications(gm.data || [], p.data || [], e.data || [], r.data || []);
       const items: FeedItem[] = [
         ...live.map(n => ({ type: 'live' as const, key: n.id, time: n.time, n })),
         ...summaries.map(s => ({ type: 'game' as const, key: `game:${s.gameId}`, time: s.time, g: s })),
@@ -223,7 +225,7 @@ export default function NotificationBell() {
                         <Text style={styles.icon}>🏁</Text>
                         <Image source={{ uri: getAvatarUrl(item.g.winners.split(' & ')[0]) }} style={styles.avatar} />
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.itemTitle}>Zmagovalec: {item.g.winners}</Text>
+                          <Text style={styles.itemTitle}>{item.g.winners.includes(' & ') ? 'Zmagovalci' : g(item.g.winners, 'Zmagovalec', 'Zmagovalka')}: {item.g.winners}</Text>
                           <Text style={styles.itemText}>{item.g.winnerScore} točk</Text>
                         </View>
                       </TouchableOpacity>

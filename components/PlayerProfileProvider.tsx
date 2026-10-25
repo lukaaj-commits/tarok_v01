@@ -1,6 +1,7 @@
 // Omogoča, da se profil igralca odpre s katerega koli zaslona:
 //   const { openProfile } = usePlayerProfile();  openProfile('Miha');
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { loadGenders } from '@/lib/gender';
 import { Modal, View, ActivityIndicator } from 'react-native';
 import PlayerProfileModal from '@/components/PlayerProfileModal';
 import { fetchPlayerStats, PlayerStats } from '@/lib/playerStats';
@@ -18,6 +19,9 @@ export function PlayerProfileProvider({ children }: { children: ReactNode }) {
   const [player, setPlayer] = useState<PlayerStats | null>(null);
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // spol igralcev za pravilna besedila
+  useEffect(() => { loadGenders(); }, []);
 
   const showProfile = useCallback((stats: PlayerStats) => {
     setPlayer(stats);

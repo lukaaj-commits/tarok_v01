@@ -11,6 +11,7 @@
 
 import { standingsFor, computeSeasons, monthKeyOf, MONTH_LOCATIVE, SeasonPlayer } from '@/lib/season';
 import { computeChallenges, CHALLENGES, IZZIVI, CRadelc } from '@/lib/challenges';
+import { g as gw } from '@/lib/gender';
 
 export type NotifGame = { id: string; name: string; created_at: string; is_active: boolean };
 export type NotifPlayer = { id: string; game_id: string; name: string; total_score: number };
@@ -254,7 +255,7 @@ export function computeNotifications(
           push({
             id: `valatdrink:${s.valats}:${name}`, kind: 'live', time: t, gameId: e.game_id, icon: '🍻',
             title: `${name}: ${s.valats}. valat!`,
-            text: partner ? `Pijačo plača ${partner} (partner v tem valatu).` : 'Valat brez partnerja, pijačo si plača kar sam 😄',
+            text: partner ? `Pijačo plača ${partner} (partner v tem valatu).` : `Valat brez partnerja, pijačo si plača kar ${gw(name, 'sam', 'sama')} 😄`,
             player: name,
           });
         }
@@ -289,13 +290,13 @@ export function computeNotifications(
         const list = [...(lastPartners.get(e.game_id) || []), e.player_id].slice(-SETTINGS.partnerStreak);
         lastPartners.set(e.game_id, list);
         if (list.length === SETTINGS.partnerStreak && list.every(x => x === e.player_id)) {
-          push({ id: `pair:${e.id}`, kind: 'live', time: t, gameId: e.game_id, icon: '🤝', title: 'Večni par', text: `${name}: ${SETTINGS.partnerStreak} ${klicev(SETTINGS.partnerStreak)} zapored`, player: name });
+          push({ id: `pair:${e.id}`, kind: 'live', time: t, gameId: e.game_id, icon: '🤝', title: 'Večni par', text: `${name} je ${gw(name, 'bil klican', 'bila klicana')} ${SETTINGS.partnerStreak}-krat zapored`, player: name });
           lastPartners.set(e.game_id, []); // naslednje obvestilo šele po novih 3 klicih
         }
       }
 
       // 6) Obvezen klop: igralec pade točno na 0
-      if (newRun === 0 && pts !== 0) push({ id: `klop:${e.id}`, kind: 'live', time: t, gameId: e.game_id, icon: '0️⃣', title: 'Obvezen klop!', text: `${name} je na 0 točkah`, player: name });
+      if (newRun === 0 && pts !== 0) push({ id: `klop:${e.id}`, kind: 'live', time: t, gameId: e.game_id, icon: '0️⃣', title: 'Obvezen klop!', text: `${name} je ${gw(name, 'padel', 'padla')} na 0`, player: name });
 
       // 7) Mejnik kariernih točk
       s.careerPoints += pts;
@@ -410,7 +411,7 @@ export function computeNotifications(
     }
     winners.forEach(w => {
       const low = gameMinRun.get(`${g.id}|${w.id}`) ?? 0;
-      if (low <= -SETTINGS.comebackMinDeficit) push({ id: `comeback:${g.id}:${w.name}`, kind: 'end', time: t, gameId: g.id, icon: '🚀', title: 'Comeback', text: `${w.name}: zmaga po tem, ko je bilo stanje ${low}`, player: w.name });
+      if (low <= -SETTINGS.comebackMinDeficit) push({ id: `comeback:${g.id}:${w.name}`, kind: 'end', time: t, gameId: g.id, icon: '🚀', title: 'Comeback', text: `${w.name} je ${gw(w.name, 'zmagal', 'zmagala')}, čeprav je ${gw(w.name, 'bil', 'bila')} na ${low}`, player: w.name });
     });
 
     // Maščevanje "Trnu v peti"
@@ -506,11 +507,11 @@ export function computeNotifications(
   computeChallenges(games, players, entries, radelci).events.forEach(ev => {
     if (!ev.unlocked) return;
     const def = CHALLENGES.find(c => c.id === ev.challengeId)!;
-    const n: AppNotification = { id: `izziv:${def.id}:${ev.player}`, kind: def.live ? 'live' : 'end', time: ev.time, gameId: ev.gameId, icon: def.icon, title: `Nov dosežek: ${def.title}`, text: ev.player, player: ev.player };
+    const n: AppNotification = { id: `izziv:${def.id}:${ev.player}`, kind: def.live ? 'live' : 'end', time: ev.time, gameId: ev.gameId, icon: def.icon, title: `Nov dosežek: ${def.title}`, text: challengeText(def.id, ev.player), player: ev.player };
     const list: AppNotification[] = [n];
     (unlockedSets[ev.player] = unlockedSets[ev.player] || new Set()).add(def.id);
     if (unlockedSets[ev.player].size === CHALLENGES.length) {
-      list.push({ id: `izziv-complete:${ev.player}`, kind: n.kind, time: ev.time, gameId: ev.gameId, icon: IZZIVI.completionIcon, title: IZZIVI.completionTitle, text: `${ev.player}: vsi izzivi odklenjeni!`, player: ev.player });
+      list.push({ id: `izziv-complete:${ev.player}`, kind: n.kind, time: ev.time, gameId: ev.gameId, icon: IZZIVI.completionIcon, title: IZZIVI.completionTitle, text: `${ev.player} je ${gw(ev.player, 'odklenil', 'odklenila')} vse izzive!`, player: ev.player });
     }
     list.forEach(x => {
       const summary = !def.live ? summaries.find(s => s.gameId === ev.gameId) : undefined;
@@ -524,13 +525,33 @@ export function computeNotifications(
     const start = new Date(m.year, m.month + 1, 1, 0, 0, 0).toISOString();
     m.champions.forEach(n => {
       const row = m.standings.find(r => r.name === n)!;
-      live.push({ id: `champion:${m.key}:${n}`, kind: 'end', time: start, gameId: '', icon: '🏅', title: `Igralec meseca: ${m.label}`, text: `${n} (${row.points} točk)`, player: n });
+      live.push({ id: `champion:${m.key}:${n}`, kind: 'end', time: start, gameId: '', icon: '🏅', title: `${gw(n, 'Igralec', 'Igralka')} meseca: ${m.label}`, text: `${n} (${row.points} točk)`, player: n });
     });
   });
 
   live.sort((a, b) => b.time.localeCompare(a.time));
   summaries.sort((a, b) => b.time.localeCompare(a.time));
   return { live, summaries };
+}
+
+// Besedilo ob odklepu izziva (s pravilnim spolom)
+function challengeText(id: string, n: string): string {
+  const v = (m: string, f: string) => gw(n, m, f);
+  switch (id) {
+    case 'potapljac': return `${n} je ${v('tretjič končal', 'tretjič končala')} partijo z −300 ali manj`;
+    case 'stotica': return `${n} je ${v('končal', 'končala')} partijo s točno 100 točkami`;
+    case 'nedosegljiv': return `${n} je ${v('zmagal', 'zmagala')} z vsaj 500 točkami prednosti`;
+    case 'dvojcka': return `${n} je ${v('končal', 'končala')} izenačeno z drugim igralcem`;
+    case 'nicla': return `${n} je ${v('končal', 'končala')} partijo s točno 0 točkami`;
+    case 'cistilec': return `${n} je ${v('porabil', 'porabila')} vse radelce (vsaj 3)`;
+    case 'tisocak': return `${n} je ${v('končal', 'končala')} partijo z 1000 točkami ali več`;
+    case 'opazovalec': return `${n} v celi partiji ni ${v('igral', 'igrala')} niti enkrat`;
+    case 'kralj_ulice': return `${n} je ${v('dobil', 'dobila')} dva berača v isti partiji`;
+    case 'klopar': return `${n} je ${v('kriv', 'kriva')} za obvezen klop`;
+    case 'senca': return `${n} je ${v('bil klican', 'bila klicana')} 5-krat zapored`;
+    case 'neustavljiv': return `${n} je ${v('igral', 'igrala')} 5 iger zapored`;
+    default: return n;
+  }
 }
 
 // Nagrade igre - enaka logika kot calculateGameAwards v Zgodovini

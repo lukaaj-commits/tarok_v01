@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Image, Act
 import { fetchAllData, AllData } from '@/lib/playerStats';
 import { computeDuel } from '@/lib/duel';
 import { getAvatarUrl } from '@/lib/avatars';
+import { g } from '@/lib/gender';
 
 const C = { card: '#1e293b', inner: '#334155', primary: '#556eeb', text: '#FFFFFF', muted: '#94A3B8', a: '#556eeb', b: '#F59E0B', success: '#10B981' };
 
@@ -149,7 +150,7 @@ export default function DuelModal({ playerA, onClose }: Props) {
                         <View style={styles.pairPerson}>
                           <Image source={{ uri: getAvatarUrl(x.part) }} style={[styles.pairAvatar, { borderColor: x.cPart }]} />
                           <Text style={styles.pairName} numberOfLines={1}>{x.part}</Text>
-                          <Text style={styles.pairRole}>klican</Text>
+                          <Text style={styles.pairRole}>{g(x.part, 'klican', 'klicana')}</Text>
                         </View>
                       </View>
                       {x.n === 0 ? (

@@ -18,6 +18,7 @@ import {
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
+import { g, loadGenders } from '@/lib/gender';
 import { Plus, Minus, Info, Trash2, RotateCcw, Play, ChevronLeft, Trophy, Search, UserPlus, CheckCircle2, Delete, Circle, Triangle, X } from 'lucide-react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { LinearGradient } from 'expo-linear-gradient'; 
@@ -282,11 +283,12 @@ export default function ActiveGame() {
     setSelectedProfileIds(newSelection);
   };
 
-  const createNewProfileAndSelect = async () => {
+  const createNewProfileAndSelect = async (gender: 'M' | 'Z') => {
     if (!searchQuery.trim()) return;
     const name = searchQuery.trim();
     try {
-      const { data: newProfile, error } = await supabase.from('player_profiles').insert({ name }).select().single();
+      const { data: newProfile, error } = await supabase.from('player_profiles').insert({ name, gender }).select().single();
+      if (!error) loadGenders(true); // novi igralec: osveži spol za besedila
       let profileToSelect = newProfile;
       if (error) {
         const { data: existingProfile } = await supabase.from('player_profiles').select('*').eq('name', name).single();
@@ -846,10 +848,14 @@ export default function ActiveGame() {
                 }}
                 ListEmptyComponent={
                     searchQuery.length > 0 ? (
-                        <TouchableOpacity style={styles.createNewButton} onPress={createNewProfileAndSelect}>
+                        <View style={[styles.createNewButton, { flexDirection: 'column', gap: 8 }]}>
                             <UserPlus size={28} color="#fff" />
                             <Text style={styles.createNewText}>Ustvari: "{searchQuery}"</Text>
-                        </TouchableOpacity>
+                            <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                                <TouchableOpacity style={styles.genderButton} onPress={() => createNewProfileAndSelect('M')}><Text style={styles.genderText}>♂ Moški</Text></TouchableOpacity>
+                                <TouchableOpacity style={styles.genderButton} onPress={() => createNewProfileAndSelect('Z')}><Text style={styles.genderText}>♀ Ženska</Text></TouchableOpacity>
+                            </View>
+                        </View>
                     ) : (<Text style={styles.emptyText}>Začni pisati ime...</Text>)
                 }
             />
@@ -1189,7 +1195,7 @@ export default function ActiveGame() {
                 <Trophy size={60} color="#ffd700" style={{marginBottom: 15}} />
                 
                 <Text style={{color: '#ffd700', fontSize: 14, fontWeight: '800', letterSpacing: 3, marginBottom: 10}}>
-                    ZMAGOVALEC
+                    {(winnerData?.names || '').includes(' & ') ? 'ZMAGOVALCI' : g(winnerData?.names, 'ZMAGOVALEC', 'ZMAGOVALKA')}
                 </Text>
                 
                 {winnerData?.names && (
@@ -1385,6 +1391,8 @@ const styles = StyleSheet.create({
       overflow: 'hidden'
   },
   createNewText: { color: COLORS.primary, fontSize: 18, fontWeight: '700' },
+  genderButton: { paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10, backgroundColor: COLORS.primary },
+  genderText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   confirmButton: { 
       backgroundColor: COLORS.confirmTeal, padding: 16, borderRadius: 12, alignItems: 'center', 
       borderWidth: 1, 

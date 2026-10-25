@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { computeSeasons, SeasonMonth, SEASON } from '@/lib/season';
 import { getAvatarUrl } from '@/lib/avatars';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
+import { g } from '@/lib/gender';
 
 const C = {
   card: '#1e293b',
@@ -105,7 +106,7 @@ export default function SeasonModal({ visible, onClose }: Props) {
                     const isChampion = !month.isCurrent && month.champions.includes(r.name);
                     return (
                       <TouchableOpacity key={r.name} onPress={() => openProfile(r.name)} activeOpacity={0.7} style={[styles.rowOuter, isChampion && styles.championRow, !r.eligible && { opacity: 0.45 }]}>
-                        {isChampion && <Text style={styles.championTag}>🏆  IGRALEC MESECA</Text>}
+                        {isChampion && <Text style={styles.championTag}>🏆  {g(r.name, 'IGRALEC', 'IGRALKA')} MESECA</Text>}
                         <View style={styles.rowInner}>
                         <View style={styles.rankBox}>
                           {mc ? <Trophy size={20} color={mc} /> : <Text style={styles.rankText}>{r.eligible ? `${r.rank}.` : '–'}</Text>}
