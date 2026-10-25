@@ -199,7 +199,7 @@ export default function NotificationBell() {
                       <Text style={styles.icon}>{item.n.icon}</Text>
                       <View style={{ flex: 1 }}>
                         <View style={styles.metaRow}>
-                          <View style={styles.liveChip}><Text style={styles.liveChipText}>V ŽIVO</Text></View>
+                          {item.n.kind === 'live' && <View style={styles.liveChip}><Text style={styles.liveChipText}>V ŽIVO</Text></View>}
                           <Text style={styles.time}>{timeLabel(item.time)}</Text>
                           {isNew(item.key) && <View style={styles.newDot} />}
                         </View>

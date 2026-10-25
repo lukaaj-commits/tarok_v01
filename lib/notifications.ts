@@ -9,6 +9,8 @@
 //  - 'end'  (OB KONCU IGRE): se pojavijo, ko je igra zaključena
 // =====================================================================
 
+import { standingsFor, computeSeasons, monthKeyOf, MONTH_LOCATIVE, SeasonPlayer } from '@/lib/season';
+
 export type NotifGame = { id: string; name: string; created_at: string; is_active: boolean };
 export type NotifPlayer = { id: string; game_id: string; name: string; total_score: number };
 export type NotifEntry = {
@@ -195,6 +197,7 @@ export function computeNotifications(
   let groupWorst: number | null = null;
   let maxEntriesInGame: number | null = null;
   let indexLeader: string | null = null;
+  const monthGames = new Map<string, SeasonPlayer[][]>();          // mesec -> zaključene igre (za vodjo meseca)
 
   // Lestvica "po zmagah": več zmag, nato več 2. mest, nato več 3. mest (enako kot v Zgodovini)
   type Triple = { wins: number; second: number; third: number };
@@ -454,6 +457,18 @@ export function computeNotifications(
       if (hotNow && !hotBefore.get(p.name)) push({ id: `form:${g.id}:${p.name}`, kind: 'end', time: t, gameId: g.id, icon: '🔥', title: 'Vroča forma', text: `${p.name}: 3 zmage v zadnjih 5 igrah`, player: p.name });
     });
 
+    // Nov vodja meseca (sezona)
+    const mk = monthKeyOf(g.created_at);
+    const monthList = monthGames.get(mk) || [];
+    const leadersOf = (list: SeasonPlayer[][]) => standingsFor(list).filter(r => r.eligible && r.rank === 1).map(r => r.name);
+    const leadBefore = leadersOf(monthList);
+    monthList.push(gp);
+    monthGames.set(mk, monthList);
+    const leadAfter = leadersOf(monthList);
+    leadAfter.forEach(n => {
+      if (!leadBefore.includes(n)) push({ id: `monthlead:${g.id}:${n}`, kind: 'end', time: t, gameId: g.id, icon: '📅', title: 'Nov vodja meseca', text: `${n} vodi v ${MONTH_LOCATIVE[new Date(g.created_at).getMonth()]}`, player: n });
+    });
+
     // Nagrade igre (enako kot v Zgodovini)
     const awards = gameAwards(gp, ge);
 
@@ -467,6 +482,16 @@ export function computeNotifications(
       items,
     });
   }
+
+  // Igralec meseca: obvestilo ob začetku naslednjega meseca (samostojno, ne v živo)
+  computeSeasons(games, players).forEach(m => {
+    if (!m.champions.length) return;
+    const start = new Date(m.year, m.month + 1, 1, 0, 0, 0).toISOString();
+    m.champions.forEach(n => {
+      const row = m.standings.find(r => r.name === n)!;
+      live.push({ id: `champion:${m.key}:${n}`, kind: 'end', time: start, gameId: '', icon: '🏅', title: `Igralec meseca: ${m.label}`, text: `${n} (${row.points} točk)`, player: n });
+    });
+  });
 
   live.sort((a, b) => b.time.localeCompare(a.time));
   summaries.sort((a, b) => b.time.localeCompare(a.time));

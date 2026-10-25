@@ -4,6 +4,7 @@
 // uporabljajo vsi zasloni (profil igralca se odpre od koderkoli).
 // =====================================================================
 import { supabase } from '@/lib/supabase';
+import { computeSeasons, monthTitles } from '@/lib/season';
 
 export type H2HStat = { 
     opponent: string; 
@@ -37,6 +38,7 @@ export type PlayerStats = {
     beggar_wins: number;
     phoenix_count: number;
     dominator_count: number;
+    month_titles?: string[];   // naslovi "Igralec meseca" (npr. "Oktober 2026")
 };
 
 // Naloži podatke iz baze in izračuna statistiko vseh igralcev
@@ -49,7 +51,11 @@ export async function fetchPlayerStats(): Promise<PlayerStats[]> {
         if (!allPlayers) return [];
         
         const { data: allEntries } = await supabase.from('score_entries').select('*').in('game_id', gameIds).order('created_at', { ascending: true });
-        return computePlayerStats(finishedGames || [], allPlayers, allEntries || []);
+        const stats = computePlayerStats(finishedGames || [], allPlayers, allEntries || []);
+        // naslovi Igralec meseca (lib/season.ts)
+        const titles = monthTitles(computeSeasons(finishedGames || [], allPlayers));
+        stats.forEach(s => { s.month_titles = (titles[s.name] || []).map(m => m.label); });
+        return stats;
 }
 
 // Izračun statistike (enako kot prej v Zgodovini)

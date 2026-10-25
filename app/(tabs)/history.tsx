@@ -13,7 +13,7 @@ import {
   Image
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
-import { ChevronRight, Trophy, Trash2, Info, TrendingUp, TrendingDown, Calendar, Clock, BarChart2, Swords, Triangle, Circle, Zap, Share2, Lock, Users, X } from 'lucide-react-native';
+import { ChevronRight, Trophy, Trash2, Info, TrendingUp, TrendingDown, Calendar, Clock, BarChart2, Swords, Triangle, Circle, Zap, Share2, Lock, Users, X , CalendarDays } from 'lucide-react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient'; 
 import ViewShot from 'react-native-view-shot';
@@ -24,6 +24,7 @@ import * as Haptics from 'expo-haptics';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { fetchPlayerStats, PlayerStats } from '@/lib/playerStats';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
+import SeasonModal from '@/components/SeasonModal';
 
 type PlayerSummary = { name: string; total_score: number; };
 
@@ -112,6 +113,7 @@ export default function History() {
   
   
   const [showPlayerSelectModal, setShowPlayerSelectModal] = useState(false);
+  const [showSeasonModal, setShowSeasonModal] = useState(false);
   const [showWinnerPopup, setShowWinnerPopup] = useState(false);
   const [winnerData, setWinnerData] = useState<{names: string, score: number} | null>(null);
 
@@ -428,10 +430,13 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
       <View style={styles.mainHeader}>
           <Text style={styles.headerTitle}>Pregled</Text>
           <View style={{flexDirection: 'row', gap: 10}}>
+              <TouchableOpacity style={styles.globalStatsButton} onPress={() => setShowSeasonModal(true)}><LinearGradient colors={['#334155', '#1e293b']} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} /><View style={styles.relativeContent}><CalendarDays size={22} color="#fff" /></View></TouchableOpacity>
               <TouchableOpacity style={styles.globalStatsButton} onPress={() => loadGlobalStats('select')}><LinearGradient colors={['#334155', '#1e293b']} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} /><View style={styles.relativeContent}><Users size={22} color="#fff" /></View></TouchableOpacity>
               <TouchableOpacity style={styles.globalStatsButton} onPress={() => loadGlobalStats('leaderboard')}><LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} /><View style={styles.relativeContent}><Trophy size={22} color="#fff" /></View></TouchableOpacity>
           </View>
       </View>
+
+      <SeasonModal visible={showSeasonModal} onClose={() => setShowSeasonModal(false)} />
 
       <Modal visible={showPlayerSelectModal} transparent animationType="fade" onRequestClose={() => setShowPlayerSelectModal(false)}>
          <View style={[styles.modalOverlay, {justifyContent: 'center', alignItems: 'center'}]}>
@@ -657,7 +662,7 @@ const styles = StyleSheet.create({
   relativeContentVertical: { position: 'relative', zIndex: 1, alignItems: 'center', width: '100%' },
 
   globalStatsButton: {
-      paddingVertical: 12, paddingHorizontal: 35, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+      paddingVertical: 12, paddingHorizontal: 22, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
       borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.2)', borderTopColor: 'rgba(255, 255, 255, 0.55)', borderLeftColor: 'rgba(255, 255, 255, 0.35)', overflow: 'hidden'
   },
   
