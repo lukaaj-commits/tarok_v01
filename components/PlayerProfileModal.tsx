@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { PlayerStats, getFormStatus, getRivals } from '@/lib/playerStats';
 import { getAvatarUrl } from '@/lib/avatars';
 import DuelModal from '@/components/DuelModal';
+import TintBg from '@/components/TintBg';
 import { g } from '@/lib/gender';
 import { CHALLENGES, IZZIVI, IZZIVI_START } from '@/lib/challenges';
 
@@ -115,6 +116,7 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                                                 ))}
                                                 {unlockedCount === 5 && (
                                                     <View style={styles.grandSlamBox}>
+<TintBg />
                                                         <Text style={styles.gsTitle}>GRAND SLAM</Text>
                                                         <Text style={styles.gsSub}>Čestitke, vsi klasični dosežki so tvoji!</Text>
                                                         <View style={styles.gsReward}><Text style={styles.gsRewardText}>Nagrada: Vsak igralec ti plača pivo!</Text></View>
@@ -148,6 +150,7 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                                     <Text style={styles.profileSub}>{player.total_games} {plural(player.total_games, 'igra', 'igri', 'igre', 'iger')} · {player.wins} {plural(player.wins, 'zmaga', 'zmagi', 'zmage', 'zmag')} · <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>{Math.round(player.avg_performance)} %</Text></Text>
                                 </View>
                                 <TouchableOpacity onPress={() => setShowDuel(true)} activeOpacity={0.7} style={styles.duelCircle} accessibilityLabel="Primerjaj z">
+                                    <TintBg />
                                     <Swords size={20} color="#fff" strokeWidth={2} />
                                     <Text style={styles.duelCircleText}>Primerjaj</Text>
                                 </TouchableOpacity>
@@ -221,11 +224,13 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                                 ))}
                                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
                                     <View style={styles.tintCard}>
+                                        <TintBg />
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Trophy size={12} color="#FFD60A" strokeWidth={2.4} /><Text style={styles.tintLabel}>Igralec meseca</Text></View>
                                         <Text style={styles.tintValue}>{(player.month_titles || []).length > 0 ? `×${(player.month_titles || []).length}` : '–'}</Text>
                                         <Text style={styles.tintSub}>{(player.month_titles || []).length > 0 ? (player.month_titles || []).join(' · ') : 'Še brez naslova'}</Text>
                                     </View>
                                     <View style={styles.tintCard}>
+                                        <TintBg />
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Zap size={12} color="#FFD60A" strokeWidth={2.4} /><Text style={styles.tintLabel}>Valati</Text></View>
                                         <Text style={styles.tintValue}>{player.valat_count}</Text>
                                         <Text style={styles.tintSub}>Uspešni valati skupaj</Text>
@@ -263,6 +268,7 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                                     })}
                                     {izziviUnlocked === CHALLENGES.length && (
                                         <View style={styles.grandSlamBox}>
+<TintBg />
                                             <Text style={styles.gsTitle}>{IZZIVI.completionTitle}</Text>
                                             <Text style={styles.gsSub}>Čestitke, vsi izzivi so tvoji!</Text>
                                             <View style={styles.gsReward}><Text style={styles.gsRewardText}>{IZZIVI.reward}</Text></View>
@@ -310,7 +316,7 @@ const styles = StyleSheet.create({
   doneSub: { flex: 1, color: COLORS.textMuted, fontSize: 12 },
   doneToggle: { color: COLORS.primary, fontSize: 13, fontWeight: '500' },
   formRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 12 },
-  duelCircle: { width: 64, height: 64, borderRadius: 32, marginRight: 4, alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: 'rgba(10,132,255,0.15)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
+  duelCircle: { width: 64, height: 64, borderRadius: 32, marginRight: 4, alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: 'transparent', overflow: 'hidden', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
   duelCircleText: { color: '#fff', fontSize: 10, fontWeight: '500' },
   collCount: { color: COLORS.textMuted, fontSize: 13, fontWeight: '500' },
   collSub: { color: '#636366', fontSize: 12, marginBottom: 6, paddingHorizontal: 2 },
@@ -492,7 +498,7 @@ const styles = StyleSheet.create({
       backgroundColor: COLORS.inputBg, borderRadius: 12, padding: 16,
       borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)', borderTopColor: 'rgba(255, 255, 255, 0.18)', borderLeftColor: 'rgba(255, 255, 255, 0.12)', overflow: 'hidden'
   },
-  grandSlamBox: { marginTop: 14, padding: 16, borderRadius: 16, alignItems: 'center', gap: 6, backgroundColor: 'rgba(10,132,255,0.15)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
+  grandSlamBox: { marginTop: 14, padding: 16, borderRadius: 16, alignItems: 'center', gap: 6, backgroundColor: 'transparent', overflow: 'hidden', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
   // --- nov dizajn (D5) ---
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 24, marginBottom: 4, paddingHorizontal: 2 },
   achRow: { flexDirection: 'row', gap: 12, paddingVertical: 12, paddingHorizontal: 2, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.10)' },
@@ -514,7 +520,7 @@ const styles = StyleSheet.create({
   recTitle: { color: COLORS.text, fontSize: 15, fontWeight: '500' },
   recSub: { color: COLORS.textMuted, fontSize: 11 },
   recValue: { fontSize: 19, fontWeight: '600' },
-  tintCard: { flex: 1, borderRadius: 16, paddingVertical: 11, paddingHorizontal: 13, gap: 2, backgroundColor: 'rgba(10,132,255,0.15)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
+  tintCard: { flex: 1, borderRadius: 16, paddingVertical: 11, paddingHorizontal: 13, gap: 2, backgroundColor: 'transparent', overflow: 'hidden', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
   tintLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
   tintValue: { color: COLORS.text, fontSize: 22, fontWeight: '600' },
   tintSub: { color: '#AEAEB2', fontSize: 11 },

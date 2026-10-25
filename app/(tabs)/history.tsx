@@ -25,6 +25,7 @@ import ConfettiCannon from 'react-native-confetti-cannon';
 import { fetchPlayerStats, PlayerStats } from '@/lib/playerStats';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import SeasonModal from '@/components/SeasonModal';
+import TintBg from '@/components/TintBg';
 import { g } from '@/lib/gender';
 
 // "Zmagovalec" / "Zmagovalka" / "Zmagovalci" glede na spol in število zmagovalcev
@@ -524,6 +525,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                   
                   {!selectedGame?.is_active && gamePlayers.length > 0 && (
                       <TouchableOpacity onPress={() => openProfile(gamePlayers[0].name)} activeOpacity={0.8} style={styles.winnerCard}>
+                          <TintBg />
                           <Trophy size={24} color="#FFD60A" />
                           <Image source={{ uri: getAvatarUrl(gamePlayers[0].name) }} style={[styles.playerAvatar, { width: 52, height: 52, borderRadius: 26 }]} />
                           <View style={{ flex: 1, gap: 3 }}>
@@ -810,7 +812,7 @@ const styles = StyleSheet.create({
   awardName: { color: COLORS.text, fontSize: 16, fontWeight: '600', marginVertical: 1 },
   awardDesc: { color: COLORS.textMuted, fontSize: 12 },
   
-  winnerCard: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 96, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, marginBottom: 8, backgroundColor: 'rgba(10,132,255,0.15)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
+  winnerCard: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 96, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, marginBottom: 8, backgroundColor: 'transparent', overflow: 'hidden', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
   winnerText: { color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '600', letterSpacing: 1.6 },
   winnerName: { color: COLORS.text, fontSize: 22, fontWeight: '600', flexShrink: 1 },
   winnerScore: { color: COLORS.success, fontSize: 22, fontWeight: '800', marginTop: 4 },

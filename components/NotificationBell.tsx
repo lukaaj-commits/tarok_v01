@@ -7,6 +7,7 @@ import { computeNotifications, AppNotification, GameSummary } from '@/lib/notifi
 import { getAvatarUrl } from '@/lib/avatars';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import { loadGenders, g } from '@/lib/gender';
+import TintBg from '@/components/TintBg';
 
 // Ta telefon si zapomni, katera obvestila je že videl
 const SEEN_KEY = 'tarok_prebrana_obvestila_v1';
@@ -223,6 +224,7 @@ export default function NotificationBell() {
                         <TouchableOpacity onPress={() => dismissOne(item.key)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><X size={13} color={C.muted} strokeWidth={3} /></TouchableOpacity>
                       </View>
                       <TouchableOpacity activeOpacity={0.7} onPress={() => openProfile(item.g.winners.split(' & ')[0])} style={styles.winnerRow}>
+                        <TintBg />
                         <Trophy size={20} color="#FFD60A" />
                         <Image source={{ uri: getAvatarUrl(item.g.winners.split(' & ')[0]) }} style={styles.avatar} />
                         <View style={{ flex: 1 }}>
@@ -274,7 +276,7 @@ const styles = StyleSheet.create({
   itemTitle: { color: C.text, fontSize: 15, fontWeight: '600' },
   itemText: { color: '#AEAEB2', fontSize: 13, marginTop: 2 },
   avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.10)' },
-  winnerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 16, backgroundColor: 'rgba(10,132,255,0.15)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
+  winnerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 16, backgroundColor: 'transparent', overflow: 'hidden', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
   awards: { color: C.muted, fontSize: 12, lineHeight: 18 },
   subItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 4 },
   subIcon: { fontSize: 20 },

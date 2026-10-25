@@ -7,6 +7,7 @@ import { computeSeasons, SeasonMonth, SEASON } from '@/lib/season';
 import { getAvatarUrl } from '@/lib/avatars';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import { g } from '@/lib/gender';
+import TintBg from '@/components/TintBg';
 
 const C = {
   card: '#121A2B',
@@ -106,6 +107,7 @@ export default function SeasonModal({ visible, onClose }: Props) {
                     const isChampion = !month.isCurrent && month.champions.includes(r.name);
                     return (
                       <TouchableOpacity key={r.name} onPress={() => openProfile(r.name)} activeOpacity={0.7} style={[styles.rowOuter, isChampion && styles.championRow, !r.eligible && { opacity: 0.45 }]}>
+                        {isChampion && <TintBg />}
                         {isChampion && <View style={styles.championTagRow}><Trophy size={13} color={C.gold} strokeWidth={2.4} /><Text style={styles.championTag}>{g(r.name, 'IGRALEC', 'IGRALKA')} MESECA</Text></View>}
                         <View style={styles.rowInner}>
                         <View style={styles.rankBox}>
@@ -181,7 +183,7 @@ const styles = StyleSheet.create({
   arrow: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   monthLabel: { color: C.text, fontSize: 17, fontWeight: '600', letterSpacing: 1.5 },
   monthSub: { color: C.muted, fontSize: 12, marginTop: 1 },
-  championRow: { borderRadius: 16, paddingTop: 10, paddingBottom: 12, paddingHorizontal: 10, marginBottom: 4, backgroundColor: 'rgba(10,132,255,0.15)', borderWidth: 0.5, borderBottomWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)', borderBottomColor: 'rgba(255,255,255,0.12)' },
+  championRow: { borderRadius: 16, paddingTop: 10, paddingBottom: 12, paddingHorizontal: 10, marginBottom: 4, backgroundColor: 'transparent', overflow: 'hidden', borderWidth: 0.5, borderBottomWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)', borderBottomColor: 'rgba(255,255,255,0.12)' },
   championTagRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 8 },
   championTag: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '600', letterSpacing: 1.6 },
   championCard: { backgroundColor: C.inner, borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 14 },
