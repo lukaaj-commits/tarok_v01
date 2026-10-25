@@ -166,12 +166,12 @@ export function computeNotifications(
     ACHIEVEMENTS.forEach(a => {
       if (!s.unlocked.has(a.id) && a.isUnlocked(s)) {
         s.unlocked.add(a.id);
-        push({ id: `ach:${a.id}:${s.name}`, kind, time, gameId, icon: a.icon, title: `Nov dosežek: ${a.title}`, text: s.name, player: s.name });
+        push({ id: `ach:${a.id}:${s.name}:${gameId}`, kind, time, gameId, icon: a.icon, title: `Nov dosežek: ${a.title}`, text: s.name, player: s.name });
       }
     });
     if (!s.unlocked.has('grandslam') && ACHIEVEMENTS.every(a => s.unlocked.has(a.id))) {
       s.unlocked.add('grandslam');
-      push({ id: `ach:grandslam:${s.name}`, kind, time, gameId, icon: '🏆', title: 'GRAND SLAM!', text: `${s.name}: vse značke! Vsak plača pivo 🍻`, player: s.name });
+      push({ id: `ach:grandslam:${s.name}:${gameId}`, kind, time, gameId, icon: '🏆', title: 'GRAND SLAM!', text: `${s.name}: vse značke! Vsak plača pivo 🍻`, player: s.name });
     }
   };
 
@@ -254,7 +254,7 @@ export function computeNotifications(
             .sort((x, y) => Math.abs(new Date(x.created_at).getTime() - tMs) - Math.abs(new Date(y.created_at).getTime() - tMs))[0];
           const partner = partnerEntry ? playerById.get(partnerEntry.player_id)?.name : undefined;
           push({
-            id: `valatdrink:${s.valats}:${name}`, kind: 'live', time: t, gameId: e.game_id, icon: '🍻',
+            id: `valatdrink:${s.valats}:${name}:${e.game_id}`, kind: 'live', time: t, gameId: e.game_id, icon: '🍻',
             title: `${name}: ${s.valats}. valat!`,
             text: partner ? `Pijačo plača ${partner} (partner v tem valatu).` : `Valat brez partnerja, pijačo si plača kar ${gw(name, 'sam', 'sama')} 😄`,
             player: name,
@@ -266,7 +266,7 @@ export function computeNotifications(
         s.beggarWins++;
         // 5. berač odklene "Kralj beračev" (spodaj), nato mejnik na vsakih 5 (10., 15., 20. ...)
         if (s.beggarWins > SETTINGS.beggarMilestoneStep && s.beggarWins % SETTINGS.beggarMilestoneStep === 0) {
-          push({ id: `beggar:${s.beggarWins}:${name}`, kind: 'live', time: t, gameId: e.game_id, icon: '🙏', title: 'Mejnik', text: `${name}: ${s.beggarWins}. dobljeni berač`, player: name });
+          push({ id: `beggar:${s.beggarWins}:${name}:${e.game_id}`, kind: 'live', time: t, gameId: e.game_id, icon: '🙏', title: 'Mejnik', text: `${name}: ${s.beggarWins}. dobljeni berač`, player: name });
         }
       }
 
@@ -307,7 +307,7 @@ export function computeNotifications(
       if (reached >= step && !s.milestonesPassed.has(reached)) {
         // vse vmesne mejnike označimo, obvestimo samo za najvišjega
         for (let m = step; m <= reached; m += step) s.milestonesPassed.add(m);
-        push({ id: `pts:${reached}:${name}`, kind: 'live', time: t, gameId: e.game_id, icon: '🎯', title: 'Mejnik', text: `${name}: ${fmtBig(reached)} kariernih točk`, player: name });
+        push({ id: `pts:${reached}:${name}:${e.game_id}`, kind: 'live', time: t, gameId: e.game_id, icon: '🎯', title: 'Mejnik', text: `${name}: ${fmtBig(reached)} kariernih točk`, player: name });
       }
 
       // Večni dosežki, ki se štejejo po vpisih (Kralj valatov, Kralj beračev)
@@ -385,10 +385,10 @@ export function computeNotifications(
         if (prevWorst !== null && score < prevWorst) push({ id: `pw:${g.id}:${p.name}`, kind: 'end', time: t, gameId: g.id, icon: '📉', title: 'Črni dan', text: `${p.name}: ${fmt(score)} (prej ${fmt(prevWorst)})`, player: p.name });
       }
       // Mejniki iger in zmag
-      if (SETTINGS.gameMilestones.includes(s.games)) push({ id: `mg:${s.games}:${p.name}`, kind: 'end', time: t, gameId: g.id, icon: '🎯', title: 'Mejnik', text: `${p.name}: ${s.games}. igra`, player: p.name });
+      if (SETTINGS.gameMilestones.includes(s.games)) push({ id: `mg:${s.games}:${p.name}:${g.id}`, kind: 'end', time: t, gameId: g.id, icon: '🎯', title: 'Mejnik', text: `${p.name}: ${s.games}. igra`, player: p.name });
       if (rank === 1) {
-        if (s.wins === 1) push({ id: `firstwin:${p.name}`, kind: 'end', time: t, gameId: g.id, icon: '🎉', title: 'Prva zmaga v karieri', text: p.name, player: p.name });
-        else if (SETTINGS.winMilestones.includes(s.wins)) push({ id: `mw:${s.wins}:${p.name}`, kind: 'end', time: t, gameId: g.id, icon: '🎯', title: 'Mejnik', text: `${p.name}: ${s.wins}. zmaga`, player: p.name });
+        if (s.wins === 1) push({ id: `firstwin:${p.name}:${g.id}`, kind: 'end', time: t, gameId: g.id, icon: '🎉', title: 'Prva zmaga v karieri', text: p.name, player: p.name });
+        else if (SETTINGS.winMilestones.includes(s.wins)) push({ id: `mw:${s.wins}:${p.name}:${g.id}`, kind: 'end', time: t, gameId: g.id, icon: '🎯', title: 'Mejnik', text: `${p.name}: ${s.wins}. zmaga`, player: p.name });
         if (s.wins > 1 && s.gamesSinceWin >= SETTINGS.droughtGames) push({ id: `drought:${g.id}:${p.name}`, kind: 'end', time: t, gameId: g.id, icon: '🌧️', title: 'Konec suše', text: `${p.name}: zmaga po ${s.gamesSinceWin} igrah`, player: p.name });
         s.gamesSinceWin = 0;
       } else {
@@ -509,11 +509,11 @@ export function computeNotifications(
   computeChallenges(games, players, entries, radelci).events.forEach(ev => {
     if (!ev.unlocked) return;
     const def = CHALLENGES.find(c => c.id === ev.challengeId)!;
-    const n: AppNotification = { id: `izziv:${def.id}:${ev.player}`, kind: def.live ? 'live' : 'end', time: ev.time, gameId: ev.gameId, icon: def.icon, title: `Nov dosežek: ${def.title}`, text: challengeText(def.id, ev.player), player: ev.player };
+    const n: AppNotification = { id: `izziv:${def.id}:${ev.player}:${ev.gameId}`, kind: def.live ? 'live' : 'end', time: ev.time, gameId: ev.gameId, icon: def.icon, title: `Nov dosežek: ${def.title}`, text: challengeText(def.id, ev.player), player: ev.player };
     const list: AppNotification[] = [n];
     (unlockedSets[ev.player] = unlockedSets[ev.player] || new Set()).add(def.id);
     if (unlockedSets[ev.player].size === CHALLENGES.length) {
-      list.push({ id: `izziv-complete:${ev.player}`, kind: n.kind, time: ev.time, gameId: ev.gameId, icon: IZZIVI.completionIcon, title: IZZIVI.completionTitle, text: `${ev.player} je ${gw(ev.player, 'odklenil', 'odklenila')} vse izzive!`, player: ev.player });
+      list.push({ id: `izziv-complete:${ev.player}:${ev.gameId}`, kind: n.kind, time: ev.time, gameId: ev.gameId, icon: IZZIVI.completionIcon, title: IZZIVI.completionTitle, text: `${ev.player} je ${gw(ev.player, 'odklenil', 'odklenila')} vse izzive!`, player: ev.player });
     }
     list.forEach(x => {
       const summary = !def.live ? summaries.find(s => s.gameId === ev.gameId) : undefined;

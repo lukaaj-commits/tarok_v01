@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { PulseDot } from '../../components/Pulse';
 import {
   View,
   Text,
@@ -20,6 +21,7 @@ import { supabase } from '@/lib/supabase';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import { g, loadGenders } from '@/lib/gender';
 import GamePhotoButton from '@/components/GamePhotoButton';
+import StartGameButton from '@/components/StartGameButton';
 import { Plus, Minus, Info, Trash2, RotateCcw, Play, ChevronLeft, Trophy, Search, UserPlus, Check, Delete, Circle, Triangle, X } from 'lucide-react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { LinearGradient } from 'expo-linear-gradient'; 
@@ -125,6 +127,7 @@ export default function ActiveGame() {
   const [gameName, setGameName] = useState<string>('');
   const [players, setPlayers] = useState<Player[]>([]);
   const [radelci, setRadelci] = useState<Radelc[]>([]);
+  const [finishedCount, setFinishedCount] = useState<number | null>(null); // število odigranih iger (za začetni zaslon)
   const [playedCounts, setPlayedCounts] = useState<Record<string, number>>({}); // kolikokrat je igralec igral (tudi berač)
   const [allProfiles, setAllProfiles] = useState<PlayerProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -161,7 +164,11 @@ export default function ActiveGame() {
   const popupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [finishedGameId, setFinishedGameId] = useState<string | null>(null); // za sliko večera v oknu zmagovalca
 
-  useFocusEffect(useCallback(() => { fetchActiveGamesList(); }, []));
+  useFocusEffect(useCallback(() => {
+    fetchActiveGamesList();
+    // število odigranih (zaključenih) iger za začetni zaslon - enako kot v Zgodovini
+    supabase.from('games').select('id', { count: 'exact', head: true }).eq('is_active', false).then(({ count }) => { if (typeof count === 'number') setFinishedCount(count); });
+  }, []));
   useEffect(() => { fetchProfiles(false); }, []);
 
   useEffect(() => {
@@ -706,12 +713,10 @@ export default function ActiveGame() {
     <View style={[styles.container, styles.centerContent]}>
         <Text style={styles.welcomeTitle}>Tarok</Text>
         <Text style={styles.welcomeSubtitle}>Ni aktivne igre</Text>
-        <TouchableOpacity style={styles.bigStartButton} onPress={handleStartNewGame} activeOpacity={0.8}>
-            <View style={[styles.relativeContent, { gap: 10 }]}>
-                <Play size={22} color="#fff" fill="#fff" />
-                <Text style={styles.bigStartButtonText}>Začni novo igro</Text>
-            </View>
-        </TouchableOpacity>
+        {finishedCount !== null && <Text style={styles.welcomeCount}><Text style={{ color: COLORS.text, fontWeight: '600' }}>{finishedCount}</Text> {finishedCount % 100 === 1 ? 'igra' : finishedCount % 100 === 2 ? 'igri' : finishedCount % 100 === 3 || finishedCount % 100 === 4 ? 'igre' : 'iger'}</Text>}
+        <View style={{ marginTop: 6 }}>
+            <StartGameButton onPress={handleStartNewGame} />
+        </View>
     </View>
   );
 
@@ -730,7 +735,10 @@ export default function ActiveGame() {
                             <Text style={styles.calDay}>{new Date(item.created_at).getDate()}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
-                            <Text style={styles.gameName}>{getFormattedTitle(item)}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <PulseDot color={COLORS.primary} size={6} />
+                                <Text style={styles.gameName}>{getFormattedTitle(item)}</Text>
+                            </View>
                             {renderListWinner(item)}
                         </View>
                         <View style={styles.playCircle}><Play size={15} color={COLORS.primary} fill={COLORS.primary} /></View>
@@ -826,7 +834,7 @@ export default function ActiveGame() {
                                 <Text style={styles.profileName}>{item.name}</Text>
                             </View>
                             <View style={[styles.pickCircle, isSelected && styles.pickCircleOn]}>
-                                {isSelected ? <Check size={26} color="#fff" strokeWidth={2.8} /> : <Plus size={30} color={COLORS.primary} strokeWidth={2.4} />}
+                                {isSelected ? <Check size={28} color="#fff" strokeWidth={2.8} /> : <Plus size={32} color={COLORS.primary} strokeWidth={2.4} />}
                             </View>
                         </TouchableOpacity>
                     );
@@ -1056,7 +1064,7 @@ export default function ActiveGame() {
                         <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 8}]} />
                         
                         <Text style={styles.playerHistorySectionTitle}>
-                            {player.name} <Text style={{fontWeight: '400', fontSize: 14, color: COLORS.winnerGrey}}>(igral: {playedCount})</Text>
+                            {player.name} <Text style={{fontWeight: '400', fontSize: 14, color: COLORS.winnerGrey}}>({g(player.name, 'Igral', 'Igrala')}: {playedCount})</Text>
                         </Text>
                         <Text style={[styles.playerTotalScore, player.total_score > 0 ? styles.positivePoints : player.total_score < 0 ? styles.negativePoints : styles.neutralScore]}>{player.total_score}</Text>
                       </View>
@@ -1182,7 +1190,9 @@ export default function ActiveGame() {
                 </Text>
                 
                 {winnerData?.names && (
-                    <Image source={{ uri: getAvatarUrl(winnerData.names.split(' & ')[0]) }} style={[styles.playerAvatar, {width: 84, height: 84, borderRadius: 42, marginBottom: 12}]} />
+                    <View style={{ width: 84, height: 84, marginBottom: 12 }}>
+                        <Image source={{ uri: getAvatarUrl(winnerData.names.split(' & ')[0]) }} style={[styles.playerAvatar, {width: 84, height: 84, borderRadius: 42}]} />
+                    </View>
                 )}
 
                 <Text style={{color: COLORS.text, fontSize: 30, fontWeight: '600', textAlign: 'center', marginBottom: 8}}>
@@ -1239,8 +1249,9 @@ const styles = StyleSheet.create({
   bigStartButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, paddingHorizontal: 24, borderRadius: 16, width: '100%', maxWidth: 400, backgroundColor: COLORS.primary },
   bigStartButtonText: { color: '#fff', fontSize: 17, fontWeight: '600' },
   
-  welcomeTitle: { fontSize: 44, fontWeight: '700', color: COLORS.text, marginBottom: 8 },
-  welcomeSubtitle: { fontSize: 17, color: COLORS.textMuted, marginBottom: 36 },
+  welcomeTitle: { fontSize: 44, fontWeight: '600', color: COLORS.text, letterSpacing: -1 },
+  welcomeSubtitle: { fontSize: 15, color: COLORS.textMuted },
+  welcomeCount: { fontSize: 14, color: COLORS.textMuted, marginTop: 10 },
   
   gameHeaderBar: { 
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', 
@@ -1411,7 +1422,7 @@ const styles = StyleSheet.create({
   scoreHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
   scoreHeadName: { flex: 1, color: COLORS.text, fontSize: 18, fontWeight: '600' },
   scoreHeadCurrent: { color: COLORS.textMuted, fontSize: 13 },
-  pickCircle: { width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  pickCircle: { width: 50, height: 50, borderRadius: 25, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   playedCount: { color: COLORS.textMuted, fontSize: 13, fontWeight: '400', marginLeft: -4 },
   pickCircleOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
 });

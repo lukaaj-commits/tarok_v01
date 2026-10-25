@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback, ReactNode } from 're
 import { View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet, Image, ActivityIndicator, AppState, Platform, Animated, PanResponder } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Bell, X, Trophy } from 'lucide-react-native';
+import { PulseRings, PulseDot } from './Pulse';
 import { supabase } from '@/lib/supabase';
 import { computeNotifications, AppNotification, GameSummary } from '@/lib/notifications';
 import { getAvatarUrl } from '@/lib/avatars';
@@ -33,6 +34,17 @@ const clean = (t: string) => (t || '').replace(/[\p{Extended_Pictographic}\uFE0F
 type FeedItem =
   | { type: 'live'; key: string; time: string; n: AppNotification }
   | { type: 'game'; key: string; time: string; g: GameSummary };
+
+// Starejša obvestila so imela ključ brez igre na koncu. Da se ob posodobitvi ne pokažejo
+// znova kot nova (ali znova po tem, ko si jih zaprl), za obvestila pred to spremembo
+// upoštevamo tudi stari ključ.
+const LEGACY_BEFORE = '2026-10-25T21:30:00Z';
+const UUID_SUFFIX = /:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const inSet = (set: Set<string>, item: FeedItem) => {
+  if (set.has(item.key)) return true;
+  if (item.type !== 'live' || item.time >= LEGACY_BEFORE || !UUID_SUFFIX.test(item.key)) return false;
+  return set.has(item.key.replace(UUID_SUFFIX, ''));
+};
 
 const timeLabel = (iso: string) => {
   const d = new Date(iso);
@@ -136,8 +148,18 @@ export default function NotificationBell() {
   }, [load, channelName]);
 
   // Prikazana obvestila = vsa, ki jih uporabnik ni počistil
-  const visible = useMemo(() => feed.filter(i => !dismissed.has(i.key)).slice(0, MAX_ITEMS), [feed, dismissed]);
-  const unreadKeys = useMemo(() => (seen ? visible.filter(i => !seen.has(i.key)).map(i => i.key) : []), [visible, seen]);
+  const visible = useMemo(() => feed.filter(i => !inSet(dismissed, i)).slice(0, MAX_ITEMS), [feed, dismissed]);
+  const unreadKeys = useMemo(() => (seen ? visible.filter(i => !inSet(seen, i)).map(i => i.key) : []), [visible, seen]);
+
+  // Val okoli zvonca, ko pride novo obvestilo (ne ob prvem nalaganju)
+  const [bellPulse, setBellPulse] = useState(0);
+  const prevUnread = useRef<number | null>(null);
+  useEffect(() => {
+    if (!seen) return;
+    const n = unreadKeys.length;
+    if (prevUnread.current !== null && n > prevUnread.current) setBellPulse(p => p + 1);
+    prevUnread.current = n;
+  }, [unreadKeys.length, seen]);
 
   const saveDismissed = (next: Set<string>) => {
     setDismissed(next);
@@ -167,11 +189,16 @@ export default function NotificationBell() {
     await AsyncStorage.setItem(SEEN_KEY, JSON.stringify([...all])).catch(() => {});
   };
 
-  const isNew = (key: string) => !!seen && !seen.has(key);
+  const isNew = (item: FeedItem) => !!seen && !inSet(seen, item);
 
   return (
     <>
       <TouchableOpacity onPress={openFeed} style={styles.bellButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel="Obvestila">
+        {bellPulse > 0 && (
+          <View pointerEvents="none" style={{ position: 'absolute', left: '50%', top: '50%' }}>
+            <PulseRings key={bellPulse} size={30} color={C.primary} times={1} scaleTo={1.9} />
+          </View>
+        )}
         <Bell size={23} color={C.primary} strokeWidth={1.9} />
         {unreadKeys.length > 0 && (
           <View style={styles.badge}>
@@ -205,8 +232,8 @@ export default function NotificationBell() {
                     <TouchableOpacity activeOpacity={0.7} disabled={!item.n.player} onPress={() => item.n.player && openProfile(item.n.player)} style={styles.card}>
                       <View style={{ flex: 1 }}>
                         <View style={styles.metaRow}>
-                          {isNew(item.key) && <View style={styles.newDot} />}
-                          {item.n.kind === 'live' && <View style={styles.liveChip}><Text style={styles.liveChipText}>V ŽIVO</Text></View>}
+                          {isNew(item) && <View style={styles.newDot} />}
+                          {item.n.kind === 'live' && <View style={styles.liveChip}><PulseDot color={C.live} size={5} /><Text style={styles.liveChipText}>V ŽIVO</Text></View>}
                           <Text style={styles.time}>{timeLabel(item.time)}</Text>
                         </View>
                         <Text style={styles.itemTitle}>{clean(item.n.title)}</Text>
@@ -219,7 +246,7 @@ export default function NotificationBell() {
                     <SwipeToDismiss key={item.key} onDismiss={() => dismissOne(item.key)}>
                     <View style={[styles.card, styles.gameCard]}>
                       <View style={styles.metaRow}>
-                        {isNew(item.key) && <View style={styles.newDot} />}
+                        {isNew(item) && <View style={styles.newDot} />}
                         <Text style={[styles.time, { flex: 1 }]}>Igra {item.g.gameDate} · zaključena {timeLabel(item.time)}</Text>
                         <TouchableOpacity onPress={() => dismissOne(item.key)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><X size={13} color={C.muted} strokeWidth={3} /></TouchableOpacity>
                       </View>
@@ -269,7 +296,7 @@ const styles = StyleSheet.create({
   gameCard: { flexDirection: 'column', alignItems: 'stretch', gap: 8, paddingRight: 0 },
   icon: { fontSize: 26 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 },
-  liveChip: { backgroundColor: 'rgba(255,69,58,0.16)', borderRadius: 9, paddingHorizontal: 6, height: 18, justifyContent: 'center' },
+  liveChip: { backgroundColor: 'rgba(255,69,58,0.16)', borderRadius: 9, paddingHorizontal: 6, height: 18, justifyContent: 'center', flexDirection: 'row', alignItems: 'center', gap: 5 },
   liveChipText: { color: C.live, fontSize: 10, fontWeight: '600', letterSpacing: 0.5 },
   time: { color: '#636366', fontSize: 11 },
   newDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.primary },

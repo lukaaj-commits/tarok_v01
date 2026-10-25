@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { PulseDot } from '../../components/Pulse';
 import {
   View,
   Text,
@@ -318,10 +319,10 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
     const assignedIds = new Set();
 
     const pohlepnez = [...stats].sort((a, b) => b.playedCount - a.playedCount)[0];
-    if (pohlepnez && pohlepnez.playedCount > 0) { awards.push({ t: "Pohlepnež", n: pohlepnez.name, i: "💰", d: `Odigral ${pohlepnez.playedCount} iger.` }); assignedIds.add(pohlepnez.id); }
+    if (pohlepnez && pohlepnez.playedCount > 0) { awards.push({ t: "Pohlepnež", n: pohlepnez.name, i: "💰", d: `${g(pohlepnez.name, 'Odigral', 'Odigrala')} ${pohlepnez.playedCount} iger.` }); assignedIds.add(pohlepnez.id); }
 
     const pijavka = [...stats].filter(s => !assignedIds.has(s.id)).sort((a, b) => b.partnerCount - a.partnerCount)[0];
-    if (pijavka && pijavka.partnerCount > 0) { awards.push({ t: "Pijavka", n: pijavka.name, i: "🦟", d: `Klican ${pijavka.partnerCount}-krat.` }); assignedIds.add(pijavka.id); }
+    if (pijavka && pijavka.partnerCount > 0) { awards.push({ t: "Pijavka", n: pijavka.name, i: "🦟", d: `${g(pijavka.name, 'Klican', 'Klicana')} ${pijavka.partnerCount}-krat.` }); assignedIds.add(pijavka.id); }
 
     const beggarCandidate = [...stats].filter(s => !assignedIds.has(s.id)).sort((a, b) => b.beggarCount - a.beggarCount)[0];
     if (beggarCandidate && beggarCandidate.beggarCount >= 2) { awards.push({ t: "Socialni problem", n: beggarCandidate.name, i: "🙏", d: `Berač ${beggarCandidate.beggarCount}-krat.` }); assignedIds.add(beggarCandidate.id); } 
@@ -331,7 +332,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
     }
 
     const turist = [...stats].filter(s => !assignedIds.has(s.id)).sort((a, b) => a.actions - b.actions)[0];
-    if (turist) awards.push({ t: "Turist", n: turist.name, i: "📸", d: "Najmanj sodeloval." });
+    if (turist) awards.push({ t: "Turist", n: turist.name, i: "📸", d: `Najmanj ${g(turist.name, 'sodeloval', 'sodelovala')}.` });
 
     return awards.slice(0, 4);
   };
@@ -393,7 +394,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                     <Text style={styles.gameTitleCombined}>{comma > 0 ? title.slice(0, comma) : title}{comma > 0 && <Text style={styles.gameTitleDate}>{title.slice(comma)}</Text>}</Text>
                     {renderGameWinner(item)}
                 </View>
-                {item.is_active ? <View style={styles.activeBadge}><Text style={styles.activeBadgeText}>V TEKU</Text></View> : <ChevronRight size={18} color="#636366" />}
+                {item.is_active ? <View style={styles.activeBadge}><PulseDot color="#fff" size={6} /><Text style={styles.activeBadgeText}>V TEKU</Text></View> : <ChevronRight size={18} color="#636366" />}
             </View>
         </TouchableOpacity>
       </View>
@@ -619,7 +620,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                       <View style={[styles.playerHistoryHeader, {backgroundColor: COLORS.slateBlue}]}>
                         <View style={styles.playerRankBadge}>{rank === 1 && <Trophy size={16} color="#FFD60A" />}{rank === 2 && <Trophy size={16} color="#D1D1D6" />}{rank === 3 && <Trophy size={16} color="#FF9F0A" />}{rank > 3 && (<Text style={styles.playerRankText}>{rank}</Text>)}</View>
                         <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 8}]} />
-                        <Text style={styles.playerHistorySectionTitle}>{playerName} <Text style={{fontWeight: '400', fontSize: 12, color: COLORS.winnerGrey}}>igral: {playedCount}</Text></Text>
+                        <Text style={styles.playerHistorySectionTitle}>{playerName} <Text style={{fontWeight: '400', fontSize: 12, color: COLORS.winnerGrey}}>({g(playerName, 'Igral', 'Igrala')}: {playedCount})</Text></Text>
                         <Text style={[styles.playerTotalScore, player.total_score > 0 ? styles.positivePoints : player.total_score < 0 ? styles.negativePoints : styles.neutralScore]}>{player.total_score}</Text>
                       </View>
 
@@ -660,7 +661,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                 <TouchableOpacity style={styles.popupClose} onPress={() => setShowWinnerPopup(false)}><X size={16} color="#AEAEB2" /></TouchableOpacity>
                 <Trophy size={52} color="#FFD60A" style={{marginBottom: 12}} strokeWidth={1.6} />
                 <Text style={{color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '600', letterSpacing: 2.5, marginBottom: 12}}>{winnerWord(winnerData?.names || '', true)}</Text>
-                {winnerData?.names && (<Image source={{ uri: getAvatarUrl(winnerData.names.split(' & ')[0]) }} style={[styles.playerAvatar, {width: 84, height: 84, borderRadius: 42, marginBottom: 12}]} />)}
+                {winnerData?.names && (<View style={{ width: 84, height: 84, marginBottom: 12 }}><Image source={{ uri: getAvatarUrl(winnerData.names.split(' & ')[0]) }} style={[styles.playerAvatar, {width: 84, height: 84, borderRadius: 42}]} /></View>)}
                 <Text style={{color: COLORS.text, fontSize: 30, fontWeight: '600', textAlign: 'center', marginBottom: 8}}>{winnerData?.names}</Text>
                 <View style={styles.pointsPillBig}>
                     <Text style={{color: COLORS.success, fontSize: 20, fontWeight: '600'}}>{winnerData?.score} točk</Text>
@@ -695,7 +696,7 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   cardIconBox: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' },
   gameTitleCombined: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  activeBadge: { backgroundColor: COLORS.primary, paddingHorizontal: 9, height: 24, borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
+  activeBadge: { backgroundColor: COLORS.primary, paddingHorizontal: 9, height: 24, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
   activeBadgeText: { color: '#fff', fontSize: 11, fontWeight: '600', letterSpacing: 0.4 },
   emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
   emptyText: { color: COLORS.textMuted, fontSize: 15, marginBottom: 8, textAlign: 'center', paddingHorizontal: 20 },
