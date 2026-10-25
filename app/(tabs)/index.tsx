@@ -539,7 +539,7 @@ export default function ActiveGame() {
             if (unusedRadelci.length > 0) {
                 const penalty = unusedRadelci.length * -50;
                 const { error: penaltyError } = await supabase.from('score_entries').insert({
-                    game_id: gameId, player_id: p.id, points: penalty, played: false 
+                    game_id: gameId, player_id: p.id, points: penalty, played: false, is_penalty: true 
                 });
                 if (penaltyError) throw penaltyError;
                 

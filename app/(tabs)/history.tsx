@@ -429,7 +429,10 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
   return (
     <View style={styles.container}>
       <View style={styles.mainHeader}>
-          <Text style={styles.headerTitle}>Pregled</Text>
+          <View>
+            <Text style={styles.headerTitle}>Pregled</Text>
+            <Text style={styles.headerSub}>{(() => { const n = games.filter(g => !g.is_active).length; return `${n} ${n % 100 === 1 ? 'odigrana igra' : n % 100 === 2 ? 'odigrani igri' : n % 100 === 3 || n % 100 === 4 ? 'odigrane igre' : 'odigranih iger'}`; })()}</Text>
+          </View>
           <View style={{flexDirection: 'row', gap: 10}}>
               <TouchableOpacity style={styles.globalStatsButton} onPress={() => setShowSeasonModal(true)}><LinearGradient colors={['#334155', '#1e293b']} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} /><View style={styles.relativeContent}><CalendarDays size={22} color="#fff" /></View></TouchableOpacity>
               <TouchableOpacity style={styles.globalStatsButton} onPress={() => loadGlobalStats('select')}><LinearGradient colors={['#334155', '#1e293b']} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} /><View style={styles.relativeContent}><Users size={22} color="#fff" /></View></TouchableOpacity>
@@ -662,6 +665,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   mainHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 },
   headerTitle: { fontSize: 32, fontWeight: '800', color: COLORS.text },
+  headerSub: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
   
   absoluteGradient: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 },
   relativeContent: { position: 'relative', zIndex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },

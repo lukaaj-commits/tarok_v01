@@ -10,6 +10,7 @@
 // =====================================================================
 
 import { standingsFor, computeSeasons, monthKeyOf, MONTH_LOCATIVE, SeasonPlayer } from '@/lib/season';
+import { computeChallenges, CHALLENGES, IZZIVI, CRadelc } from '@/lib/challenges';
 
 export type NotifGame = { id: string; name: string; created_at: string; is_active: boolean };
 export type NotifPlayer = { id: string; game_id: string; name: string; total_score: number };
@@ -23,6 +24,7 @@ export type NotifEntry = {
   is_partner?: boolean | null;
   is_beggar?: boolean | null;
   is_valat?: boolean | null;
+  is_penalty?: boolean | null;
 };
 
 export type NotificationKind = 'live' | 'end';
@@ -124,7 +126,8 @@ const zmag = (n: number) => (n % 100 === 1 ? 'zmaga' : n % 100 === 2 ? 'zmagi' :
 export function computeNotifications(
   games: NotifGame[],
   players: NotifPlayer[],
-  entries: NotifEntry[]
+  entries: NotifEntry[],
+  radelci: CRadelc[] = []
 ): { live: AppNotification[]; summaries: GameSummary[] } {
   const live: AppNotification[] = [];
   const summaries: GameSummary[] = [];
@@ -161,7 +164,7 @@ export function computeNotifications(
     ACHIEVEMENTS.forEach(a => {
       if (!s.unlocked.has(a.id) && a.isUnlocked(s)) {
         s.unlocked.add(a.id);
-        push({ id: `ach:${a.id}:${s.name}`, kind, time, gameId, icon: a.icon, title: `Nov večni dosežek: ${a.title}`, text: s.name, player: s.name });
+        push({ id: `ach:${a.id}:${s.name}`, kind, time, gameId, icon: a.icon, title: `Nov dosežek: ${a.title}`, text: s.name, player: s.name });
       }
     });
     if (!s.unlocked.has('grandslam') && ACHIEVEMENTS.every(a => s.unlocked.has(a.id))) {
@@ -482,6 +485,23 @@ export function computeNotifications(
       items,
     });
   }
+
+  // Dosežki zbirke Izzivi: obvestilo ob odklepu (v živo ali ob koncu partije)
+  const unlockedSets: Record<string, Set<string>> = {};
+  computeChallenges(games, players, entries, radelci).events.forEach(ev => {
+    if (!ev.unlocked) return;
+    const def = CHALLENGES.find(c => c.id === ev.challengeId)!;
+    const n: AppNotification = { id: `izziv:${def.id}:${ev.player}`, kind: def.live ? 'live' : 'end', time: ev.time, gameId: ev.gameId, icon: def.icon, title: `Nov dosežek: ${def.title}`, text: ev.player, player: ev.player };
+    const list: AppNotification[] = [n];
+    (unlockedSets[ev.player] = unlockedSets[ev.player] || new Set()).add(def.id);
+    if (unlockedSets[ev.player].size === CHALLENGES.length) {
+      list.push({ id: `izziv-complete:${ev.player}`, kind: n.kind, time: ev.time, gameId: ev.gameId, icon: IZZIVI.completionIcon, title: IZZIVI.completionTitle, text: `${ev.player}: vsi izzivi odklenjeni!`, player: ev.player });
+    }
+    list.forEach(x => {
+      const summary = !def.live ? summaries.find(s => s.gameId === ev.gameId) : undefined;
+      if (summary) summary.items.push(x); else live.push(x);
+    });
+  });
 
   // Igralec meseca: obvestilo ob začetku naslednjega meseca (samostojno, ne v živo)
   computeSeasons(games, players).forEach(m => {

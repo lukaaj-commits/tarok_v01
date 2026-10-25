@@ -73,13 +73,14 @@ export default function NotificationBell() {
 
   const load = useCallback(async () => {
     try {
-      const [g, p, e] = await Promise.all([
+      const [g, p, e, r] = await Promise.all([
         supabase.from('games').select('id, name, created_at, is_active'),
         supabase.from('players').select('id, game_id, name, total_score'),
-        supabase.from('score_entries').select('id, player_id, game_id, points, created_at, played, is_partner, is_beggar, is_valat'),
+        supabase.from('score_entries').select('id, player_id, game_id, points, created_at, played, is_partner, is_beggar, is_valat, is_penalty'),
+        supabase.from('radelci').select('player_id, game_id'),
       ]);
       if (g.error || p.error || e.error) return;
-      const { live, summaries } = computeNotifications(g.data || [], p.data || [], e.data || []);
+      const { live, summaries } = computeNotifications(g.data || [], p.data || [], e.data || [], r.data || []);
       const items: FeedItem[] = [
         ...live.map(n => ({ type: 'live' as const, key: n.id, time: n.time, n })),
         ...summaries.map(s => ({ type: 'game' as const, key: `game:${s.gameId}`, time: s.time, g: s })),

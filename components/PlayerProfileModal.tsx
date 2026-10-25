@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { PlayerStats, getFormStatus, getRivals } from '@/lib/playerStats';
 import { getAvatarUrl } from '@/lib/avatars';
 import DuelModal from '@/components/DuelModal';
+import { CHALLENGES, IZZIVI, IZZIVI_START } from '@/lib/challenges';
 
 const COLORS = {
   bg: '#0d1321',
@@ -29,16 +30,26 @@ const GRADIENT_COLORS = ['#556eeb', '#6050ea'];
 
 type Props = { player: PlayerStats | null; visible: boolean; onClose: () => void };
 
+// slovnica: 1 igra, 2 igri, 3-4 igre, 5+ iger
+const plural = (n: number, one: string, two: string, few: string, many: string) => {
+  const m = n % 100;
+  return m === 1 ? one : m === 2 ? two : m === 3 || m === 4 ? few : many;
+};
+
 export default function PlayerProfileModal({ player, visible, onClose }: Props) {
   const [showAllGames, setShowAllGames] = useState(false);
   const [chartWidth, setChartWidth] = useState(0);
   const [showDuel, setShowDuel] = useState(false);
+  const [tab, setTab] = useState<'stats' | 'ach'>('stats');
+  const [showClassic, setShowClassic] = useState(false);
   const detailScrollRef = useRef<ScrollView>(null);
 
   // ob odprtju novega igralca: začni na vrhu in pokaži zadnjih 5 iger
   useEffect(() => {
     if (!visible) return;
     setShowAllGames(false);
+    setTab('stats');
+    setShowClassic(false);
     const t = setTimeout(() => detailScrollRef.current?.scrollTo({ y: 0, animated: false }), 100);
     return () => clearTimeout(t);
   }, [player, visible]);
@@ -49,100 +60,15 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
       return (<View style={{ position: 'absolute', left: (x1 + x2) / 2 - length / 2, top: (y1 + y2) / 2 - 1, width: length, height: 2, backgroundColor: color, transform: [{ rotate: `${angle}deg` }] }} />);
   };
 
-  return (
-    <>
-      <Modal 
-          visible={visible} 
-          transparent 
-          animationType="slide" 
-          onRequestClose={() => onClose()}
-      >
-         <View style={styles.modalOverlay}>
-             <View style={[styles.modalContent, styles.historyModal]}>
-                {player && (
-                    <>
-                        <ScrollView ref={detailScrollRef} style={styles.detailScroll} showsVerticalScrollIndicator={false}>
-                            <View style={styles.detailHeader}>
-                                <Image source={{ uri: getAvatarUrl(player.name) }} style={[styles.playerAvatar, {width: 80, height: 80, borderRadius: 40, marginRight: 0, marginBottom: 12, borderWidth: 2}]} />
-                                <Text style={styles.modalTitle}>{player.name}   <Text style={{ color: 'rgb(148, 163, 184)' }}>{Math.round(player.avg_performance)}%</Text></Text>
-                                <TouchableOpacity onPress={() => setShowDuel(true)} activeOpacity={0.7} style={{ marginTop: 10, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: 'rgba(85,110,235,0.18)', borderWidth: 1, borderColor: 'rgba(85,110,235,0.5)' }}>
-                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>⚔️ Primerjaj z …</Text>
-                                </TouchableOpacity>
-                            </View>
+  // koliko dosežkov je odklenjenih (Klasika: enaka pravila kot spodaj v seznamu)
+  const classicUnlocked = player ? [player.longest_win_streak >= 3, player.valat_count >= 2, player.phoenix_count >= 3, player.beggar_wins >= 5, player.dominator_count >= 3].filter(Boolean).length : 0;
+  const izziviUnlocked = player ? CHALLENGES.filter(ch => ((player.challenges || {})[ch.id] || 0) >= ch.threshold).length : 0;
 
-                            <View style={styles.formSection}>
-                                <Text style={styles.sectionTitle}>Trenutna forma</Text>
-                                {(() => {
-                                    const form = getFormStatus(player.recent_ranks);
-                                    return (
-                                        <View style={styles.formCard}><Text style={{fontSize: 40}}>{form.icon}</Text><Text style={styles.formSubText}>{player.recent_ranks.slice(0, 5).length} iger v analizi</Text></View>
-                                    );
-                                })()}
-                            </View>
-
-                            <View style={styles.chartSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:20}}><TrendingUp size={20} color={COLORS.primary} style={{marginRight:8}} /><Text style={[styles.sectionTitle, {marginBottom: 0}]}>Gibanje uvrstitev (Zadnjih 10)</Text></View>
-                                <View style={styles.chartContainer} onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}>
-                                    <View style={[styles.gridLine, {top: 0}]}><Text style={styles.gridLabel}>1.</Text></View><View style={[styles.gridLine, {top: '50%'}]}><Text style={styles.gridLabel}>5.</Text></View><View style={[styles.gridLine, {top: '100%'}]}><Text style={styles.gridLabel}>10.</Text></View>
-                                    {(() => {
-                                        if (chartWidth === 0) return null;
-                                        const data = player.recent_ranks.slice(0, 10).reverse();
-                                        const chartHeight = 120;
-                                        const totalPoints = data.length;
-                                        const stepX = totalPoints > 1 ? chartWidth / (totalPoints - 1) : chartWidth / 2;
-                                        const points = data.map((r, i) => { const cappedRank = Math.min(r.rank, 10); const y = ((cappedRank - 1) / 9) * chartHeight; const x = totalPoints > 1 ? i * stepX : chartWidth / 2; return { x, y, rank: r.rank }; });
-                                        return (
-                                            <View style={{ width: '100%', height: '100%' }}>
-                                                {points.map((p, i) => { if (i === points.length - 1) return null; const nextP = points[i+1]; return (<Line key={`line-${i}`} x1={p.x} y1={p.y} x2={nextP.x} y2={nextP.y} color={COLORS.primary} />); })}
-                                                {points.map((p, i) => { let dotColor = '#fff'; if (p.rank === 1) dotColor = '#ffd700'; else if (p.rank === 2) dotColor = '#c0c0c0'; else if (p.rank === 3) dotColor = '#cd7f32'; return (<View key={`dot-${i}`} style={{position: 'absolute', left: p.x - 5, top: p.y - 5, width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.bg, borderWidth: 2, borderColor: dotColor, zIndex: 10}} />); })}
-                                            </View>
-                                        );
-                                    })()}
-                                </View>
-                                <View style={styles.chartXAxis}><Text style={styles.axisLabel}>Starejše</Text><Text style={styles.axisLabel}>Novejše</Text></View>
-                            </View>
-
-                            <View style={styles.lastGamesSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', justifyContent: 'space-between', marginBottom:10}}>
-                                    <View style={{flexDirection:'row', alignItems:'center'}}><Calendar size={20} color={COLORS.textMuted} style={{marginRight:8}} /><Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{showAllGames ? 'Vse igre' : 'Zadnjih 5 iger'}</Text></View>
-                                    {player.recent_ranks.length > 5 && (<TouchableOpacity onPress={() => setShowAllGames(!showAllGames)}><Text style={{color: COLORS.primary, fontWeight: '600', fontSize: 14}}>{showAllGames ? 'Pokaži manj' : 'Pokaži vse'}</Text></TouchableOpacity>)}
-                                </View>
-                                {(showAllGames ? player.recent_ranks : player.recent_ranks.slice(0, 5)).map((r, i) => (
-                                    <View key={i} style={styles.rankRow}><Text style={styles.rankRowDate}>{new Date(r.date).toLocaleDateString('sl-SI')}</Text><View style={styles.rankBadge}><Text style={styles.rankBadgeText}>{r.rank}. mesto</Text></View></View>
-                                ))}
-                            </View>
-
-                            <View style={styles.rivalsSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:12}}><Swords size={20} color={COLORS.danger} style={{marginRight:8}} /><Text style={[styles.sectionTitle, {marginBottom: 0}]}>Osebni rivali</Text></View>
-                                {(() => {
-                                    const rivals = getRivals(player.h2h);
-                                    if (!rivals) return <Text style={styles.emptyText}>Premalo odigranih skupnih iger za izračun rivalov (vsaj 3 igre z istim nasprotnikom).</Text>;
-                                    return (
-                                        <View>
-                                            {rivals.stranka && (<View style={styles.rivalCard}><Text style={styles.rivalTitle}>Najljubša stranka</Text><View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}><Image source={{ uri: getAvatarUrl(rivals.stranka.opponent) }} style={[styles.playerAvatar, {width: 24, height: 24, borderRadius: 12, marginRight: 8}]} /><Text style={styles.rivalName}>{rivals.stranka.opponent}</Text></View><Text style={styles.rivalDesc}>Zmage proti njemu: <Text style={{fontWeight: '700', color: COLORS.text}}>{Math.round(rivals.stranka.winPct)} %</Text> ({rivals.stranka.wins} Z / {rivals.stranka.losses} P)</Text></View>)}
-                                            {rivals.mora && rivals.mora.opponent !== rivals.stranka.opponent && (<View style={styles.rivalCard}><Text style={styles.rivalTitle}>Trn v peti</Text><View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}><Image source={{ uri: getAvatarUrl(rivals.mora.opponent) }} style={[styles.playerAvatar, {width: 24, height: 24, borderRadius: 12, marginRight: 8}]} /><Text style={styles.rivalName}>{rivals.mora.opponent}</Text></View><Text style={styles.rivalDesc}>Porazi proti njemu: <Text style={{fontWeight: '700', color: COLORS.text}}>{Math.round(rivals.mora.lossPct)} %</Text> ({rivals.mora.losses} P / {rivals.mora.wins} Z)</Text></View>)}
-                                            {rivals.derbi && (<View style={styles.rivalCard}><Text style={styles.rivalTitle}>Večni derbi</Text><View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}><Image source={{ uri: getAvatarUrl(rivals.derbi.opponent) }} style={[styles.playerAvatar, {width: 24, height: 24, borderRadius: 12, marginRight: 8}]} /><Text style={styles.rivalName}>{rivals.derbi.opponent}</Text></View><Text style={styles.rivalDesc}>Izenačen boj: <Text style={{fontWeight: '700', color: COLORS.text}}>{Math.round(rivals.derbi.winPct)} %</Text> uspeh.</Text></View>)}
-                                        </View>
-                                    );
-                                })()}
-                            </View>
-
+  // zbirka Klasika (obstoječi dosežki) - prikazana zgoraj, ali strnjena na dnu, ko je zaključena
+  const renderClassic = () => !player ? null : (
                             <View style={styles.recordsSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:12}}><Trophy size={20} color="#ffd700" style={{marginRight:8}} /><Text style={[styles.sectionTitle, {marginBottom: 0}]}>Osebni rekordi in ekstremi</Text></View>
-                                <View style={styles.recordsGrid}>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>🚀 Življenjska igra</Text><Text style={[styles.recordValue, player.best_game && player.best_game.score > 0 ? {color: COLORS.success} : {}]}>{player.best_game ? (player.best_game.score > 0 ? `+${player.best_game.score}` : player.best_game.score) : '/'}</Text><Text style={styles.recordSub}>{player.best_game ? new Date(player.best_game.date).toLocaleDateString('sl-SI') : ''}</Text></View>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>💀 Črni dan</Text><Text style={[styles.recordValue, player.worst_game && player.worst_game.score < 0 ? {color: COLORS.danger} : {}]}>{player.worst_game ? player.worst_game.score : '/'}</Text><Text style={styles.recordSub}>{player.worst_game ? new Date(player.worst_game.date).toLocaleDateString('sl-SI') : ''}</Text></View>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>💰 Skupne točke</Text><Text style={[styles.recordValue, player.total_score_sum > 0 ? {color: COLORS.success} : (player.total_score_sum < 0 ? {color: COLORS.danger} : {color: COLORS.text})]}>{player.total_score_sum > 0 ? `+${player.total_score_sum}` : player.total_score_sum}</Text><Text style={styles.recordSub}>Karierni izkupiček</Text></View>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>⚖️ Povprečje</Text><Text style={styles.recordValue}>{(player.total_score_sum / player.total_games).toFixed(1)}</Text><Text style={styles.recordSub}>Točk na igro</Text></View>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>🏅 Stopničke</Text><Text style={styles.recordValue}>{Math.round(((player.wins + player.second + player.third) / player.total_games) * 100)} %</Text><Text style={styles.recordSub}>Iger med top 3</Text></View>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>🔥 Niz zmag</Text><Text style={styles.recordValue}>{player.longest_win_streak}</Text><Text style={styles.recordSub}>Zaporednih zmag</Text></View>
-                                    <View style={[styles.recordBox, {width: '100%', borderColor: 'rgba(255, 215, 0, 0.25)', borderTopColor: 'rgba(255, 215, 0, 0.5)', borderLeftColor: 'rgba(255, 215, 0, 0.35)', backgroundColor: 'rgba(255, 215, 0, 0.05)'}]}><Text style={[styles.recordTitle, {color: '#ffd700', fontSize: 16, marginBottom: 0}]}>🏅 Igralec meseca</Text><Text style={[styles.recordValue, {color: '#ffd700', marginTop: 8, fontSize: 32}]}>{(player.month_titles || []).length > 0 ? `×${(player.month_titles || []).length}` : '–'}</Text><Text style={styles.recordSub}>{(player.month_titles || []).length > 0 ? (player.month_titles || []).join(' · ') : 'Še brez naslova'}</Text></View>
-                                    <View style={[styles.recordBox, {width: '100%', borderColor: 'rgba(245, 158, 11, 0.2)', borderTopColor: 'rgba(245, 158, 11, 0.5)', borderLeftColor: 'rgba(245, 158, 11, 0.3)', backgroundColor: 'rgba(245, 158, 11, 0.05)'}]}><View style={{flexDirection: 'row', alignItems: 'center'}}><Zap size={18} color={COLORS.warning} style={{marginRight: 8}} /><Text style={[styles.recordTitle, {color: COLORS.warning, marginBottom: 0, fontSize: 16}]}>Valati</Text></View><Text style={[styles.recordValue, {color: COLORS.warning, marginTop: 8, fontSize: 32}]}>{player.valat_count}</Text><Text style={styles.recordSub}>Skupno število uspešnih valatov</Text></View>
-                                </View>
-                            </View>
-
-                            <View style={styles.recordsSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:12}}><Trophy size={20} color="#ffd700" style={{marginRight:8}} /><Text style={[styles.sectionTitle, {marginBottom: 0}]}>Večni dosežki</Text></View>
+                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:4}}><Text style={[styles.sectionTitle, {marginBottom: 0}]}>🏛️ Klasika</Text><Text style={styles.collCount}>{classicUnlocked} / 5</Text></View>
+                                <Text style={styles.collSub}>Štejejo vse partije od začetka.</Text>
                                 <View style={{ gap: 10 }}>
                                     {(() => {
                                         const achievements = [
@@ -168,7 +94,7 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                                                 {unlockedCount === 5 && (
                                                     <View style={styles.grandSlamBox}>
                                                         <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 1}} style={styles.absoluteGradient} />
-                                                        <View style={styles.relativeContentVertical}><Text style={{ fontSize: 24, fontWeight: '900', color: '#fff', marginBottom: 8, letterSpacing: 1, textAlign: 'center' }}>🏆 GRAND SLAM 🏆</Text><Text style={{ fontSize: 15, color: '#e2e8f0', marginBottom: 15, textAlign: 'center', fontWeight: '500' }}>Čestitke, vse značke so tvoje!</Text><View style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, width: '100%' }}><Text style={{ fontSize: 16, fontWeight: '800', color: '#fff', textAlign: 'center' }}>Nagrada: Vsak igralec ti plača pivo! 🍻😎</Text></View></View>
+                                                        <View style={styles.relativeContentVertical}><Text style={{ fontSize: 24, fontWeight: '900', color: '#fff', marginBottom: 8, letterSpacing: 1, textAlign: 'center' }}>🏆 GRAND SLAM 🏆</Text><Text style={{ fontSize: 15, color: '#e2e8f0', marginBottom: 15, textAlign: 'center', fontWeight: '500' }}>Čestitke, vsi klasični dosežki so tvoji!</Text><View style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, width: '100%' }}><Text style={{ fontSize: 16, fontWeight: '800', color: '#fff', textAlign: 'center' }}>Nagrada: Vsak igralec ti plača pivo! 🍻😎</Text></View></View>
                                                     </View>
                                                 )}
                                             </>
@@ -176,7 +102,163 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                                     })()}
                                 </View>
                             </View>
+  );
 
+  return (
+    <>
+      <Modal 
+          visible={visible} 
+          transparent 
+          animationType="slide" 
+          onRequestClose={() => onClose()}
+      >
+         <View style={styles.modalOverlay}>
+             <View style={[styles.modalContent, styles.historyModal]}>
+                {player && (
+                    <>
+                        <ScrollView ref={detailScrollRef} style={styles.detailScroll} showsVerticalScrollIndicator={false}>
+                            {/* glava: slika, ime, odigrane igre in zmage, indeks */}
+                            <View style={styles.profileHead}>
+                                <Image source={{ uri: getAvatarUrl(player.name) }} style={styles.profileAvatar} />
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.profileName} numberOfLines={1}>{player.name}</Text>
+                                    <Text style={styles.profileSub}>{player.total_games} {plural(player.total_games, 'igra', 'igri', 'igre', 'iger')} · {player.wins} {plural(player.wins, 'zmaga', 'zmagi', 'zmage', 'zmag')} · <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{Math.round(player.avg_performance)} %</Text></Text>
+                                </View>
+                                <TouchableOpacity onPress={() => setShowDuel(true)} activeOpacity={0.7} style={styles.duelCircle} accessibilityLabel="Primerjaj z">
+                                    <Text style={{ fontSize: 20 }}>⚔️</Text>
+                                    <Text style={styles.duelCircleText}>Primerjaj</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* zavihka */}
+                            <View style={styles.tabContainer}>
+                                <TouchableOpacity style={[styles.tabButton, tab === 'stats' && styles.tabButtonActive]} onPress={() => setTab('stats')}><Text style={[styles.tabText, tab === 'stats' && styles.tabTextActive]}>Statistika</Text></TouchableOpacity>
+                                <TouchableOpacity style={[styles.tabButton, tab === 'ach' && styles.tabButtonActive]} onPress={() => setTab('ach')}><Text style={[styles.tabText, tab === 'ach' && styles.tabTextActive]}>Dosežki</Text></TouchableOpacity>
+                            </View>
+
+                            {tab === 'stats' ? (
+                            <>
+
+
+                            <View style={styles.chartSection}>
+                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:14}}>
+                                    <TrendingUp size={20} color={COLORS.primary} style={{marginRight:8}} />
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={[styles.sectionTitle, {marginBottom: 0}]}>Gibanje uvrstitev</Text>
+                                        <Text style={{ color: '#64748b', fontSize: 11 }}>zadnjih 10 iger</Text>
+                                    </View>
+                                    <View style={styles.formBadge}>
+                                        <Text style={styles.formLabel}>Forma</Text>
+                                        <Text style={{ fontSize: 24 }}>{getFormStatus(player.recent_ranks).icon}</Text>
+                                    </View>
+                                </View>
+                                <View style={styles.chartContainer} onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}>
+                                    <View style={[styles.gridLine, {top: 0}]}><Text style={styles.gridLabel}>1.</Text></View><View style={[styles.gridLine, {top: '50%'}]}><Text style={styles.gridLabel}>5.</Text></View><View style={[styles.gridLine, {top: '100%'}]}><Text style={styles.gridLabel}>10.</Text></View>
+                                    {(() => {
+                                        if (chartWidth === 0) return null;
+                                        const data = player.recent_ranks.slice(0, 10).reverse();
+                                        const chartHeight = 80;
+                                        const totalPoints = data.length;
+                                        const stepX = totalPoints > 1 ? chartWidth / (totalPoints - 1) : chartWidth / 2;
+                                        const points = data.map((r, i) => { const cappedRank = Math.min(r.rank, 10); const y = ((cappedRank - 1) / 9) * chartHeight; const x = totalPoints > 1 ? i * stepX : chartWidth / 2; return { x, y, rank: r.rank }; });
+                                        return (
+                                            <View style={{ width: '100%', height: '100%' }}>
+                                                {points.map((p, i) => { if (i === points.length - 1) return null; const nextP = points[i+1]; return (<Line key={`line-${i}`} x1={p.x} y1={p.y} x2={nextP.x} y2={nextP.y} color={COLORS.primary} />); })}
+                                                {points.map((p, i) => { let dotColor = '#fff'; if (p.rank === 1) dotColor = '#ffd700'; else if (p.rank === 2) dotColor = '#c0c0c0'; else if (p.rank === 3) dotColor = '#cd7f32'; return (<View key={`dot-${i}`} style={{position: 'absolute', left: p.x - 5, top: p.y - 5, width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.bg, borderWidth: 2, borderColor: dotColor, zIndex: 10}} />); })}
+                                            </View>
+                                        );
+                                    })()}
+                                </View>
+                                <View style={styles.chartXAxis}><Text style={styles.axisLabel}>Starejše</Text><Text style={styles.axisLabel}>Novejše</Text></View>
+                            </View>
+
+                            <View style={styles.lastGamesSection}>
+                                <View style={{flexDirection:'row', alignItems:'center', justifyContent: 'space-between', marginBottom:10}}>
+                                    <View style={{flexDirection:'row', alignItems:'center'}}><Calendar size={20} color={COLORS.textMuted} style={{marginRight:8}} /><Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{showAllGames ? 'Vse igre' : 'Zadnje 3 igre'}</Text></View>
+                                    {player.recent_ranks.length > 3 && (<TouchableOpacity onPress={() => setShowAllGames(!showAllGames)}><Text style={{color: COLORS.primary, fontWeight: '600', fontSize: 14}}>{showAllGames ? 'Pokaži manj' : 'Pokaži vse'}</Text></TouchableOpacity>)}
+                                </View>
+                                {(showAllGames ? player.recent_ranks : player.recent_ranks.slice(0, 3)).map((r, i) => (
+                                    <View key={i} style={styles.rankRow}><Text style={styles.rankRowDate}>{new Date(r.date).toLocaleDateString('sl-SI')}</Text><View style={styles.rankBadge}><Text style={styles.rankBadgeText}>{r.rank}. mesto</Text></View></View>
+                                ))}
+                            </View>
+
+                            <View style={styles.recordsSection}>
+                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:12}}><Trophy size={20} color="#ffd700" style={{marginRight:8}} /><Text style={[styles.sectionTitle, {marginBottom: 0}]}>Osebni rekordi in ekstremi</Text></View>
+                                <View style={styles.recordsGrid}>
+                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>🚀 Življenjska igra</Text><Text style={[styles.recordValue, player.best_game && player.best_game.score > 0 ? {color: COLORS.success} : {}]}>{player.best_game ? (player.best_game.score > 0 ? `+${player.best_game.score}` : player.best_game.score) : '/'}</Text><Text style={styles.recordSub}>{player.best_game ? new Date(player.best_game.date).toLocaleDateString('sl-SI') : ''}</Text></View>
+                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>💀 Črni dan</Text><Text style={[styles.recordValue, player.worst_game && player.worst_game.score < 0 ? {color: COLORS.danger} : {}]}>{player.worst_game ? player.worst_game.score : '/'}</Text><Text style={styles.recordSub}>{player.worst_game ? new Date(player.worst_game.date).toLocaleDateString('sl-SI') : ''}</Text></View>
+                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>💰 Skupne točke</Text><Text style={[styles.recordValue, player.total_score_sum > 0 ? {color: COLORS.success} : (player.total_score_sum < 0 ? {color: COLORS.danger} : {color: COLORS.text})]}>{player.total_score_sum > 0 ? `+${player.total_score_sum}` : player.total_score_sum}</Text><Text style={styles.recordSub}>Karierni izkupiček</Text></View>
+                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>⚖️ Povprečje</Text><Text style={styles.recordValue}>{(player.total_score_sum / player.total_games).toFixed(1)}</Text><Text style={styles.recordSub}>Točk na igro</Text></View>
+                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>🏅 Stopničke</Text><Text style={styles.recordValue}>{Math.round(((player.wins + player.second + player.third) / player.total_games) * 100)} %</Text><Text style={styles.recordSub}>Iger med top 3</Text></View>
+                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>🔥 Niz zmag</Text><Text style={styles.recordValue}>{player.longest_win_streak}</Text><Text style={styles.recordSub}>Zaporednih zmag</Text></View>
+                                    <View style={[styles.recordBox, {width: '100%', borderColor: 'rgba(255, 215, 0, 0.25)', borderTopColor: 'rgba(255, 215, 0, 0.5)', borderLeftColor: 'rgba(255, 215, 0, 0.35)', backgroundColor: 'rgba(255, 215, 0, 0.05)'}]}><Text style={[styles.recordTitle, {color: '#ffd700', fontSize: 16, marginBottom: 0}]}>🏅 Igralec meseca</Text><Text style={[styles.recordValue, {color: '#ffd700', marginTop: 8, fontSize: 32}]}>{(player.month_titles || []).length > 0 ? `×${(player.month_titles || []).length}` : '–'}</Text><Text style={styles.recordSub}>{(player.month_titles || []).length > 0 ? (player.month_titles || []).join(' · ') : 'Še brez naslova'}</Text></View>
+                                    <View style={[styles.recordBox, {width: '100%', borderColor: 'rgba(245, 158, 11, 0.2)', borderTopColor: 'rgba(245, 158, 11, 0.5)', borderLeftColor: 'rgba(245, 158, 11, 0.3)', backgroundColor: 'rgba(245, 158, 11, 0.05)'}]}><View style={{flexDirection: 'row', alignItems: 'center'}}><Zap size={18} color={COLORS.warning} style={{marginRight: 8}} /><Text style={[styles.recordTitle, {color: COLORS.warning, marginBottom: 0, fontSize: 16}]}>Valati</Text></View><Text style={[styles.recordValue, {color: COLORS.warning, marginTop: 8, fontSize: 32}]}>{player.valat_count}</Text><Text style={styles.recordSub}>Skupno število uspešnih valatov</Text></View>
+                                </View>
+                            </View>
+
+                            <View style={styles.rivalsSection}>
+                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:12}}><Swords size={20} color={COLORS.danger} style={{marginRight:8}} /><Text style={[styles.sectionTitle, {marginBottom: 0}]}>Osebni rivali</Text></View>
+                                {(() => {
+                                    const rivals = getRivals(player.h2h);
+                                    if (!rivals) return <Text style={styles.emptyText}>Premalo odigranih skupnih iger za izračun rivalov (vsaj 3 igre z istim nasprotnikom).</Text>;
+                                    return (
+                                        <View>
+                                            {rivals.stranka && (<View style={styles.rivalCard}><Text style={styles.rivalTitle}>Najljubša stranka</Text><View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}><Image source={{ uri: getAvatarUrl(rivals.stranka.opponent) }} style={[styles.playerAvatar, {width: 24, height: 24, borderRadius: 12, marginRight: 8}]} /><Text style={styles.rivalName}>{rivals.stranka.opponent}</Text></View><Text style={styles.rivalDesc}>Zmage proti njemu: <Text style={{fontWeight: '700', color: COLORS.text}}>{Math.round(rivals.stranka.winPct)} %</Text> ({rivals.stranka.wins} Z / {rivals.stranka.losses} P)</Text></View>)}
+                                            {rivals.mora && rivals.mora.opponent !== rivals.stranka.opponent && (<View style={styles.rivalCard}><Text style={styles.rivalTitle}>Trn v peti</Text><View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}><Image source={{ uri: getAvatarUrl(rivals.mora.opponent) }} style={[styles.playerAvatar, {width: 24, height: 24, borderRadius: 12, marginRight: 8}]} /><Text style={styles.rivalName}>{rivals.mora.opponent}</Text></View><Text style={styles.rivalDesc}>Porazi proti njemu: <Text style={{fontWeight: '700', color: COLORS.text}}>{Math.round(rivals.mora.lossPct)} %</Text> ({rivals.mora.losses} P / {rivals.mora.wins} Z)</Text></View>)}
+                                            {rivals.derbi && (<View style={styles.rivalCard}><Text style={styles.rivalTitle}>Večni derbi</Text><View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}><Image source={{ uri: getAvatarUrl(rivals.derbi.opponent) }} style={[styles.playerAvatar, {width: 24, height: 24, borderRadius: 12, marginRight: 8}]} /><Text style={styles.rivalName}>{rivals.derbi.opponent}</Text></View><Text style={styles.rivalDesc}>Izenačen boj: <Text style={{fontWeight: '700', color: COLORS.text}}>{Math.round(rivals.derbi.winPct)} %</Text> uspeh.</Text></View>)}
+                                        </View>
+                                    );
+                                })()}
+                            </View>
+
+                            
+                            </>
+                            ) : (
+                            <>
+{classicUnlocked < 5 && renderClassic()}
+                            <View style={styles.recordsSection}>
+                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:4}}><Text style={[styles.sectionTitle, {marginBottom: 0}]}>✨ {IZZIVI.name}</Text><Text style={styles.collCount}>{izziviUnlocked} / {CHALLENGES.length}</Text></View>
+                                <Text style={styles.collSub}>Štejejo partije od {new Date(IZZIVI_START).toLocaleDateString('sl-SI')} naprej.</Text>
+                                <View style={{ gap: 10 }}>
+                                    {CHALLENGES.map(ch => {
+                                        const count = (player.challenges || {})[ch.id] || 0;
+                                        const isUnlocked = count >= ch.threshold;
+                                        const progress = Math.min(count / ch.threshold, 1);
+                                        return (
+                                            <View key={ch.id} style={styles.achievementBox}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                                                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.2)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>{isUnlocked ? (<Text style={{ fontSize: 22 }}>{ch.icon}</Text>) : (<Lock size={20} color="#64748b" />)}</View>
+                                                    <View style={{ flex: 1 }}><Text style={{ fontSize: 18, fontWeight: '800', color: isUnlocked ? '#ffd700' : '#94a3b8' }}>{ch.title}</Text></View>
+                                                    {isUnlocked && count > 1 && <Text style={styles.timesBadge}>×{count}</Text>}
+                                                </View>
+                                                <Text style={{ color: COLORS.textMuted, fontSize: 13, marginBottom: 12, lineHeight: 18 }}>{ch.desc}</Text>
+                                                {isUnlocked ? (<View style={{ flexDirection: 'row', alignItems: 'center' }}><Trophy size={14} color="#ffd700" style={{ marginRight: 6 }} /><Text style={{ color: '#ffd700', fontSize: 12, fontWeight: '700' }}>Odklenjeno</Text></View>)
+                                                : ch.threshold > 1 ? (<View><View style={{ height: 6, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 3, overflow: 'hidden' }}><View style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: COLORS.primary, borderRadius: 3 }} /></View><Text style={{ color: '#64748b', fontSize: 11, marginTop: 6, textAlign: 'right', fontWeight: '600' }}>({count} / {ch.threshold})</Text></View>)
+                                                : (<Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>Še ni odklenjeno</Text>)}
+                                            </View>
+                                        );
+                                    })}
+                                    {izziviUnlocked === CHALLENGES.length && (
+                                        <View style={styles.grandSlamBox}>
+                                            <LinearGradient colors={['#b45309', '#7c3aed']} start={{x: 0, y: 0}} end={{x: 1, y: 1}} style={styles.absoluteGradient} />
+                                            <View style={styles.relativeContentVertical}><Text style={{ fontSize: 24, fontWeight: '900', color: '#fff', marginBottom: 8, letterSpacing: 1, textAlign: 'center' }}>{IZZIVI.completionIcon} {IZZIVI.completionTitle} {IZZIVI.completionIcon}</Text><Text style={{ fontSize: 15, color: '#e2e8f0', marginBottom: 15, textAlign: 'center', fontWeight: '500' }}>Čestitke, vsi izzivi so tvoji!</Text><View style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, width: '100%' }}><Text style={{ fontSize: 16, fontWeight: '800', color: '#fff', textAlign: 'center' }}>{IZZIVI.reward}</Text></View></View>
+                                        </View>
+                                    )}
+                                </View>
+                            </View>
+
+                            {classicUnlocked >= 5 && (
+                                <View style={{ marginTop: 6 }}>
+                                    <TouchableOpacity onPress={() => setShowClassic(v => !v)} activeOpacity={0.7} style={styles.doneCollection}>
+                                        <Text style={styles.doneTitle}>🏛️ Klasika</Text>
+                                        <Text style={styles.doneSub}>5 / 5 · 🏆 Grand Slam ✓</Text>
+                                        <Text style={styles.doneToggle}>{showClassic ? 'Skrij' : 'Pokaži'}</Text>
+                                    </TouchableOpacity>
+                                    {showClassic && <View style={{ marginTop: 12 }}>{renderClassic()}</View>}
+                                </View>
+                            )}
+                            </>
+                            )}
                         </ScrollView>
                         <TouchableOpacity style={styles.closeButton} onPress={() => onClose()}><Text style={styles.closeButtonText}>Zapri</Text></TouchableOpacity>
                     </>
@@ -190,6 +272,24 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
 }
 
 const styles = StyleSheet.create({
+  profileHead: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14 },
+  profileAvatar: { width: 60, height: 60, borderRadius: 30, borderWidth: 2, borderColor: 'rgba(255,255,255,0.25)', backgroundColor: 'rgba(255,255,255,0.05)' },
+  profileName: { color: '#FFFFFF', fontSize: 24, fontWeight: '800' },
+  profileSub: { color: '#94A3B8', fontSize: 14, marginTop: 2 },
+  profilePct: { color: '#94A3B8', fontSize: 26, fontWeight: '800' },
+  duelButton: { alignItems: 'center', paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(85,110,235,0.18)', borderWidth: 1, borderColor: 'rgba(85,110,235,0.5)', marginBottom: 14 },
+  formBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4 },
+  formLabel: { color: '#94A3B8', fontSize: 12, fontWeight: '700' },
+  doneCollection: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,215,0,0.06)', borderWidth: 1, borderColor: 'rgba(255,215,0,0.3)', borderRadius: 12, padding: 14 },
+  doneTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  doneSub: { color: '#ffd700', fontSize: 13, fontWeight: '700', flex: 1 },
+  doneToggle: { color: '#556eeb', fontSize: 13, fontWeight: '700' },
+  formRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 12 },
+  duelCircle: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(85,110,235,0.18)', borderWidth: 1, borderColor: 'rgba(85,110,235,0.5)' },
+  duelCircleText: { color: '#FFFFFF', fontSize: 9, fontWeight: '700', marginTop: 1 },
+  collCount: { color: '#ffd700', fontSize: 15, fontWeight: '800', marginLeft: 'auto' },
+  collSub: { color: '#64748b', fontSize: 12, marginBottom: 12 },
+  timesBadge: { color: '#ffd700', fontSize: 16, fontWeight: '900', backgroundColor: 'rgba(255,215,0,0.12)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   container: { flex: 1, backgroundColor: COLORS.bg },
   mainHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 },
   headerTitle: { fontSize: 32, fontWeight: '800', color: COLORS.text },
@@ -337,7 +437,7 @@ const styles = StyleSheet.create({
       marginBottom: 24, backgroundColor: '#222', padding: 16, borderRadius: 16,
       borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)', borderTopColor: 'rgba(255, 255, 255, 0.18)', borderLeftColor: 'rgba(255, 255, 255, 0.12)', overflow: 'hidden'
   },
-  chartContainer: { height: 140, paddingBottom: 10, marginTop: 10 },
+  chartContainer: { height: 100, paddingBottom: 10, marginTop: 6 },
   chartXAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   axisLabel: { color: COLORS.textMuted, fontSize: 10 },
   gridLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: '#333', justifyContent: 'center' },
