@@ -33,6 +33,7 @@ const winnerWord = (names: string, upper = false) => {
   return upper ? w.toUpperCase() : w;
 };
 import HallOfFame from '@/components/HallOfFame';
+import GamePhotoButton from '@/components/GamePhotoButton';
 
 type PlayerSummary = { name: string; total_score: number; };
 
@@ -44,6 +45,7 @@ type Game = {
   radelci_active: number; 
   radelci_used: number;
   players?: PlayerSummary[]; 
+  photo_url?: string | null;   // slika večera
 };
 
 type GamePlayer = { id: string; name: string; total_score: number; position: number; };
@@ -587,7 +589,19 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
             <View style={styles.modalButtons}>
               {selectedGame?.is_active ? (<TouchableOpacity style={[styles.closeButton, styles.closeButtonFlex]} onPress={() => setShowGameModal(false)}><Text style={styles.closeButtonText}>Zapri</Text></TouchableOpacity>) : (
                 <>
-                  <TouchableOpacity style={[styles.closeButton, styles.closeButtonFlex, {backgroundColor: COLORS.success, flexDirection: 'row', justifyContent: 'center', gap: 8}]} onPress={shareResults}><Share2 size={20} color="#fff" /><Text style={styles.closeButtonText}>Deli</Text></TouchableOpacity>
+                  {selectedGame && (
+                    <GamePhotoButton
+                      key={selectedGame.id}
+                      gameId={selectedGame.id}
+                      photoUrl={selectedGame.photo_url}
+                      title={getFormattedTitle(selectedGame)}
+                      style={{ flex: 1 }}
+                      onChange={url => {
+                        setSelectedGame(g => (g ? { ...g, photo_url: url } : g));
+                        setGames(list => list.map(x => (x.id === selectedGame.id ? { ...x, photo_url: url } : x)));
+                      }}
+                    />
+                  )}
                   <TouchableOpacity style={[styles.closeButton, styles.closeButtonFlex]} onPress={() => setShowGameModal(false)}><Text style={styles.closeButtonText}>Zapri</Text></TouchableOpacity>
                 </>
               )}

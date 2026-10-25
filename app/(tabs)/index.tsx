@@ -19,6 +19,7 @@ import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import { g, loadGenders } from '@/lib/gender';
+import GamePhotoButton from '@/components/GamePhotoButton';
 import { Plus, Minus, Info, Trash2, RotateCcw, Play, ChevronLeft, Trophy, Search, UserPlus, CheckCircle2, Delete, Circle, Triangle, X } from 'lucide-react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { LinearGradient } from 'expo-linear-gradient'; 
@@ -154,6 +155,7 @@ export default function ActiveGame() {
   const [showWinnerPopup, setShowWinnerPopup] = useState(false);
   const [winnerData, setWinnerData] = useState<{names: string, score: number} | null>(null);
   const popupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [finishedGameId, setFinishedGameId] = useState<string | null>(null); // za sliko večera v oknu zmagovalca
 
   useFocusEffect(useCallback(() => { fetchActiveGamesList(); }, []));
   useEffect(() => { fetchProfiles(false); }, []);
@@ -558,6 +560,7 @@ export default function ActiveGame() {
         const winners = finalPlayers.filter(p => p.total_score === maxScore);
         const names = winners.map(w => w.name).join(' & ');
         setWinnerData({ names, score: maxScore });
+        setFinishedGameId(gameId);
 
         await supabase.from('games').update({ is_active: false }).eq('id', gameId);
         setShowFinishGameModal(false); 
@@ -1211,6 +1214,14 @@ export default function ActiveGame() {
                         {winnerData?.score} točk
                     </Text>
                 </View>
+
+                {finishedGameId && (
+                    <GamePhotoButton
+                        gameId={finishedGameId}
+                        style={{ marginTop: 20, alignSelf: 'stretch' }}
+                        onPress={() => { if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current); }}
+                    />
+                )}
             </View>
 
             {showWinnerPopup && (
