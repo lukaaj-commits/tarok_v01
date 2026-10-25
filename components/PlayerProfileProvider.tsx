@@ -50,7 +50,7 @@ export function PlayerProfileProvider({ children }: { children: ReactNode }) {
       {loading && (
         <Modal visible transparent animationType="fade">
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-            <ActivityIndicator size="large" color="#556eeb" />
+            <ActivityIndicator size="large" color="#0A84FF" />
           </View>
         </Modal>
       )}

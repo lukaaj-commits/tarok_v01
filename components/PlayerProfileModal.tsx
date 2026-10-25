@@ -1,7 +1,7 @@
 // Profil igralca (prestavljeno iz zaslona Zgodovina - izgled in vsebina NESPREMENJENA)
 import { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Image } from 'react-native';
-import { TrendingUp, Calendar, Swords, Trophy, Zap, Lock } from 'lucide-react-native';
+import { TrendingUp, TrendingDown, Swords, Trophy, Zap, Lock, Check, Sigma, Divide, BarChart3, Flame } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PlayerStats, getFormStatus, getRivals } from '@/lib/playerStats';
 import { getAvatarUrl } from '@/lib/avatars';
@@ -10,24 +10,30 @@ import { g } from '@/lib/gender';
 import { CHALLENGES, IZZIVI, IZZIVI_START } from '@/lib/challenges';
 
 const COLORS = {
-  bg: '#0d1321',
-  card: '#1e293b',
-  primary: '#556eeb',
+  bg: '#000000',
+  card: 'rgba(255,255,255,0.09)',
+  primary: '#0A84FF',
   text: '#FFFFFF',
-  textMuted: '#94A3B8',
-  border: '#334155',
-  success: '#10B981', 
-  danger: '#EF4444',  
-  warning: '#F59E0B', 
-  inputBg: '#334155',
-  radelcBorder: '#20B2AA', 
-  radelcFill: '#28323e',
+  textMuted: '#8E8E93',
+  border: 'rgba(255,255,255,0.10)',
+  success: '#30D158',
+  danger: '#FF453A',
+  warning: '#FF9F0A',
+  inputBg: 'rgba(255,255,255,0.08)',
+  radelcBorder: '#64D2FF',
+  radelcFill: '#3A3A3C',
   playedDot: '#FFFFFF',
-  slateBlue: 'rgb(74, 87, 106)',
-  winnerGrey: 'rgb(148, 163, 184)'
+  slateBlue: 'rgba(255,255,255,0.09)',
+  winnerGrey: '#8E8E93',
+  sheet: '#121A2B',
+  soft: '#64D2FF',
+  label: 'rgba(100,210,255,0.6)',
 };
 
-const GRADIENT_COLORS = ['#556eeb', '#6050ea']; 
+// barve oblike forme (namesto emojijev)
+const FORM_COLORS: Record<string, string> = { 'Vroče': '#FF9F0A', 'Odlična': '#30D158', 'Srednja': '#FFD60A', 'Hladna': '#8E8E93' };
+
+const GRADIENT_COLORS = ['#0A84FF', '#0A84FF']; 
 
 type Props = { player: PlayerStats | null; visible: boolean; onClose: () => void };
 
@@ -65,12 +71,34 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
   const classicUnlocked = player ? [player.longest_win_streak >= 3, player.valat_count >= 2, player.phoenix_count >= 3, player.beggar_wins >= 5, player.dominator_count >= 3].filter(Boolean).length : 0;
   const izziviUnlocked = player ? CHALLENGES.filter(ch => ((player.challenges || {})[ch.id] || 0) >= ch.threshold).length : 0;
 
+
+  // ena vrstica dosežka ali izziva: ikona (kljukica / ključavnica), naslov, opis, napredek
+  const AchRow = ({ title, desc, unlocked, count, current, target, showProgress }: { title: string; desc: string; unlocked: boolean; count?: number; current: number; target: number; showProgress: boolean }) => (
+    <View style={[styles.achRow, !unlocked && { opacity: 0.6 }]}>
+      <View style={[styles.achIcon, unlocked ? styles.achIconOn : styles.achIconOff]}>
+        {unlocked ? <Check size={16} color={COLORS.soft} strokeWidth={2.6} /> : <Lock size={15} color="#636366" />}
+      </View>
+      <View style={{ flex: 1, gap: 3 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={[styles.achTitle, !unlocked && { color: '#8E8E93' }]}>{title}</Text>
+          {unlocked && !!count && count > 1 && <Text style={styles.timesBadge}>×{count}</Text>}
+          <View style={{ flex: 1 }} />
+          <Text style={[styles.achState, unlocked && { color: COLORS.soft }]}>{unlocked ? 'Odklenjeno' : showProgress ? `${Math.min(current, target)} / ${target}` : 'Še ni odklenjeno'}</Text>
+        </View>
+        <Text style={styles.achDesc}>{desc}</Text>
+        {!unlocked && showProgress && (
+          <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${Math.min(current / target, 1) * 100}%` }]} /></View>
+        )}
+      </View>
+    </View>
+  );
+
   // zbirka Klasika (obstoječi dosežki) - prikazana zgoraj, ali strnjena na dnu, ko je zaključena
   const renderClassic = () => !player ? null : (
                             <View style={styles.recordsSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:4}}><Text style={[styles.sectionTitle, {marginBottom: 0}]}>🏛️ Klasika</Text><Text style={styles.collCount}>{classicUnlocked} / 5</Text></View>
+                                <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Klasika</Text><Text style={styles.collCount}>{classicUnlocked} / 5</Text></View>
                                 <Text style={styles.collSub}>Štejejo vse partije od začetka.</Text>
-                                <View style={{ gap: 10 }}>
+                                <View>
                                     {(() => {
                                         const achievements = [
                                             { id: 'metla', title: 'Zlata metla', icon: '🧹', target: 3, current: player.current_win_streak, unlocked: player.longest_win_streak >= 3, descLocked: 'Zmagaj 3 igre zapored v katerih sodeluješ.', descUnlocked: `Dosežek odklenjen: ${g(player.name, 'Zmagal', 'Zmagala')} si 3 igre zapored.` },
@@ -82,20 +110,14 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                                         const unlockedCount = achievements.filter(a => a.unlocked).length;
                                         return (
                                             <>
-                                                {achievements.map(ach => {
-                                                    const isUnlocked = ach.unlocked; const progress = isUnlocked ? 1 : (ach.current / ach.target);
-                                                    return (
-                                                        <View key={ach.id} style={styles.achievementBox}>
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}><View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.2)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>{isUnlocked ? (<Text style={{ fontSize: 22 }}>{ach.icon}</Text>) : (<Lock size={20} color="#64748b" />)}</View><View style={{ flex: 1 }}><Text style={{ fontSize: 18, fontWeight: '800', color: isUnlocked ? '#ffd700' : '#94a3b8' }}>{ach.title}</Text></View></View>
-                                                            <Text style={{ color: COLORS.textMuted, fontSize: 13, marginBottom: 12, lineHeight: 18 }}>{isUnlocked ? ach.descUnlocked : ach.descLocked}</Text>
-                                                            {isUnlocked ? (<View style={{ flexDirection: 'row', alignItems: 'center' }}><Trophy size={14} color="#ffd700" style={{ marginRight: 6 }} /><Text style={{ color: '#ffd700', fontSize: 12, fontWeight: '700' }}>Odklenjeno</Text></View>) : (<View><View style={{ height: 6, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 3, overflow: 'hidden' }}><View style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: COLORS.primary, borderRadius: 3 }} /></View><Text style={{ color: '#64748b', fontSize: 11, marginTop: 6, textAlign: 'right', fontWeight: '600' }}>({Math.min(ach.current, ach.target)} / {ach.target})</Text></View>)}
-                                                        </View>
-                                                    );
-                                                })}
+                                                {achievements.map(ach => (
+                                                    <AchRow key={ach.id} title={ach.title} desc={ach.unlocked ? ach.descUnlocked : ach.descLocked} unlocked={ach.unlocked} current={ach.current} target={ach.target} showProgress />
+                                                ))}
                                                 {unlockedCount === 5 && (
                                                     <View style={styles.grandSlamBox}>
-                                                        <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 1}} style={styles.absoluteGradient} />
-                                                        <View style={styles.relativeContentVertical}><Text style={{ fontSize: 24, fontWeight: '900', color: '#fff', marginBottom: 8, letterSpacing: 1, textAlign: 'center' }}>🏆 GRAND SLAM 🏆</Text><Text style={{ fontSize: 15, color: '#e2e8f0', marginBottom: 15, textAlign: 'center', fontWeight: '500' }}>Čestitke, vsi klasični dosežki so tvoji!</Text><View style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, width: '100%' }}><Text style={{ fontSize: 16, fontWeight: '800', color: '#fff', textAlign: 'center' }}>Nagrada: Vsak igralec ti plača pivo! 🍻😎</Text></View></View>
+                                                        <Text style={styles.gsTitle}>GRAND SLAM</Text>
+                                                        <Text style={styles.gsSub}>Čestitke, vsi klasični dosežki so tvoji!</Text>
+                                                        <View style={styles.gsReward}><Text style={styles.gsRewardText}>Nagrada: Vsak igralec ti plača pivo!</Text></View>
                                                     </View>
                                                 )}
                                             </>
@@ -123,10 +145,10 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                                 <Image source={{ uri: getAvatarUrl(player.name) }} style={styles.profileAvatar} />
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.profileName} numberOfLines={1}>{player.name}</Text>
-                                    <Text style={styles.profileSub}>{player.total_games} {plural(player.total_games, 'igra', 'igri', 'igre', 'iger')} · {player.wins} {plural(player.wins, 'zmaga', 'zmagi', 'zmage', 'zmag')} · <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{Math.round(player.avg_performance)} %</Text></Text>
+                                    <Text style={styles.profileSub}>{player.total_games} {plural(player.total_games, 'igra', 'igri', 'igre', 'iger')} · {player.wins} {plural(player.wins, 'zmaga', 'zmagi', 'zmage', 'zmag')} · <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>{Math.round(player.avg_performance)} %</Text></Text>
                                 </View>
                                 <TouchableOpacity onPress={() => setShowDuel(true)} activeOpacity={0.7} style={styles.duelCircle} accessibilityLabel="Primerjaj z">
-                                    <Text style={{ fontSize: 20 }}>⚔️</Text>
+                                    <Swords size={20} color="#fff" strokeWidth={2} />
                                     <Text style={styles.duelCircleText}>Primerjaj</Text>
                                 </TouchableOpacity>
                             </View>
@@ -141,18 +163,16 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                             <>
 
 
+                            <View style={styles.sectionHead}>
+                                <Text style={styles.sectionTitle}>Gibanje uvrstitev</Text>
+                                {(() => { const f = getFormStatus(player.recent_ranks); const c = FORM_COLORS[f.text] || COLORS.textMuted; return (
+                                    <View style={[styles.formBadge, { backgroundColor: c + '29' }]}>
+                                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: c }} />
+                                        <Text style={[styles.formLabel, { color: c }]}>Forma: {f.text.toLowerCase()}</Text>
+                                    </View>
+                                ); })()}
+                            </View>
                             <View style={styles.chartSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:14}}>
-                                    <TrendingUp size={20} color={COLORS.primary} style={{marginRight:8}} />
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={[styles.sectionTitle, {marginBottom: 0}]}>Gibanje uvrstitev</Text>
-                                        <Text style={{ color: '#64748b', fontSize: 11 }}>zadnjih 10 iger</Text>
-                                    </View>
-                                    <View style={styles.formBadge}>
-                                        <Text style={styles.formLabel}>Forma</Text>
-                                        <Text style={{ fontSize: 24 }}>{getFormStatus(player.recent_ranks).icon}</Text>
-                                    </View>
-                                </View>
                                 <View style={styles.chartContainer} onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}>
                                     <View style={[styles.gridLine, {top: 0}]}><Text style={styles.gridLabel}>1.</Text></View><View style={[styles.gridLine, {top: '50%'}]}><Text style={styles.gridLabel}>5.</Text></View><View style={[styles.gridLine, {top: '100%'}]}><Text style={styles.gridLabel}>10.</Text></View>
                                     {(() => {
@@ -165,48 +185,64 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                                         return (
                                             <View style={{ width: '100%', height: '100%' }}>
                                                 {points.map((p, i) => { if (i === points.length - 1) return null; const nextP = points[i+1]; return (<Line key={`line-${i}`} x1={p.x} y1={p.y} x2={nextP.x} y2={nextP.y} color={COLORS.primary} />); })}
-                                                {points.map((p, i) => { let dotColor = '#fff'; if (p.rank === 1) dotColor = '#ffd700'; else if (p.rank === 2) dotColor = '#c0c0c0'; else if (p.rank === 3) dotColor = '#cd7f32'; return (<View key={`dot-${i}`} style={{position: 'absolute', left: p.x - 5, top: p.y - 5, width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.bg, borderWidth: 2, borderColor: dotColor, zIndex: 10}} />); })}
+                                                {points.map((p, i) => { let dotColor = '#fff'; if (p.rank === 1) dotColor = '#FFD60A'; else if (p.rank === 2) dotColor = '#D1D1D6'; else if (p.rank === 3) dotColor = '#FF9F0A'; return (<View key={`dot-${i}`} style={{position: 'absolute', left: p.x - 5, top: p.y - 5, width: 10, height: 10, borderRadius: 5, backgroundColor: '#0C111D', borderWidth: 2, borderColor: dotColor, zIndex: 10}} />); })}
                                             </View>
                                         );
                                     })()}
                                 </View>
-                                <View style={styles.chartXAxis}><Text style={styles.axisLabel}>Starejše</Text><Text style={styles.axisLabel}>Novejše</Text></View>
+                                <View style={styles.chartXAxis}><Text style={styles.axisLabel}>Starejše · zadnjih 10 iger</Text><Text style={styles.axisLabel}>Novejše</Text></View>
                             </View>
 
                             <View style={styles.lastGamesSection}>
                                 <View style={{flexDirection:'row', alignItems:'center', justifyContent: 'space-between', marginBottom:10}}>
-                                    <View style={{flexDirection:'row', alignItems:'center'}}><Calendar size={20} color={COLORS.textMuted} style={{marginRight:8}} /><Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{showAllGames ? 'Vse igre' : 'Zadnje 3 igre'}</Text></View>
-                                    {player.recent_ranks.length > 3 && (<TouchableOpacity onPress={() => setShowAllGames(!showAllGames)}><Text style={{color: COLORS.primary, fontWeight: '600', fontSize: 14}}>{showAllGames ? 'Pokaži manj' : 'Pokaži vse'}</Text></TouchableOpacity>)}
+                                    <Text style={styles.sectionTitle}>{showAllGames ? 'Vse igre' : 'Zadnje 3 igre'}</Text>
+                                    {player.recent_ranks.length > 3 && (<TouchableOpacity onPress={() => setShowAllGames(!showAllGames)}><Text style={{color: COLORS.primary, fontWeight: '500', fontSize: 13}}>{showAllGames ? 'Pokaži manj' : 'Pokaži vse'}</Text></TouchableOpacity>)}
                                 </View>
                                 {(showAllGames ? player.recent_ranks : player.recent_ranks.slice(0, 3)).map((r, i) => (
-                                    <View key={i} style={styles.rankRow}><Text style={styles.rankRowDate}>{new Date(r.date).toLocaleDateString('sl-SI')}</Text><View style={styles.rankBadge}><Text style={styles.rankBadgeText}>{r.rank}. mesto</Text></View></View>
+                                    <View key={i} style={styles.rankRow}><Text style={styles.rankRowDate}>{new Date(r.date).toLocaleDateString('sl-SI')}</Text><View style={styles.rankBadge}><Text style={[styles.rankBadgeText, r.rank === 1 && { color: '#FFFFFF' }]}>{r.rank}. mesto</Text></View></View>
                                 ))}
                             </View>
 
                             <View style={styles.recordsSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:12}}><Trophy size={20} color="#ffd700" style={{marginRight:8}} /><Text style={[styles.sectionTitle, {marginBottom: 0}]}>Osebni rekordi in ekstremi</Text></View>
-                                <View style={styles.recordsGrid}>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>🚀 Življenjska igra</Text><Text style={[styles.recordValue, player.best_game && player.best_game.score > 0 ? {color: COLORS.success} : {}]}>{player.best_game ? (player.best_game.score > 0 ? `+${player.best_game.score}` : player.best_game.score) : '/'}</Text><Text style={styles.recordSub}>{player.best_game ? new Date(player.best_game.date).toLocaleDateString('sl-SI') : ''}</Text></View>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>💀 Črni dan</Text><Text style={[styles.recordValue, player.worst_game && player.worst_game.score < 0 ? {color: COLORS.danger} : {}]}>{player.worst_game ? player.worst_game.score : '/'}</Text><Text style={styles.recordSub}>{player.worst_game ? new Date(player.worst_game.date).toLocaleDateString('sl-SI') : ''}</Text></View>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>💰 Skupne točke</Text><Text style={[styles.recordValue, player.total_score_sum > 0 ? {color: COLORS.success} : (player.total_score_sum < 0 ? {color: COLORS.danger} : {color: COLORS.text})]}>{player.total_score_sum > 0 ? `+${player.total_score_sum}` : player.total_score_sum}</Text><Text style={styles.recordSub}>Karierni izkupiček</Text></View>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>⚖️ Povprečje</Text><Text style={styles.recordValue}>{(player.total_score_sum / player.total_games).toFixed(1)}</Text><Text style={styles.recordSub}>Točk na igro</Text></View>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>🏅 Stopničke</Text><Text style={styles.recordValue}>{Math.round(((player.wins + player.second + player.third) / player.total_games) * 100)} %</Text><Text style={styles.recordSub}>Iger med top 3</Text></View>
-                                    <View style={styles.recordBox}><Text style={styles.recordTitle}>🔥 Niz zmag</Text><Text style={styles.recordValue}>{player.longest_win_streak}</Text><Text style={styles.recordSub}>Zaporednih zmag</Text></View>
-                                    <View style={[styles.recordBox, {width: '100%', borderColor: 'rgba(255, 215, 0, 0.25)', borderTopColor: 'rgba(255, 215, 0, 0.5)', borderLeftColor: 'rgba(255, 215, 0, 0.35)', backgroundColor: 'rgba(255, 215, 0, 0.05)'}]}><Text style={[styles.recordTitle, {color: '#ffd700', fontSize: 16, marginBottom: 0}]}>🏅 Igralec meseca</Text><Text style={[styles.recordValue, {color: '#ffd700', marginTop: 8, fontSize: 32}]}>{(player.month_titles || []).length > 0 ? `×${(player.month_titles || []).length}` : '–'}</Text><Text style={styles.recordSub}>{(player.month_titles || []).length > 0 ? (player.month_titles || []).join(' · ') : 'Še brez naslova'}</Text></View>
-                                    <View style={[styles.recordBox, {width: '100%', borderColor: 'rgba(245, 158, 11, 0.2)', borderTopColor: 'rgba(245, 158, 11, 0.5)', borderLeftColor: 'rgba(245, 158, 11, 0.3)', backgroundColor: 'rgba(245, 158, 11, 0.05)'}]}><View style={{flexDirection: 'row', alignItems: 'center'}}><Zap size={18} color={COLORS.warning} style={{marginRight: 8}} /><Text style={[styles.recordTitle, {color: COLORS.warning, marginBottom: 0, fontSize: 16}]}>Valati</Text></View><Text style={[styles.recordValue, {color: COLORS.warning, marginTop: 8, fontSize: 32}]}>{player.valat_count}</Text><Text style={styles.recordSub}>Skupno število uspešnih valatov</Text></View>
+                                <Text style={[styles.sectionTitle, { marginBottom: 6 }]}>Osebni rekordi in ekstremi</Text>
+                                {[
+                                    { I: TrendingUp, t: 'Življenjska igra', s: player.best_game ? new Date(player.best_game.date).toLocaleDateString('sl-SI') : '', v: player.best_game ? (player.best_game.score > 0 ? `+${player.best_game.score}` : `${player.best_game.score}`) : '/', c: player.best_game && player.best_game.score > 0 ? COLORS.success : COLORS.text },
+                                    { I: TrendingDown, t: 'Črni dan', s: player.worst_game ? new Date(player.worst_game.date).toLocaleDateString('sl-SI') : '', v: player.worst_game ? `${player.worst_game.score}` : '/', c: player.worst_game && player.worst_game.score < 0 ? COLORS.danger : COLORS.text },
+                                    { I: Sigma, t: 'Skupne točke', s: 'Karierni izkupiček', v: player.total_score_sum > 0 ? `+${player.total_score_sum}` : `${player.total_score_sum}`, c: player.total_score_sum > 0 ? COLORS.success : (player.total_score_sum < 0 ? COLORS.danger : COLORS.text) },
+                                    { I: Divide, t: 'Povprečje', s: 'Točk na igro', v: (player.total_score_sum / player.total_games).toFixed(1), c: COLORS.text },
+                                    { I: BarChart3, t: 'Stopničke', s: 'Iger med top 3', v: `${Math.round(((player.wins + player.second + player.third) / player.total_games) * 100)} %`, c: COLORS.text },
+                                    { I: Flame, t: 'Niz zmag', s: 'Zaporednih zmag', v: `${player.longest_win_streak}`, c: COLORS.text },
+                                ].map(r => (
+                                    <View key={r.t} style={styles.recRow}>
+                                        <View style={styles.recIcon}><r.I size={16} color={COLORS.soft} strokeWidth={2} /></View>
+                                        <View style={{ flex: 1 }}><Text style={styles.recTitle}>{r.t}</Text>{!!r.s && <Text style={styles.recSub}>{r.s}</Text>}</View>
+                                        <Text style={[styles.recValue, { color: r.c }]}>{r.v}</Text>
+                                    </View>
+                                ))}
+                                <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                                    <View style={styles.tintCard}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Trophy size={12} color="#FFD60A" strokeWidth={2.4} /><Text style={styles.tintLabel}>Igralec meseca</Text></View>
+                                        <Text style={styles.tintValue}>{(player.month_titles || []).length > 0 ? `×${(player.month_titles || []).length}` : '–'}</Text>
+                                        <Text style={styles.tintSub}>{(player.month_titles || []).length > 0 ? (player.month_titles || []).join(' · ') : 'Še brez naslova'}</Text>
+                                    </View>
+                                    <View style={styles.tintCard}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Zap size={12} color="#FFD60A" strokeWidth={2.4} /><Text style={styles.tintLabel}>Valati</Text></View>
+                                        <Text style={styles.tintValue}>{player.valat_count}</Text>
+                                        <Text style={styles.tintSub}>Uspešni valati skupaj</Text>
+                                    </View>
                                 </View>
                             </View>
 
                             <View style={styles.rivalsSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:12}}><Swords size={20} color={COLORS.danger} style={{marginRight:8}} /><Text style={[styles.sectionTitle, {marginBottom: 0}]}>Osebni rivali</Text></View>
+                                <Text style={[styles.sectionTitle, { marginBottom: 6 }]}>Osebni rivali</Text>
                                 {(() => {
                                     const rivals = getRivals(player.h2h);
                                     if (!rivals) return <Text style={styles.emptyText}>Premalo odigranih skupnih iger za izračun rivalov (vsaj 3 igre z istim nasprotnikom).</Text>;
                                     return (
                                         <View>
-                                            {rivals.stranka && (<View style={styles.rivalCard}><Text style={styles.rivalTitle}>Najljubša stranka</Text><View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}><Image source={{ uri: getAvatarUrl(rivals.stranka.opponent) }} style={[styles.playerAvatar, {width: 24, height: 24, borderRadius: 12, marginRight: 8}]} /><Text style={styles.rivalName}>{rivals.stranka.opponent}</Text></View><Text style={styles.rivalDesc}>Zmage proti {g(rivals.stranka.opponent, 'njemu', 'njej')}: <Text style={{fontWeight: '700', color: COLORS.text}}>{Math.round(rivals.stranka.winPct)} %</Text> ({rivals.stranka.wins} Z / {rivals.stranka.losses} P)</Text></View>)}
-                                            {rivals.mora && rivals.mora.opponent !== rivals.stranka.opponent && (<View style={styles.rivalCard}><Text style={styles.rivalTitle}>Trn v peti</Text><View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}><Image source={{ uri: getAvatarUrl(rivals.mora.opponent) }} style={[styles.playerAvatar, {width: 24, height: 24, borderRadius: 12, marginRight: 8}]} /><Text style={styles.rivalName}>{rivals.mora.opponent}</Text></View><Text style={styles.rivalDesc}>Porazi proti {g(rivals.mora.opponent, 'njemu', 'njej')}: <Text style={{fontWeight: '700', color: COLORS.text}}>{Math.round(rivals.mora.lossPct)} %</Text> ({rivals.mora.losses} P / {rivals.mora.wins} Z)</Text></View>)}
-                                            {rivals.derbi && (<View style={styles.rivalCard}><Text style={styles.rivalTitle}>Večni derbi</Text><View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}><Image source={{ uri: getAvatarUrl(rivals.derbi.opponent) }} style={[styles.playerAvatar, {width: 24, height: 24, borderRadius: 12, marginRight: 8}]} /><Text style={styles.rivalName}>{rivals.derbi.opponent}</Text></View><Text style={styles.rivalDesc}>Izenačen boj: <Text style={{fontWeight: '700', color: COLORS.text}}>{Math.round(rivals.derbi.winPct)} %</Text> uspeh.</Text></View>)}
+                                            {rivals.stranka && (<View style={styles.rivalCard}><Text style={styles.rivalTitle}>Najljubša stranka</Text><View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}><Image source={{ uri: getAvatarUrl(rivals.stranka.opponent) }} style={[styles.playerAvatar, {width: 30, height: 30, borderRadius: 15, marginRight: 10}]} /><Text style={styles.rivalName}>{rivals.stranka.opponent}</Text></View><Text style={styles.rivalDesc}>Zmage proti {g(rivals.stranka.opponent, 'njemu', 'njej')}: <Text style={{fontWeight: '600', color: COLORS.text}}>{Math.round(rivals.stranka.winPct)} %</Text> ({rivals.stranka.wins} Z / {rivals.stranka.losses} P)</Text></View>)}
+                                            {rivals.mora && rivals.mora.opponent !== rivals.stranka.opponent && (<View style={styles.rivalCard}><Text style={styles.rivalTitle}>Trn v peti</Text><View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}><Image source={{ uri: getAvatarUrl(rivals.mora.opponent) }} style={[styles.playerAvatar, {width: 30, height: 30, borderRadius: 15, marginRight: 10}]} /><Text style={styles.rivalName}>{rivals.mora.opponent}</Text></View><Text style={styles.rivalDesc}>Porazi proti {g(rivals.mora.opponent, 'njemu', 'njej')}: <Text style={{fontWeight: '600', color: COLORS.text}}>{Math.round(rivals.mora.lossPct)} %</Text> ({rivals.mora.losses} P / {rivals.mora.wins} Z)</Text></View>)}
+                                            {rivals.derbi && (<View style={styles.rivalCard}><Text style={styles.rivalTitle}>Večni derbi</Text><View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 4}}><Image source={{ uri: getAvatarUrl(rivals.derbi.opponent) }} style={[styles.playerAvatar, {width: 30, height: 30, borderRadius: 15, marginRight: 10}]} /><Text style={styles.rivalName}>{rivals.derbi.opponent}</Text></View><Text style={styles.rivalDesc}>Izenačen boj: <Text style={{fontWeight: '600', color: COLORS.text}}>{Math.round(rivals.derbi.winPct)} %</Text> uspeh.</Text></View>)}
                                         </View>
                                     );
                                 })()}
@@ -218,31 +254,18 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                             <>
 {classicUnlocked < 5 && renderClassic()}
                             <View style={styles.recordsSection}>
-                                <View style={{flexDirection:'row', alignItems:'center', marginBottom:4}}><Text style={[styles.sectionTitle, {marginBottom: 0}]}>✨ {IZZIVI.name}</Text><Text style={styles.collCount}>{izziviUnlocked} / {CHALLENGES.length}</Text></View>
+                                <View style={styles.sectionHead}><Text style={styles.sectionTitle}>{IZZIVI.name}</Text><Text style={styles.collCount}>{izziviUnlocked} / {CHALLENGES.length}</Text></View>
                                 <Text style={styles.collSub}>Štejejo partije od {new Date(IZZIVI_START).toLocaleDateString('sl-SI')} naprej.</Text>
-                                <View style={{ gap: 10 }}>
+                                <View>
                                     {CHALLENGES.map(ch => {
                                         const count = (player.challenges || {})[ch.id] || 0;
-                                        const isUnlocked = count >= ch.threshold;
-                                        const progress = Math.min(count / ch.threshold, 1);
-                                        return (
-                                            <View key={ch.id} style={styles.achievementBox}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                                                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.2)', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>{isUnlocked ? (<Text style={{ fontSize: 22 }}>{ch.icon}</Text>) : (<Lock size={20} color="#64748b" />)}</View>
-                                                    <View style={{ flex: 1 }}><Text style={{ fontSize: 18, fontWeight: '800', color: isUnlocked ? '#ffd700' : '#94a3b8' }}>{ch.title}</Text></View>
-                                                    {isUnlocked && count > 1 && <Text style={styles.timesBadge}>×{count}</Text>}
-                                                </View>
-                                                <Text style={{ color: COLORS.textMuted, fontSize: 13, marginBottom: 12, lineHeight: 18 }}>{ch.desc}</Text>
-                                                {isUnlocked ? (<View style={{ flexDirection: 'row', alignItems: 'center' }}><Trophy size={14} color="#ffd700" style={{ marginRight: 6 }} /><Text style={{ color: '#ffd700', fontSize: 12, fontWeight: '700' }}>Odklenjeno</Text></View>)
-                                                : ch.threshold > 1 ? (<View><View style={{ height: 6, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 3, overflow: 'hidden' }}><View style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: COLORS.primary, borderRadius: 3 }} /></View><Text style={{ color: '#64748b', fontSize: 11, marginTop: 6, textAlign: 'right', fontWeight: '600' }}>({count} / {ch.threshold})</Text></View>)
-                                                : (<Text style={{ color: '#64748b', fontSize: 11, fontWeight: '600' }}>Še ni odklenjeno</Text>)}
-                                            </View>
-                                        );
+                                        return <AchRow key={ch.id} title={ch.title} desc={ch.desc} unlocked={count >= ch.threshold} count={count} current={count} target={ch.threshold} showProgress={ch.threshold > 1} />;
                                     })}
                                     {izziviUnlocked === CHALLENGES.length && (
                                         <View style={styles.grandSlamBox}>
-                                            <LinearGradient colors={['#b45309', '#7c3aed']} start={{x: 0, y: 0}} end={{x: 1, y: 1}} style={styles.absoluteGradient} />
-                                            <View style={styles.relativeContentVertical}><Text style={{ fontSize: 24, fontWeight: '900', color: '#fff', marginBottom: 8, letterSpacing: 1, textAlign: 'center' }}>{IZZIVI.completionIcon} {IZZIVI.completionTitle} {IZZIVI.completionIcon}</Text><Text style={{ fontSize: 15, color: '#e2e8f0', marginBottom: 15, textAlign: 'center', fontWeight: '500' }}>Čestitke, vsi izzivi so tvoji!</Text><View style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, width: '100%' }}><Text style={{ fontSize: 16, fontWeight: '800', color: '#fff', textAlign: 'center' }}>{IZZIVI.reward}</Text></View></View>
+                                            <Text style={styles.gsTitle}>{IZZIVI.completionTitle}</Text>
+                                            <Text style={styles.gsSub}>Čestitke, vsi izzivi so tvoji!</Text>
+                                            <View style={styles.gsReward}><Text style={styles.gsRewardText}>{IZZIVI.reward}</Text></View>
                                         </View>
                                     )}
                                 </View>
@@ -251,8 +274,9 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                             {classicUnlocked >= 5 && (
                                 <View style={{ marginTop: 6 }}>
                                     <TouchableOpacity onPress={() => setShowClassic(v => !v)} activeOpacity={0.7} style={styles.doneCollection}>
-                                        <Text style={styles.doneTitle}>🏛️ Klasika</Text>
-                                        <Text style={styles.doneSub}>5 / 5 · 🏆 Grand Slam ✓</Text>
+                                        <View style={styles.achIconOnBox}><Check size={16} color={COLORS.soft} strokeWidth={2.6} /></View>
+                                        <Text style={styles.doneTitle}>Klasika</Text>
+                                        <Text style={styles.doneSub}>5 / 5 · Grand Slam ✓</Text>
                                         <Text style={styles.doneToggle}>{showClassic ? 'Skrij' : 'Pokaži'}</Text>
                                     </TouchableOpacity>
                                     {showClassic && <View style={{ marginTop: 12 }}>{renderClassic()}</View>}
@@ -273,24 +297,24 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
 }
 
 const styles = StyleSheet.create({
-  profileHead: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14 },
-  profileAvatar: { width: 60, height: 60, borderRadius: 30, borderWidth: 2, borderColor: 'rgba(255,255,255,0.25)', backgroundColor: 'rgba(255,255,255,0.05)' },
-  profileName: { color: '#FFFFFF', fontSize: 24, fontWeight: '800' },
-  profileSub: { color: '#94A3B8', fontSize: 14, marginTop: 2 },
+  profileHead: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 16 },
+  profileAvatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.10)' },
+  profileName: { color: COLORS.text, fontSize: 24, fontWeight: '600', letterSpacing: -0.4 },
+  profileSub: { color: COLORS.textMuted, fontSize: 13, marginTop: 2 },
   profilePct: { color: '#94A3B8', fontSize: 26, fontWeight: '800' },
   duelButton: { alignItems: 'center', paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(85,110,235,0.18)', borderWidth: 1, borderColor: 'rgba(85,110,235,0.5)', marginBottom: 14 },
-  formBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4 },
-  formLabel: { color: '#94A3B8', fontSize: 12, fontWeight: '700' },
-  doneCollection: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,215,0,0.06)', borderWidth: 1, borderColor: 'rgba(255,215,0,0.3)', borderRadius: 12, padding: 14 },
-  doneTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
-  doneSub: { color: '#ffd700', fontSize: 13, fontWeight: '700', flex: 1 },
-  doneToggle: { color: '#556eeb', fontSize: 13, fontWeight: '700' },
+  formBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 24, paddingHorizontal: 10, borderRadius: 12 },
+  formLabel: { fontSize: 12, fontWeight: '600' },
+  doneCollection: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 2, borderTopWidth: 0.5, borderBottomWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)' },
+  doneTitle: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+  doneSub: { flex: 1, color: COLORS.textMuted, fontSize: 12 },
+  doneToggle: { color: COLORS.primary, fontSize: 13, fontWeight: '500' },
   formRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 12 },
-  duelCircle: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(85,110,235,0.18)', borderWidth: 1, borderColor: 'rgba(85,110,235,0.5)' },
-  duelCircleText: { color: '#FFFFFF', fontSize: 9, fontWeight: '700', marginTop: 1 },
-  collCount: { color: '#ffd700', fontSize: 15, fontWeight: '800', marginLeft: 'auto' },
-  collSub: { color: '#64748b', fontSize: 12, marginBottom: 12 },
-  timesBadge: { color: '#ffd700', fontSize: 16, fontWeight: '900', backgroundColor: 'rgba(255,215,0,0.12)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  duelCircle: { width: 64, height: 64, borderRadius: 32, marginRight: 4, alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: 'rgba(10,132,255,0.15)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
+  duelCircleText: { color: '#fff', fontSize: 10, fontWeight: '500' },
+  collCount: { color: COLORS.textMuted, fontSize: 13, fontWeight: '500' },
+  collSub: { color: '#636366', fontSize: 12, marginBottom: 6, paddingHorizontal: 2 },
+  timesBadge: { color: COLORS.soft, backgroundColor: 'rgba(100,210,255,0.14)', fontSize: 11, fontWeight: '600', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' },
   container: { flex: 1, backgroundColor: COLORS.bg },
   mainHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 },
   headerTitle: { fontSize: 32, fontWeight: '800', color: COLORS.text },
@@ -319,12 +343,9 @@ const styles = StyleSheet.create({
   emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
   emptyText: { color: COLORS.textMuted, fontSize: 15, marginBottom: 8, textAlign: 'center', paddingHorizontal: 20 },
   loadingText: { color: COLORS.text, fontSize: 18, textAlign: 'center', marginTop: 40 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   
-  modalContent: { 
-      backgroundColor: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '85%',
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.10)', borderTopColor: 'rgba(255, 255, 255, 0.22)', borderLeftColor: 'rgba(255, 255, 255, 0.12)', overflow: 'hidden'
-  },
+  modalContent: { backgroundColor: COLORS.sheet, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 28, maxHeight: '92%', borderWidth: 0.5, borderColor: 'rgba(100,170,255,0.14)', borderTopColor: 'rgba(120,190,255,0.40)', borderBottomWidth: 0, overflow: 'hidden' },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20, gap: 12 },
   modalTitle: { color: COLORS.text, fontSize: 22, fontWeight: '700', textAlign: 'center' },
   headerInfoButton: { padding: 4 },
@@ -337,10 +358,7 @@ const styles = StyleSheet.create({
   rankContainer: { width: 32, alignItems: 'center' },
   rankNumber: { color: COLORS.textMuted, fontSize: 16, fontWeight: '600' },
   
-  playerAvatar: {
-      width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255, 255, 255, 0.05)',
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.15)', borderTopColor: 'rgba(255, 255, 255, 0.3)', 
-  },
+  playerAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.10)' },
   
   playerName: { flex: 1, color: COLORS.text, fontSize: 16, fontWeight: '500', marginLeft: 4 },
   playerScore: { fontSize: 20, fontWeight: '700' },
@@ -349,17 +367,14 @@ const styles = StyleSheet.create({
   neutralScore: { color: COLORS.text },
   modalButtons: { flexDirection: 'row', gap: 12 },
   
-  closeButton: { 
-      backgroundColor: '#5863ea', padding: 16, borderRadius: 12, alignItems: 'center', 
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.2)', borderTopColor: 'rgba(255, 255, 255, 0.55)', borderLeftColor: 'rgba(255, 255, 255, 0.35)', overflow: 'hidden' 
-  },
+  closeButton: { backgroundColor: COLORS.primary, height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   closeButtonFlex: { flex: 1 },
-  closeButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  closeButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '500' },
   radelciContainer: { flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: 8 },
   radelc: { width: 10, height: 10, borderRadius: 5 }, 
   radelcUnused: { backgroundColor: 'transparent', borderWidth: 2, borderColor: COLORS.radelcBorder },
   radelcUsed: { backgroundColor: COLORS.radelcFill, borderWidth: 0 },
-  historyModal: { height: '85%', maxHeight: '85%' }, 
+  historyModal: { height: '92%', maxHeight: '92%' }, 
   historyList: { flex: 1, marginBottom: 16 },
   playerHistorySection: { marginBottom: 24 },
   
@@ -386,14 +401,11 @@ const styles = StyleSheet.create({
   historyDate: { color: COLORS.textMuted, fontSize: 12, flex: 1, textAlign: 'right' },
   playedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.playedDot },
   
-  tabContainer: { 
-      flexDirection: 'row', marginBottom: 20, backgroundColor: COLORS.inputBg, borderRadius: 12, padding: 4,
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)', borderTopColor: 'rgba(255, 255, 255, 0.15)', borderLeftColor: 'rgba(255, 255, 255, 0.10)', overflow: 'hidden'
-  },
-  tabButton: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-  tabButtonActive: { backgroundColor: COLORS.card },
-  tabText: { color: COLORS.textMuted, fontWeight: '600' },
-  tabTextActive: { color: '#fff', fontWeight: '700' },
+  tabContainer: { backgroundColor: 'rgba(0,0,0,0.30)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)', flexDirection: 'row', marginBottom: 6, borderRadius: 12, padding: 3 },
+  tabButton: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
+  tabButtonActive: { backgroundColor: COLORS.primary, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.25)' },
+  tabText: { color: '#AEAEB2', fontWeight: '500', fontSize: 13 },
+  tabTextActive: { color: '#fff', fontWeight: '600' },
   
   leaderboardItem: { 
       flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: COLORS.inputBg, borderRadius: 10, marginBottom: 10,
@@ -404,8 +416,8 @@ const styles = StyleSheet.create({
   medalBox: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   medalText: { color: '#fff', fontWeight: '800', marginLeft: 4, fontSize: 15 },
   detailHeader: { alignItems: 'center', marginBottom: 20 },
-  detailScroll: { flex: 1, marginBottom: 16 },
-  sectionTitle: { color: COLORS.text, fontSize: 18, fontWeight: '700', marginBottom: 12 },
+  detailScroll: { flex: 1, marginBottom: 14 },
+  sectionTitle: { color: COLORS.text, fontSize: 17, fontWeight: '600' },
   
   formSection: { marginBottom: 24, alignItems: 'center' },
   formCard: { 
@@ -415,16 +427,13 @@ const styles = StyleSheet.create({
   formText: { fontSize: 24, fontWeight: '800', marginTop: 8 },
   formSubText: { color: COLORS.textMuted, marginTop: 4 },
   
-  rivalsSection: { marginBottom: 24, marginTop: 10 }, 
-  rivalCard: { 
-      backgroundColor: COLORS.inputBg, padding: 16, borderRadius: 12, marginBottom: 10,
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)', borderTopColor: 'rgba(255, 255, 255, 0.18)', borderLeftColor: 'rgba(255, 255, 255, 0.12)', overflow: 'hidden'
-  },
-  rivalTitle: { color: COLORS.textMuted, fontSize: 14, fontWeight: '700', marginBottom: 8 },
-  rivalName: { color: COLORS.text, fontSize: 20, fontWeight: '800' },
-  rivalDesc: { color: COLORS.textMuted, fontSize: 13 },
+  rivalsSection: { marginTop: 24, marginBottom: 10 }, 
+  rivalCard: { paddingVertical: 10, paddingHorizontal: 2, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.10)' },
+  rivalTitle: { color: COLORS.label, fontSize: 11, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 6 },
+  rivalName: { color: COLORS.text, fontSize: 16, fontWeight: '600' },
+  rivalDesc: { color: COLORS.textMuted, fontSize: 12, marginTop: 2 },
   
-  recordsSection: { marginBottom: 24, marginTop: 10 },
+  recordsSection: { marginTop: 24 },
   recordsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   recordBox: { 
       width: '48%', backgroundColor: COLORS.inputBg, padding: 16, borderRadius: 12, marginBottom: 12, alignItems: 'center', justifyContent: 'center',
@@ -434,20 +443,17 @@ const styles = StyleSheet.create({
   recordValue: { color: COLORS.text, fontSize: 24, fontWeight: '800', marginBottom: 4 },
   recordSub: { color: '#64748b', fontSize: 11, textAlign: 'center' },
   
-  chartSection: { 
-      marginBottom: 24, backgroundColor: '#222', padding: 16, borderRadius: 16,
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)', borderTopColor: 'rgba(255, 255, 255, 0.18)', borderLeftColor: 'rgba(255, 255, 255, 0.12)', overflow: 'hidden'
-  },
+  chartSection: { backgroundColor: 'rgba(0,0,0,0.30)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)', borderRadius: 16, paddingTop: 14, paddingBottom: 10, paddingHorizontal: 14, marginTop: 8 },
   chartContainer: { height: 100, paddingBottom: 10, marginTop: 6 },
   chartXAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  axisLabel: { color: COLORS.textMuted, fontSize: 10 },
-  gridLine: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: '#333', justifyContent: 'center' },
-  gridLabel: { color: '#444', fontSize: 10, position: 'absolute', left: 0, top: -15 },
-  lastGamesSection: { marginBottom: 20 },
-  rankRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#333' },
-  rankRowDate: { color: COLORS.textMuted, fontSize: 14 },
-  rankBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, minWidth: 90, alignItems: 'center' },
-  rankBadgeText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  axisLabel: { color: '#636366', fontSize: 10 },
+  gridLine: { position: 'absolute', left: 0, right: 0, height: 0.5, backgroundColor: 'rgba(255,255,255,0.07)', justifyContent: 'center' },
+  gridLabel: { color: '#636366', fontSize: 10, position: 'absolute', left: 0, top: -14 },
+  lastGamesSection: { marginTop: 24 },
+  rankRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 2, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.10)' },
+  rankRowDate: { color: '#AEAEB2', fontSize: 14 },
+  rankBadge: { height: 24, paddingHorizontal: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.30)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)' },
+  rankBadgeText: { color: '#AEAEB2', fontSize: 12, fontWeight: '600' },
   awardsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 10 },
   
   awardCard: { 
@@ -486,8 +492,30 @@ const styles = StyleSheet.create({
       backgroundColor: COLORS.inputBg, borderRadius: 12, padding: 16,
       borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)', borderTopColor: 'rgba(255, 255, 255, 0.18)', borderLeftColor: 'rgba(255, 255, 255, 0.12)', overflow: 'hidden'
   },
-  grandSlamBox: {
-      marginTop: 10, padding: 20, borderRadius: 16, alignItems: 'center',
-      borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.15)', borderTopColor: 'rgba(255, 255, 255, 0.3)', borderLeftColor: 'rgba(255, 255, 255, 0.2)', overflow: 'hidden'
-  }
+  grandSlamBox: { marginTop: 14, padding: 16, borderRadius: 16, alignItems: 'center', gap: 6, backgroundColor: 'rgba(10,132,255,0.15)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
+  // --- nov dizajn (D5) ---
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 24, marginBottom: 4, paddingHorizontal: 2 },
+  achRow: { flexDirection: 'row', gap: 12, paddingVertical: 12, paddingHorizontal: 2, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.10)' },
+  achIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 0.5 },
+  achIconOn: { backgroundColor: 'rgba(100,210,255,0.12)', borderColor: 'rgba(100,210,255,0.18)' },
+  achIconOff: { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.06)' },
+  achIconOnBox: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(100,210,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(100,210,255,0.18)' },
+  achTitle: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+  achState: { color: '#636366', fontSize: 11 },
+  achDesc: { color: COLORS.textMuted, fontSize: 12, lineHeight: 16 },
+  progressTrack: { height: 4, marginTop: 5, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 2, backgroundColor: COLORS.primary },
+  gsTitle: { color: COLORS.text, fontSize: 20, fontWeight: '600', letterSpacing: 1 },
+  gsSub: { color: '#EBEBF5', fontSize: 13, textAlign: 'center' },
+  gsReward: { marginTop: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.25)', width: '100%' },
+  gsRewardText: { color: '#AEAEB2', fontSize: 12, lineHeight: 17, textAlign: 'center' },
+  recRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 2, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.10)' },
+  recIcon: { width: 32, height: 32, borderRadius: 9, backgroundColor: 'rgba(100,210,255,0.12)', borderWidth: 0.5, borderColor: 'rgba(100,210,255,0.18)', alignItems: 'center', justifyContent: 'center' },
+  recTitle: { color: COLORS.text, fontSize: 15, fontWeight: '500' },
+  recSub: { color: COLORS.textMuted, fontSize: 11 },
+  recValue: { fontSize: 19, fontWeight: '600' },
+  tintCard: { flex: 1, borderRadius: 16, paddingVertical: 11, paddingHorizontal: 13, gap: 2, backgroundColor: 'rgba(10,132,255,0.15)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
+  tintLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
+  tintValue: { color: COLORS.text, fontSize: 22, fontWeight: '600' },
+  tintSub: { color: '#AEAEB2', fontSize: 11 },
 });

@@ -5,8 +5,9 @@ import { fetchAllData, AllData } from '@/lib/playerStats';
 import { computeDuel } from '@/lib/duel';
 import { getAvatarUrl } from '@/lib/avatars';
 import { g } from '@/lib/gender';
+import { ArrowRight } from 'lucide-react-native';
 
-const C = { card: '#1e293b', inner: '#334155', primary: '#556eeb', text: '#FFFFFF', muted: '#94A3B8', a: '#556eeb', b: '#F59E0B', success: '#10B981' };
+const C = { card: '#121A2B', inner: 'rgba(0,0,0,0.30)', primary: '#0A84FF', text: '#FFFFFF', muted: '#8E8E93', a: '#0A84FF', b: '#FF9F0A', success: '#30D158' };
 
 type Props = { playerA: string; onClose: () => void };
 
@@ -57,14 +58,14 @@ export default function DuelModal({ playerA, onClose }: Props) {
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.title}>⚔️ Dvoboj</Text>
+          <Text style={styles.title}>Dvoboj</Text>
 
           {!data ? (
             <ActivityIndicator size="large" color={C.primary} style={{ flex: 1 }} />
           ) : !playerB || !duel ? (
             // izbira nasprotnika
             <>
-              <Text style={styles.pickTitle}>Primerjaj <Text style={{ color: C.text, fontWeight: '800' }}>{playerA}</Text> z:</Text>
+              <Text style={styles.pickTitle}>Primerjaj <Text style={{ color: C.text, fontWeight: '600' }}>{playerA}</Text> z:</Text>
               <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
                 {opponents.map(([name, n]) => (
                   <TouchableOpacity key={name} style={styles.pickRow} onPress={() => setPlayerB(name)} activeOpacity={0.7}>
@@ -121,9 +122,9 @@ export default function DuelModal({ playerA, onClose }: Props) {
                   const bBetter = r.higherBetter !== null && r.b > r.a;
                   return (
                     <View key={r.label} style={styles.cmpRow}>
-                      <Text style={[styles.cmpVal, { textAlign: 'left' }, aBetter ? { color: C.a, fontWeight: '800' } : null]}>{r.show(r.a)}</Text>
+                      <Text style={[styles.cmpVal, { textAlign: 'left' }, aBetter ? { color: C.a, fontWeight: '600' } : null]}>{r.show(r.a)}</Text>
                       <Text style={styles.cmpLabel}>{r.label}</Text>
-                      <Text style={[styles.cmpVal, { textAlign: 'right' }, bBetter ? { color: C.b, fontWeight: '800' } : null]}>{r.show(r.b)}</Text>
+                      <Text style={[styles.cmpVal, { textAlign: 'right' }, bBetter ? { color: C.b, fontWeight: '600' } : null]}>{r.show(r.b)}</Text>
                     </View>
                   );
                 })}
@@ -131,7 +132,7 @@ export default function DuelModal({ playerA, onClose }: Props) {
 
               {/* kot partnerja */}
               <View style={styles.box}>
-                <Text style={styles.boxTitle}>🤝 Kot partnerja</Text>
+                <Text style={styles.boxTitle}>Kot partnerja</Text>
                 <Text style={[styles.boxSub, { marginBottom: 10 }]}>Ko eden igra in kliče drugega</Text>
                 {[
                   { decl: playerA, part: playerB, n: duel.partner.aCallsB, won: duel.partner.aCallsBWon, all: duel.partner.aPlayed, allWon: duel.partner.aPlayedWon, cDecl: C.a, cPart: C.b },
@@ -146,7 +147,7 @@ export default function DuelModal({ playerA, onClose }: Props) {
                           <Text style={styles.pairName} numberOfLines={1}>{x.decl}</Text>
                           <Text style={styles.pairRole}>igra</Text>
                         </View>
-                        <Text style={styles.pairArrow}>➜</Text>
+                        <ArrowRight size={20} color={C.muted} />
                         <View style={styles.pairPerson}>
                           <Image source={{ uri: getAvatarUrl(x.part) }} style={[styles.pairAvatar, { borderColor: x.cPart }]} />
                           <Text style={styles.pairName} numberOfLines={1}>{x.part}</Text>
@@ -160,17 +161,17 @@ export default function DuelModal({ playerA, onClose }: Props) {
                           <View style={styles.pairStats}>
                             <View style={styles.pairStat}><Text style={styles.pairNum}>{x.n}</Text><Text style={styles.pairLbl}>skupaj</Text></View>
                             <View style={styles.pairStat}><Text style={[styles.pairNum, { color: C.success }]}>{x.won}</Text><Text style={styles.pairLbl}>dobljenih</Text></View>
-                            <View style={styles.pairStat}><Text style={[styles.pairNum, { color: '#EF4444' }]}>{x.n - x.won}</Text><Text style={styles.pairLbl}>izgubljenih</Text></View>
+                            <View style={styles.pairStat}><Text style={[styles.pairNum, { color: '#FF453A' }]}>{x.n - x.won}</Text><Text style={styles.pairLbl}>izgubljenih</Text></View>
                             <View style={styles.pairStat}><Text style={[styles.pairNum, { color: C.text }]}>{p} %</Text><Text style={styles.pairLbl}>uspešnost</Text></View>
                           </View>
                           <View style={styles.pairBar}>
                             <View style={{ flex: Math.max(x.won, 0.01), backgroundColor: C.success }} />
-                            <View style={{ flex: Math.max(x.n - x.won, 0.01), backgroundColor: '#EF4444' }} />
+                            <View style={{ flex: Math.max(x.n - x.won, 0.01), backgroundColor: '#FF453A' }} />
                           </View>
                           {x.all > 0 && (
                             <Text style={styles.pairCompare}>
                               {x.decl} sicer dobi {usual} % svojih iger{' '}
-                              <Text style={{ color: p > usual ? C.success : p < usual ? '#EF4444' : C.muted, fontWeight: '800' }}>
+                              <Text style={{ color: p > usual ? C.success : p < usual ? '#FF453A' : C.muted, fontWeight: '600' }}>
                                 {p > usual ? `▲ s tem partnerjem +${p - usual} %` : p < usual ? `▼ s tem partnerjem −${usual - p} %` : '= enako'}
                               </Text>
                             </Text>
@@ -194,48 +195,48 @@ export default function DuelModal({ playerA, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: C.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, height: '88%', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)' },
-  title: { color: C.text, fontSize: 22, fontWeight: '700', textAlign: 'center', marginBottom: 14 },
-  pickTitle: { color: C.muted, fontSize: 15, marginBottom: 12, textAlign: 'center' },
-  pickRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.inner, borderRadius: 12, padding: 12, marginBottom: 8 },
-  pickAvatar: { width: 36, height: 36, borderRadius: 18 },
-  pickName: { color: C.text, fontSize: 16, fontWeight: '700', flex: 1 },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: C.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 28, height: '90%', borderWidth: 0.5, borderBottomWidth: 0, borderColor: 'rgba(100,170,255,0.14)', borderTopColor: 'rgba(120,190,255,0.40)' },
+  title: { color: C.text, fontSize: 21, fontWeight: '600', textAlign: 'center', marginBottom: 14 },
+  pickTitle: { color: C.muted, fontSize: 15, marginBottom: 10, textAlign: 'center' },
+  pickRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 2, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.10)' },
+  pickAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.10)' },
+  pickName: { color: C.text, fontSize: 16, fontWeight: '500', flex: 1 },
   pickSub: { color: C.muted, fontSize: 12 },
-  vsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  vsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, paddingHorizontal: 8 },
   vsSide: { alignItems: 'center', width: '40%' },
-  vsAvatar: { width: 64, height: 64, borderRadius: 32, borderWidth: 3, marginBottom: 6 },
-  vsName: { color: C.text, fontSize: 18, fontWeight: '800' },
-  vs: { color: C.muted, fontSize: 20, fontWeight: '900' },
-  change: { color: C.primary, fontSize: 12, marginTop: 2 },
-  box: { backgroundColor: C.inner, borderRadius: 14, padding: 14, marginBottom: 12 },
-  boxTitle: { color: C.text, fontSize: 15, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
+  vsAvatar: { width: 64, height: 64, borderRadius: 32, borderWidth: 2, marginBottom: 6, backgroundColor: 'rgba(255,255,255,0.10)' },
+  vsName: { color: C.text, fontSize: 16, fontWeight: '600' },
+  vs: { color: '#636366', fontSize: 14, fontWeight: '600', letterSpacing: 2 },
+  change: { color: C.primary, fontSize: 12, marginTop: 1 },
+  box: { backgroundColor: C.inner, borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)' },
+  boxTitle: { color: C.muted, fontSize: 13, fontWeight: '400', marginBottom: 8, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.4 },
   boxSub: { color: C.muted, fontSize: 12, textAlign: 'center' },
   h2hRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12 },
-  h2hNum: { fontSize: 40, fontWeight: '900' },
-  h2hDash: { color: C.muted, fontSize: 32, fontWeight: '700' },
-  bar: { flexDirection: 'row', height: 8, borderRadius: 4, overflow: 'hidden', marginVertical: 8 },
+  h2hNum: { fontSize: 40, fontWeight: '600' },
+  h2hDash: { color: '#636366', fontSize: 28, fontWeight: '500' },
+  bar: { flexDirection: 'row', height: 6, borderRadius: 3, overflow: 'hidden', marginVertical: 8 },
   lastRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10 },
   chip: { minWidth: 26, height: 26, paddingHorizontal: 4, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  chipText: { color: '#fff', fontSize: 12, fontWeight: '800' },
-  cmpRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' },
-  cmpVal: { color: C.muted, fontSize: 16, fontWeight: '600', width: 70 },
-  cmpLabel: { color: C.muted, fontSize: 12, flex: 1, textAlign: 'center' },
+  chipText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  cmpRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.08)' },
+  cmpVal: { color: C.muted, fontSize: 15, fontWeight: '500', width: 70 },
+  cmpLabel: { color: C.muted, fontSize: 13, flex: 1, textAlign: 'center' },
   partnerLine: { color: C.muted, fontSize: 13, textAlign: 'center' },
-  partnerStrong: { color: C.text, fontWeight: '800', fontSize: 16, marginTop: 2 },
-  pairCard: { backgroundColor: 'rgba(0,0,0,0.18)', borderRadius: 12, padding: 12, marginBottom: 10 },
+  partnerStrong: { color: C.text, fontWeight: '600', fontSize: 16, marginTop: 2 },
+  pairCard: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: 12, marginBottom: 10, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)' },
   pairHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, marginBottom: 12 },
   pairPerson: { alignItems: 'center', width: 90 },
-  pairAvatar: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, marginBottom: 4 },
-  pairName: { color: C.text, fontSize: 14, fontWeight: '700' },
+  pairAvatar: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, marginBottom: 4, backgroundColor: 'rgba(255,255,255,0.10)' },
+  pairName: { color: C.text, fontSize: 14, fontWeight: '600' },
   pairRole: { color: C.muted, fontSize: 11 },
   pairArrow: { color: C.muted, fontSize: 22 },
   pairStats: { flexDirection: 'row', justifyContent: 'space-between' },
   pairStat: { alignItems: 'center', flex: 1 },
-  pairNum: { color: C.muted, fontSize: 20, fontWeight: '800' },
+  pairNum: { color: C.text, fontSize: 19, fontWeight: '600' },
   pairLbl: { color: C.muted, fontSize: 10, marginTop: 2 },
-  pairBar: { flexDirection: 'row', height: 6, borderRadius: 3, overflow: 'hidden', marginTop: 10 },
+  pairBar: { flexDirection: 'row', height: 5, borderRadius: 3, overflow: 'hidden', marginTop: 10 },
   pairCompare: { color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 8, lineHeight: 18 },
-  closeButton: { backgroundColor: '#5863ea', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 10 },
-  closeText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  closeButton: { backgroundColor: C.primary, height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
+  closeText: { color: '#fff', fontSize: 16, fontWeight: '500' },
 });
