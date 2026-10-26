@@ -387,7 +387,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
         <TouchableOpacity style={styles.gameCard} onPress={() => loadGameDetails(item)} activeOpacity={0.7}>
             <View style={styles.cardHeader}>
                 <View style={styles.calLeaf}>
-                    <Text style={[styles.calMonth, !item.is_active && { color: COLORS.danger }]}>{MONTHS_SHORT[d.getMonth()]}</Text>
+                    <Text style={[styles.calMonth, !item.is_active && { color: '#8E8E93' }]}>{MONTHS_SHORT[d.getMonth()]}</Text>
                     <Text style={styles.calDay}>{d.getDate()}</Text>
                 </View>
                 <View style={{flex: 1, justifyContent: 'center'}}>
@@ -832,7 +832,7 @@ const styles = StyleSheet.create({
   },
   // --- nov dizajn (D3) ---
   tileRow: { flexDirection: 'row', gap: 10 },
-  tile: { flex: 1, height: 66, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  tile: { flex: 1, height: 66, borderRadius: 16, backgroundColor: '#121A2B', borderWidth: 0.5, borderColor: 'rgba(100,170,255,0.14)', borderTopColor: 'rgba(120,190,255,0.40)', alignItems: 'center', justifyContent: 'center', gap: 5 },
   tileText: { color: COLORS.text, fontSize: 12, fontWeight: '500' },
   yearLabel: { color: COLORS.text, fontSize: 20, fontWeight: '600', paddingHorizontal: 4, paddingTop: 10, paddingBottom: 8 },
   calLeaf: { width: 46, height: 50, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.30)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' },

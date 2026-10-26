@@ -1413,7 +1413,7 @@ const styles = StyleSheet.create({
   calDay: { fontSize: 20, lineHeight: 24, fontWeight: '600', color: COLORS.text },
   playCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(10,132,255,0.16)', alignItems: 'center', justifyContent: 'center' },
   tileRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 14 },
-  tile: { flex: 1, height: 66, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  tile: { flex: 1, height: 66, borderRadius: 16, backgroundColor: '#121A2B', borderWidth: 0.5, borderColor: 'rgba(100,170,255,0.14)', borderTopColor: 'rgba(120,190,255,0.40)', alignItems: 'center', justifyContent: 'center', gap: 5 },
   tileText: { color: COLORS.text, fontSize: 12, fontWeight: '500' },
   finishBar: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
   finishButton: { height: 54, borderRadius: 16, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
