@@ -24,10 +24,31 @@ export function loadWebFont() {
   style.textContent = `
     html, body { background-color: #000000; }
     div, span, input, textarea, button { font-family: 'Poppins', -apple-system, system-ui, sans-serif !important; }
+    div:focus, div:focus-visible { outline: none; }
   `;
 
   document.head.appendChild(pre1);
   document.head.appendChild(pre2);
   document.head.appendChild(link);
   document.head.appendChild(style);
+
+  // Jezik strani (da brskalnik ne ponuja prevoda iz angleščine), ime in ikona za domači zaslon telefona
+  document.documentElement.lang = 'sl';
+  const addMeta = (name: string, content: string) => {
+    if (document.querySelector(`meta[name="${name}"]`)) return;
+    const m = document.createElement('meta');
+    m.name = name; m.content = content;
+    document.head.appendChild(m);
+  };
+  addMeta('theme-color', '#000000');
+  addMeta('apple-mobile-web-app-title', 'Tarok');
+  addMeta('application-name', 'Tarok');
+  const addLink = (rel: string, href: string, sizes?: string) => {
+    const l = document.createElement('link');
+    l.rel = rel; l.href = href;
+    if (sizes) l.setAttribute('sizes', sizes);
+    document.head.appendChild(l);
+  };
+  addLink('apple-touch-icon', '/apple-touch-icon.png', '180x180');
+  addLink('icon', '/icon-512.png', '512x512');
 }

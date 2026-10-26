@@ -6,6 +6,7 @@ import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { PlayerProfileProvider } from '@/components/PlayerProfileProvider';
 import AppBackground from '@/components/AppBackground';
 import { loadWebFont } from '@/lib/webFont';
+import DialogHost from '@/components/DialogHost';
 
 loadWebFont();
 
@@ -23,6 +24,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="+not-found" />
         </Stack>
+        <DialogHost />
         <StatusBar style="light" />
       </PlayerProfileProvider>
       </ThemeProvider>

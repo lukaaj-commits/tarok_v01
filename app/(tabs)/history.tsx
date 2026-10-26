@@ -28,6 +28,7 @@ import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import SeasonModal from '@/components/SeasonModal';
 import TintBg from '@/components/TintBg';
 import { g } from '@/lib/gender';
+import { confirmDialog } from '@/lib/alert';
 
 // "Zmagovalec" / "Zmagovalka" / "Zmagovalci" glede na spol in število zmagovalcev
 const winnerWord = (names: string, upper = false) => {
@@ -62,6 +63,7 @@ type ScoreEntry = {
   is_partner?: boolean;
   is_beggar?: boolean;
   is_valat?: boolean;
+  is_penalty?: boolean;
 };
 
 const COLORS = {
@@ -115,6 +117,8 @@ export default function History() {
   const [gamePlayers, setGamePlayers] = useState<GamePlayer[]>([]);
   const [radelci, setRadelci] = useState<Radelc[]>([]);
   const [showGameModal, setShowGameModal] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false); // okno igre se odpre takoj, podatki pridejo za njim
+  const detailsReq = useRef(0);
   const [showPlayerHistoryModal, setShowPlayerHistoryModal] = useState(false);
   const [playerHistory, setPlayerHistory] = useState<ScoreEntry[]>([]);
   const [selectedPlayerName, setSelectedPlayerName] = useState('');
@@ -152,20 +156,26 @@ export default function History() {
   };
 
   const loadGameDetails = async (game: Game) => {
+    // Okno odpremo takoj (z nalaganjem), da je odziv na pritisk takojšen
+    const req = ++detailsReq.current;
+    setGamePlayers([]); setRadelci([]); setPlayerHistory([]);
+    setSelectedGame(game);
+    setDetailsLoading(true);
+    setShowGameModal(true);
     try {
       const [playersResult, radelciResult, historyResult] = await Promise.all([
         supabase.from('players').select('*').eq('game_id', game.id).order('total_score', { ascending: false }),
         supabase.from('radelci').select('*').eq('game_id', game.id).order('position'),
         supabase.from('score_entries').select('*').eq('game_id', game.id).order('created_at', { ascending: true })
       ]);
+      if (req !== detailsReq.current) return; // medtem je bila odprta druga igra
       if (playersResult.error) throw playersResult.error;
       if (radelciResult.error) throw radelciResult.error;
       setGamePlayers(playersResult.data || []);
       setRadelci(radelciResult.data || []);
       setPlayerHistory(historyResult.data || []);
-      setSelectedGame(game);
-      setShowGameModal(true);
     } catch (error) { console.error('Error loading game details:', error); }
+    finally { if (req === detailsReq.current) setDetailsLoading(false); }
   };
 
   const penaltyEntryIds = new Set<string>();
@@ -233,13 +243,8 @@ export default function History() {
   };
 
   const endGame = async (gameId: string) => {
-      if (Platform.OS === 'web') {
-        if (!window.confirm('Ali želiš zaključiti to igro?')) return;
-      } else {
-        Alert.alert('Zaključi igro', 'Ali želiš zaključiti to igro?', [{ text: 'Prekliči', style: 'cancel' }, { text: 'Zaključi', onPress: async () => await performEndGame(gameId) }]);
-        return;
-      }
-      await performEndGame(gameId);
+      const ok = await confirmDialog({ title: 'Zaključi igro?', message: 'Ali želiš zaključiti to igro?', confirmText: 'Zaključi' });
+      if (ok) await performEndGame(gameId);
   };
   
   const performEndGame = async (gameId: string) => {
@@ -267,13 +272,8 @@ export default function History() {
   };
   
   const deleteGame = async (gameId: string) => {
-      if (Platform.OS === 'web') {
-          if(!window.confirm('Ali si prepričan?')) return;
-      } else {
-          Alert.alert('Izbriši igro', 'Ali si prepričan?', [{ text: 'Prekliči', style: 'cancel' }, { text: 'Izbriši', style: 'destructive', onPress: async () => await performDeleteGame(gameId) }]);
-          return;
-      }
-      await performDeleteGame(gameId);
+      const ok = await confirmDialog({ title: 'Izbriši igro?', message: 'Igra in vsi njeni vpisi bodo trajno izbrisani.', confirmText: 'Izbriši', destructive: true });
+      if (ok) await performDeleteGame(gameId);
   };
   
   const performDeleteGame = async (gameId: string) => {
@@ -345,6 +345,21 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
     return null;
   };
   
+
+  // Kazen za neporabljene radelce: en krogec za vsakih −50 (največ 3, nato +N)
+  const renderPenaltyRings = (points: number) => {
+    const count = Math.max(1, Math.round(Math.abs(points) / 50));
+    const shown = Math.min(count, 3);
+    return (
+      <View style={styles.dotBox}>
+        {/* krogci segajo desno čez okvir, da točke ostanejo poravnane z ostalimi vrsticami */}
+        <View style={styles.penaltyRings}>
+          {Array.from({ length: shown }, (_, i) => <View key={i} style={[styles.radelc, styles.radelcUnused]} />)}
+          {count > 3 && <Text style={styles.penaltyMore}>+{count - 3}</Text>}
+        </View>
+      </View>
+    );
+  };
 
   const openGlobalPlayerDetails = (player: PlayerStats) => {
       showProfile(player);
@@ -514,7 +529,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
           <View style={styles.gameModalCard}>
             
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <TouchableOpacity style={styles.gameModalInfoBtn} onPress={() => loadAllPlayersHistory()}><Info size={17} color="#fff" /><Text style={{color: '#fff', marginLeft: 7, fontWeight: '500', fontSize: 14}}>Potek igre</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.gameModalInfoBtn} onPress={() => { if (!detailsLoading) loadAllPlayersHistory(); }}><Info size={17} color="#fff" /><Text style={{color: '#fff', marginLeft: 7, fontWeight: '500', fontSize: 14}}>Potek igre</Text></TouchableOpacity>
               {!selectedGame?.is_active && selectedGame && (<TouchableOpacity style={styles.gameModalTrashBtn} onPress={() => deleteGame(selectedGame.id)}><Trash2 size={17} color={COLORS.danger} /></TouchableOpacity>)}
             </View>
 
@@ -523,6 +538,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                 <View style={{ backgroundColor: COLORS.sheet, paddingTop: 8, paddingBottom: 6 }}>
                   <Text style={[styles.modalTitle, { fontSize: 19, marginBottom: 14 }]}>{selectedGame ? getFormattedTitle(selectedGame) : 'Igra'}</Text>
                   <Text style={styles.sectionLabel}>Končna lestvica</Text>
+                  {detailsLoading && (<ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: 60 }} />)}
                   
                   {!selectedGame?.is_active && gamePlayers.length > 0 && (
                       <TouchableOpacity onPress={() => openProfile(gamePlayers[0].name)} activeOpacity={0.8} style={styles.winnerCard}>
@@ -536,7 +552,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                               </View>
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                                   <Text style={styles.winnerName} numberOfLines={1}>{gamePlayers[0].name}</Text>
-                                  <View style={styles.pointsPill}><Text style={styles.pointsPillText}>{gamePlayers[0].total_score} točk</Text></View>
+                                  <View style={[styles.pointsPill, gamePlayers[0].total_score < 0 && styles.pillNeg]}><Text style={[styles.pointsPillText, gamePlayers[0].total_score < 0 && { color: COLORS.danger }]}>{gamePlayers[0].total_score} točk</Text></View>
                               </View>
                           </View>
                       </TouchableOpacity>
@@ -628,7 +644,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                         let runningTotal = 0;
                         for (let i = 0; i <= index; i++) { runningTotal += playerEntries[i].points; }
                         
-                        const isPenalty = penaltyEntryIds.has(entry.id);
+                        const isPenalty = penaltyEntryIds.has(entry.id) || !!entry.is_penalty;
                         const pointsColor = isPenalty ? COLORS.warning : (entry.is_valat ? COLORS.warning : (entry.points > 0 ? styles.positivePoints.color : styles.negativePoints.color));
 
                         return (
@@ -639,7 +655,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                                         {entry.points > 0 ? '+' : ''}{entry.points}
                                     </Text>
                                 </View>
-                                <View style={styles.dotBox}>{renderGameIcon(entry)}</View>
+                                {isPenalty ? renderPenaltyRings(entry.points) : <View style={styles.dotBox}>{renderGameIcon(entry)}</View>}
                              </View>
                             <Text style={styles.historyTotal}>= {runningTotal}</Text>
                             <Text style={styles.historyDate}>{new Date(entry.created_at).toLocaleTimeString('sl-SI', {hour: '2-digit', minute:'2-digit'})}</Text>
@@ -663,8 +679,8 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                 <Text style={{color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '600', letterSpacing: 2.5, marginBottom: 12}}>{winnerWord(winnerData?.names || '', true)}</Text>
                 {winnerData?.names && (<View style={{ width: 84, height: 84, marginBottom: 12 }}><Image source={{ uri: getAvatarUrl(winnerData.names.split(' & ')[0]) }} style={[styles.playerAvatar, {width: 84, height: 84, borderRadius: 42}]} /></View>)}
                 <Text style={{color: COLORS.text, fontSize: 30, fontWeight: '600', textAlign: 'center', marginBottom: 8}}>{winnerData?.names}</Text>
-                <View style={styles.pointsPillBig}>
-                    <Text style={{color: COLORS.success, fontSize: 20, fontWeight: '600'}}>{winnerData?.score} točk</Text>
+                <View style={[styles.pointsPillBig, (winnerData?.score ?? 0) < 0 && styles.pillNeg]}>
+                    <Text style={{color: (winnerData?.score ?? 0) < 0 ? COLORS.danger : COLORS.success, fontSize: 20, fontWeight: '600'}}>{winnerData?.score} točk</Text>
                 </View>
             </View>
             {showWinnerPopup && (<View pointerEvents="none" style={StyleSheet.absoluteFillObject}><ConfettiCannon count={200} origin={{x: -10, y: 0}} autoStart={true} fadeOut={true} fallSpeed={2500} /></View>)}
@@ -743,6 +759,8 @@ const styles = StyleSheet.create({
   pointsWrapper: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'center' },
   fixedPointsBox: { width: 60, alignItems: 'flex-end', paddingRight: 5 },
   dotBox: { width: 20, alignItems: 'center', justifyContent: 'center' },
+  penaltyRings: { position: 'absolute', left: 6, flexDirection: 'row', alignItems: 'center', gap: 3 },
+  penaltyMore: { color: COLORS.radelcBorder, fontSize: 11, fontWeight: '600', marginLeft: 1 },
   historyPoints: { fontSize: 16, fontWeight: '600' },
   positivePoints: { color: COLORS.success },
   negativePoints: { color: COLORS.danger },
@@ -844,6 +862,7 @@ const styles = StyleSheet.create({
   sectionLabel: { color: COLORS.textMuted, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8, marginLeft: 4 },
   pointsPill: { height: 24, paddingHorizontal: 10, borderRadius: 12, backgroundColor: 'rgba(48,209,88,0.18)', justifyContent: 'center' },
   pointsPillText: { color: COLORS.success, fontSize: 14, fontWeight: '600' },
+  pillNeg: { backgroundColor: 'rgba(255,69,58,0.16)' },
   pointsPillBig: { height: 38, paddingHorizontal: 18, borderRadius: 19, backgroundColor: 'rgba(48,209,88,0.16)', justifyContent: 'center' },
   popupClose: { position: 'absolute', top: 14, right: 14, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   glassButton: { backgroundColor: 'rgba(255,255,255,0.09)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)' },

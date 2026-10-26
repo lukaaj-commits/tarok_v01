@@ -79,14 +79,8 @@ const COLORS = {
   chartBg: '#0C111D',
 };
 
-// Sporočilo, ki deluje tudi na spletu (Alert.alert na spletu ne prikaže ničesar)
-const showAlert = (title: string, message: string) => {
-  if (Platform.OS === 'web') {
-    window.alert(`${title}\n\n${message}`);
-  } else {
-    Alert.alert(title, message);
-  }
-};
+// Okna in kratka sporočila v dizajnu aplikacije
+import { showAlert, showToast } from '@/lib/alert';
 
 const GRADIENT_COLORS = ['#0A84FF', '#0A84FF']; 
 const MONTHS_SHORT = ['JAN', 'FEB', 'MAR', 'APR', 'MAJ', 'JUN', 'JUL', 'AVG', 'SEP', 'OKT', 'NOV', 'DEC'];
@@ -162,6 +156,14 @@ export default function ActiveGame() {
   const [showWinnerPopup, setShowWinnerPopup] = useState(false);
   const [winnerData, setWinnerData] = useState<{names: string, score: number} | null>(null);
   const popupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Zaščita pred dvojnim pritiskom (da se ista stvar ne shrani dvakrat)
+  const busyRef = useRef<Record<string, boolean>>({});
+  const once = async (key: string, fn: () => Promise<void>) => {
+    if (busyRef.current[key]) return;
+    busyRef.current[key] = true;
+    try { await fn(); } finally { busyRef.current[key] = false; }
+  };
+  const [finishing, setFinishing] = useState(false);
   const [finishedGameId, setFinishedGameId] = useState<string | null>(null); // za sliko večera v oknu zmagovalca
 
   useFocusEffect(useCallback(() => {
@@ -220,7 +222,7 @@ export default function ActiveGame() {
     setGameId(null); setPlayers([]); setRadelci([]); fetchActiveGamesList();
   };
 
-  const handleStartNewGame = async () => { createGameInDb(); };
+  const handleStartNewGame = () => once('create', createGameInDb);
 
   const createGameInDb = async () => {
     setLoading(true);
@@ -418,7 +420,8 @@ export default function ActiveGame() {
     return total;
   };
 
-  const performSubmit = async (points: number, isValat: boolean) => {
+  const performSubmit = (points: number, isValat: boolean) => once('submit', () => doSubmit(points, isValat));
+  const doSubmit = async (points: number, isValat: boolean) => {
     setSubmitting(true);
     try {
       const { error } = await supabase.from('score_entries').insert({
@@ -464,7 +467,7 @@ export default function ActiveGame() {
           const lastRadelc = lastRadelci && lastRadelci.length > 0 ? lastRadelci[0] : null;
 
           if (!lastScore && !lastRadelc) {
-              showAlert("Obvestilo", "Ni vnosov za razveljavitev.");
+              showToast("Ni vnosov za razveljavitev");
               setIsUndoing(false);
               return;
           }
@@ -486,10 +489,14 @@ export default function ActiveGame() {
               if (deleteError) throw deleteError;
               const newScore = await recalcPlayerTotal(lastScore.player_id);
               setPlayers(prev => prev.map(p => p.id === lastScore.player_id ? { ...p, total_score: newScore } : p));
+              const who = players.find(p => p.id === lastScore.player_id)?.name || 'igralec';
+              const pts = Number(lastScore.points);
+              showToast(`Razveljavljeno: ${who} ${pts > 0 ? '+' : ''}${pts}`);
           } else {
               const posToDelete = lastRadelc.position;
               await supabase.from('radelci').delete().eq('game_id', gameId).eq('position', posToDelete);
               setRadelci(radelci.filter(r => r.position !== posToDelete));
+              showToast('Razveljavljeno: radelc');
           }
           
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -776,7 +783,7 @@ export default function ActiveGame() {
           <UserPlus size={21} color={COLORS.primary} />
           <Text style={styles.tileText}>Igralec</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.tile, styles.tileRadelc]} onPress={addGlobalRadelc} activeOpacity={0.7}>
+        <TouchableOpacity style={[styles.tile, styles.tileRadelc]} onPress={() => once('radelc', addGlobalRadelc)} activeOpacity={0.7}>
           <Plus size={21} color={COLORS.radelcBorder} />
           <Text style={styles.tileText}>Radelc</Text>
         </TouchableOpacity>
@@ -827,6 +834,16 @@ export default function ActiveGame() {
                 data={filteredProfiles} keyExtractor={(item) => item.id} style={{ flex: 1, marginVertical: 12 }}
                 renderItem={({ item }) => {
                     const isSelected = selectedProfileIds.has(item.id);
+                    const inGame = players.some(p => p.profile_id === item.id || p.name === item.name);
+                    if (inGame) return (
+                        <View style={[styles.profileItem, { opacity: 0.45 }]}>
+                            <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                                <Image source={{ uri: getAvatarUrl(item.name) }} style={[styles.playerAvatar, {width: 32, height: 32, borderRadius: 16, marginRight: 10}]} />
+                                <Text style={styles.profileName}>{item.name}</Text>
+                            </View>
+                            <View style={styles.inGameTag}><Text style={styles.inGameText}>v igri</Text></View>
+                        </View>
+                    );
                     return (
                         <TouchableOpacity style={styles.profileItem} onPress={() => toggleProfileSelection(item)}>
                             <View style={{flexDirection: 'row', alignItems: 'center'}}>
@@ -853,7 +870,7 @@ export default function ActiveGame() {
                 }
             />
             {selectedProfileIds.size > 0 && (
-                <TouchableOpacity style={[styles.confirmButton, { marginBottom: 10 }]} onPress={confirmAddPlayers}>
+                <TouchableOpacity style={[styles.confirmButton, { marginBottom: 10 }]} onPress={() => once('addPlayers', confirmAddPlayers)}>
                     <Text style={styles.modalButtonText}>Potrdi izbiro ({selectedProfileIds.size})</Text>
                 </TouchableOpacity>
             )}
@@ -1116,7 +1133,7 @@ export default function ActiveGame() {
             <View style={styles.modalButtons}>
               <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setShowFinishGameModal(false)}><Text style={styles.modalButtonText}>Prekliči</Text></TouchableOpacity>
               
-              <TouchableOpacity style={[styles.modalButton, styles.primaryModalButton]} onPress={finishGame}>
+              <TouchableOpacity style={[styles.modalButton, styles.primaryModalButton]} onPress={() => once('finish', async () => { setFinishing(true); try { await finishGame(); } finally { setFinishing(false); } })} disabled={finishing}>
                 <LinearGradient colors={GRADIENT_COLORS} start={{x: 0, y: 0}} end={{x: 1, y: 0}} style={styles.absoluteGradient} />
                 <View style={styles.relativeContent}>
                     <Text style={styles.modalButtonText}>Zaključi</Text>
@@ -1199,8 +1216,8 @@ export default function ActiveGame() {
                     {winnerData?.names}
                 </Text>
                 
-                <View style={{backgroundColor: 'rgba(48,209,88,0.16)', height: 38, paddingHorizontal: 18, borderRadius: 19, justifyContent: 'center'}}>
-                    <Text style={{color: COLORS.success, fontSize: 20, fontWeight: '600'}}>
+                <View style={{backgroundColor: (winnerData?.score ?? 0) < 0 ? 'rgba(255,69,58,0.16)' : 'rgba(48,209,88,0.16)', height: 38, paddingHorizontal: 18, borderRadius: 19, justifyContent: 'center'}}>
+                    <Text style={{color: (winnerData?.score ?? 0) < 0 ? COLORS.danger : COLORS.success, fontSize: 20, fontWeight: '600'}}>
                         {winnerData?.score} točk
                     </Text>
                 </View>
@@ -1425,5 +1442,7 @@ const styles = StyleSheet.create({
   scoreHeadCurrent: { color: COLORS.textMuted, fontSize: 13 },
   pickCircle: { width: 50, height: 50, borderRadius: 25, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   playedCount: { color: COLORS.textMuted, fontSize: 13, fontWeight: '400', marginLeft: -4 },
+  inGameTag: { height: 50, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
+  inGameText: { color: COLORS.textMuted, fontSize: 14, fontWeight: '500' },
   pickCircleOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
 });
