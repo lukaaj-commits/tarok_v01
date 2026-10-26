@@ -387,7 +387,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
         <TouchableOpacity style={styles.gameCard} onPress={() => loadGameDetails(item)} activeOpacity={0.7}>
             <View style={styles.cardHeader}>
                 <View style={styles.calLeaf}>
-                    <Text style={[styles.calMonth, !item.is_active && { color: '#8E8E93' }]}>{MONTHS_SHORT[d.getMonth()]}</Text>
+                    <Text style={[styles.calMonth, !item.is_active && { color: COLORS.danger }]}>{MONTHS_SHORT[d.getMonth()]}</Text>
                     <Text style={styles.calDay}>{d.getDate()}</Text>
                 </View>
                 <View style={{flex: 1, justifyContent: 'center'}}>
