@@ -83,6 +83,7 @@ const COLORS = {
 import { showAlert, showToast } from '@/lib/alert';
 import { AnimatedNumber, ReorderList } from '@/components/Motion';
 import PullToRefresh from '@/components/PullToRefresh';
+import { buildFacts, pickFact, Fact } from '@/lib/startFacts';
 
 const GRADIENT_COLORS = ['#0A84FF', '#0A84FF']; 
 const MONTHS_SHORT = ['JAN', 'FEB', 'MAR', 'APR', 'MAJ', 'JUN', 'JUL', 'AVG', 'SEP', 'OKT', 'NOV', 'DEC'];
@@ -167,10 +168,20 @@ export default function ActiveGame() {
   };
   const [finishing, setFinishing] = useState(false);
   const [playersLoading, setPlayersLoading] = useState(false);
+  // začetni zaslon: vodilni v tekočem mesecu in igralec z največ zmagami
+  // začetni zaslon: ena naključna zanimivost (vsakič druga)
+  const [fact, setFact] = useState<Fact | null>(null);
+  const loadStartInfo = async () => {
+    try {
+      const { count } = await supabase.from('games').select('id', { count: 'exact', head: true }).eq('is_active', false);
+      setFact(pickFact(await buildFacts(typeof count === 'number' ? count : null)));
+    } catch (e) { console.error(e); }
+  };
   const [finishedGameId, setFinishedGameId] = useState<string | null>(null); // za sliko večera v oknu zmagovalca
 
   useFocusEffect(useCallback(() => {
     fetchActiveGamesList();
+    loadStartInfo();
     // število odigranih (zaključenih) iger za začetni zaslon - enako kot v Zgodovini
     supabase.from('games').select('id', { count: 'exact', head: true }).eq('is_active', false).then(({ count }) => { if (typeof count === 'number') setFinishedCount(count); });
   }, []));
@@ -730,7 +741,12 @@ export default function ActiveGame() {
     <View style={[styles.container, styles.centerContent]}>
         <Text style={styles.welcomeTitle}>Tarok</Text>
         <Text style={styles.welcomeSubtitle}>Ni aktivne igre</Text>
-        {finishedCount !== null && <Text style={styles.welcomeCount}><Text style={{ color: COLORS.text, fontWeight: '600' }}>{finishedCount}</Text> {finishedCount % 100 === 1 ? 'igra' : finishedCount % 100 === 2 ? 'igri' : finishedCount % 100 === 3 || finishedCount % 100 === 4 ? 'igre' : 'iger'}</Text>}
+        {/* ena zanimivost v ležeči pisavi; imena in številke poudarjene */}
+        {fact ? (
+          <Text style={[styles.welcomeCount, styles.factText]} numberOfLines={1}>
+            {fact.parts.map((p, i) => <Text key={i} style={p.strong ? styles.factStrong : undefined}>{p.t}</Text>)}
+          </Text>
+        ) : (finishedCount !== null && <Text style={styles.welcomeCount}><Text style={{ color: COLORS.text, fontWeight: '600' }}>{finishedCount}</Text> {finishedCount % 100 === 1 ? 'igra' : finishedCount % 100 === 2 ? 'igri' : finishedCount % 100 === 3 || finishedCount % 100 === 4 ? 'igre' : 'iger'}</Text>)}
         <View style={{ marginTop: 6 }}>
             <StartGameButton onPress={handleStartNewGame} />
         </View>
@@ -1433,6 +1449,8 @@ const styles = StyleSheet.create({
   emptyHistoryContainer: { paddingVertical: 40, alignItems: 'center' },
   emptyHistoryText: { color: COLORS.textMuted, fontSize: 16, textAlign: 'center' },
   confirmText: { color: COLORS.textMuted, fontSize: 15, textAlign: 'center', marginBottom: 20, lineHeight: 22 },
+  factText: { fontStyle: 'italic', textAlign: 'center', paddingHorizontal: 24 },
+  factStrong: { color: '#EBEBF5', fontWeight: '500', fontStyle: 'italic' },
   klopTitle: { color: COLORS.warning, fontSize: 26, fontWeight: '600', marginBottom: 24, textAlign: 'center' },
   klopButton: { backgroundColor: COLORS.primary, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
 

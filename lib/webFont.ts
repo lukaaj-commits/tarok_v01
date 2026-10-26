@@ -17,7 +17,7 @@ export function loadWebFont() {
   pre2.crossOrigin = 'anonymous';
   const link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap';
+  link.href = 'https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap';
 
   const style = document.createElement('style');
   style.setAttribute('data-tarok', 'font');
