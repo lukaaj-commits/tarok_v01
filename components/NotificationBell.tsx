@@ -3,6 +3,8 @@ import { View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet, Image, Act
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Bell, X, Trophy } from 'lucide-react-native';
 import { PulseRings, PulseDot } from './Pulse';
+import { getData } from '@/lib/dataCache';
+import PullToRefresh from './PullToRefresh';
 import { supabase } from '@/lib/supabase';
 import { computeNotifications, AppNotification, GameSummary } from '@/lib/notifications';
 import { getAvatarUrl } from '@/lib/avatars';
@@ -14,6 +16,8 @@ import TintBg from '@/components/TintBg';
 // v2: ob posodobitvi aplikacije (nov dizajn) se vsa obstoječa obvestila štejejo kot prebrana,
 // zato uporabnik po posodobitvi nima nobenega novega obvestila. Ob novi verziji ključa se to ponovi.
 const SEEN_KEY = 'tarok_prebrana_obvestila_v2';
+// Obvestila se prikazujejo samo od tega dne naprej (starejša se ne pokažejo)
+const NOTIF_START = new Date(2026, 9, 26, 0, 0, 0).toISOString(); // 26. 10. 2026
 const OLD_SEEN_KEYS = ['tarok_prebrana_obvestila_v1'];
 // ... in katera je uporabnik počistil (križec, podrs, Počisti vse)
 const DISMISSED_KEY = 'tarok_pocisceno_obvestila_v1';
@@ -94,17 +98,13 @@ export default function NotificationBell() {
   const load = useCallback(async () => {
     try {
       await loadGenders();
-      const [gm, p, e, r] = await Promise.all([
-        supabase.from('games').select('id, name, created_at, is_active'),
-        supabase.from('players').select('id, game_id, name, total_score'),
-        supabase.from('score_entries').select('id, player_id, game_id, points, created_at, played, is_partner, is_beggar, is_valat, is_penalty'),
-        supabase.from('radelci').select('player_id, game_id'),
-      ]);
-      if (gm.error || p.error || e.error) return;
-      const { live, summaries } = computeNotifications(gm.data || [], p.data || [], e.data || [], r.data || []);
+      // podatki iz skupnega pomnilnika (po prvem nalaganju se prenese samo novo)
+      const d = await getData();
+      const { live, summaries } = computeNotifications(d.games, d.players, d.entries, d.radelci);
+      // prikažemo samo obvestila od NOTIF_START naprej (izračun pa upošteva vso zgodovino)
       const items: FeedItem[] = [
-        ...live.map(n => ({ type: 'live' as const, key: n.id, time: n.time, n })),
-        ...summaries.map(s => ({ type: 'game' as const, key: `game:${s.gameId}`, time: s.time, g: s })),
+        ...live.filter(n => n.time >= NOTIF_START).map(n => ({ type: 'live' as const, key: n.id, time: n.time, n })),
+        ...summaries.filter(s => s.time >= NOTIF_START).map(s => ({ type: 'game' as const, key: `game:${s.gameId}`, time: s.time, g: s })),
       ].sort((a, b) => b.time.localeCompare(a.time));
       setFeed(items);
 
@@ -229,7 +229,8 @@ export default function NotificationBell() {
             ) : visible.length === 0 ? (
               <Text style={styles.empty}>Ni novih obvestil.</Text>
             ) : (
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
+              <PullToRefresh onRefresh={load}>{(scrollProps) => (
+              <ScrollView {...scrollProps} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
                 {visible.map(item =>
                   item.type === 'live' ? (
                     <SwipeToDismiss key={item.key} onDismiss={() => dismissOne(item.key)}>
@@ -278,6 +279,7 @@ export default function NotificationBell() {
                 )}
                 <Text style={styles.hint}>Podrsaj obvestilo levo ali desno, da ga počistiš.</Text>
               </ScrollView>
+              )}</PullToRefresh>
             )}
           </View>
         </View>

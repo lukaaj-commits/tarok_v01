@@ -29,6 +29,7 @@ import SeasonModal from '@/components/SeasonModal';
 import TintBg from '@/components/TintBg';
 import { g } from '@/lib/gender';
 import { confirmDialog } from '@/lib/alert';
+import PullToRefresh from '@/components/PullToRefresh';
 
 // "Zmagovalec" / "Zmagovalka" / "Zmagovalci" glede na spol in število zmagovalcev
 const winnerWord = (names: string, upper = false) => {
@@ -280,15 +281,15 @@ export default function History() {
       try { await supabase.from('games').delete().eq('id', gameId); setShowGameModal(false); await loadGames(); } catch (e) { console.error(e); }
   };
 
+  // Potek igre: vsi vpisi te igre so že naloženi ob odprtju podrobnosti, zato se okno odpre takoj
   const loadAllPlayersHistory = async () => {
     if (!selectedGame) return;
-    try {
-      const playerIds = gamePlayers.map((p) => p.id);
-      const { data, error } = await supabase.from('score_entries').select('*').in('player_id', playerIds).order('created_at', { ascending: true });
-      if (error) throw error;
-      setPlayerHistory(data || []); setSelectedPlayerName('Vsi igralci'); setShowPlayerHistoryModal(true);
-    } catch (error) { console.error(error); }
+    setSelectedPlayerName('Vsi igralci'); setShowPlayerHistoryModal(true);
   };
+
+// osvežitev statistike brez krogca čez celo okno (za "potegni za osvežitev")
+  const [statsVersion, setStatsVersion] = useState(0);
+  const refreshStats = async () => { try { setGlobalStats(await fetchPlayerStats()); setStatsVersion(v => v + 1); } catch (e) { console.error(e); } };
 
 const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderboard') => {
     setStatsLoading(true);
@@ -443,7 +444,8 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
             <View style={[styles.gameModalCard, {width: '88%', maxHeight: '75%'}]}>
                 <Text style={[styles.modalTitle, {marginBottom: 20}]}>Izberi igralca</Text>
                 {statsLoading ? (<ActivityIndicator size="large" color={COLORS.primary} style={{marginVertical: 40}} />) : (
-                    <ScrollView style={{width: '100%'}} showsVerticalScrollIndicator={false}>
+                    <PullToRefresh style={{ flexShrink: 1, width: '100%' }} onRefresh={refreshStats}>{(scrollProps) => (
+                    <ScrollView {...scrollProps} style={{width: '100%'}} showsVerticalScrollIndicator={false}>
                         {[...globalStats].sort((a, b) => a.name.localeCompare(b.name)).map(stat => (
                             <TouchableOpacity key={stat.name} style={styles.selectPlayerItem} onPress={() => { setShowPlayerSelectModal(false); openGlobalPlayerDetails(stat); }}>
                                 <View style={{flexDirection: 'row', alignItems: 'center'}}><Image source={{ uri: getAvatarUrl(stat.name) }} style={[styles.playerAvatar, {width: 36, height: 36, borderRadius: 18, marginRight: 12}]} /><Text style={{color: '#fff', fontSize: 16, fontWeight: '500'}}>{stat.name}</Text></View>
@@ -451,13 +453,16 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
+                    )}</PullToRefresh>
                 )}
                 <TouchableOpacity style={[styles.closeButton, styles.glassButton, {marginTop: 12}]} onPress={() => setShowPlayerSelectModal(false)}><Text style={styles.closeButtonText}>Prekliči</Text></TouchableOpacity>
             </View>
          </View>
       </Modal>
 
-      <FlatList data={games} keyExtractor={(item) => item.id} renderItem={renderGame} contentContainerStyle={styles.listContainer} ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>Ni še nobene igre</Text></View>} />
+      <PullToRefresh onRefresh={loadGames}>{(scrollProps) => (
+      <FlatList {...scrollProps} data={games} keyExtractor={(item) => item.id} renderItem={renderGame} contentContainerStyle={styles.listContainer} ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>Ni še nobene igre</Text></View>} />
+      )}</PullToRefresh>
 
       <Modal visible={showGlobalStatsModal} transparent animationType="slide" onRequestClose={() => setShowGlobalStatsModal(false)}>
          <View style={styles.modalOverlay}>
@@ -469,13 +474,13 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                     <TouchableOpacity style={[styles.tabButton, globalStatsTab === 'records' && styles.tabButtonActive]} onPress={() => setGlobalStatsTab('records')}><Text style={[styles.tabText, globalStatsTab === 'records' && styles.tabTextActive]}>Rekordi</Text></TouchableOpacity>
                 </View>
                 {statsLoading ? (<ActivityIndicator size="large" color={COLORS.primary} style={{marginTop: 20}} />) : (
-                    <>
+                    <PullToRefresh style={{ flex: 1 }} onRefresh={refreshStats}>{(scrollProps) => (<>
                         {globalStatsTab === 'records' ? (
-                            <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
-                                <HallOfFame />
+                            <ScrollView {...scrollProps} style={styles.historyList} showsVerticalScrollIndicator={false}>
+                                <HallOfFame key={statsVersion} />
                             </ScrollView>
                         ) : globalStatsTab === 'classic' ? (
-                            <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
+                            <ScrollView {...scrollProps} style={styles.historyList} showsVerticalScrollIndicator={false}>
                                 {classicSortedStats.map((stat, index) => {
                                     const rank = classicSortedStats.findIndex(s => s.wins === stat.wins && s.second === stat.second && s.third === stat.third) + 1;
                                     return (
@@ -494,7 +499,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                                 })}
                             </ScrollView>
                         ) : (
-                            <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
+                            <ScrollView {...scrollProps} style={styles.historyList} showsVerticalScrollIndicator={false}>
                                 {indexSortedStats.length === 0 ? (<View style={{alignItems: 'center', marginTop: 40}}><BarChart2 size={40} color={COLORS.textMuted} style={{marginBottom: 10}} /><Text style={{color: COLORS.textMuted, textAlign: 'center', paddingHorizontal: 20}}>Še noben igralec ni odigral dovolj iger za izračun indeksa.</Text></View>) : (
                                     indexSortedStats.map((stat, index) => {
                                         const rank = indexSortedStats.findIndex(s => s.avg_performance === stat.avg_performance) + 1;
@@ -517,7 +522,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                                 <Text style={{color: '#636366', fontSize: 11, textAlign: 'center', marginTop: 12, marginBottom: 10, lineHeight: 15}}>* Prikazani so le igralci z vsaj 5 odigranimi igrami. Puščica označuje spremembo po zadnji igri.</Text>
                             </ScrollView>
                         )}
-                    </>
+                    </>)}</PullToRefresh>
                 )}
                 <TouchableOpacity style={styles.closeButton} onPress={() => setShowGlobalStatsModal(false)}><Text style={styles.closeButtonText}>Zapri</Text></TouchableOpacity>
             </View>

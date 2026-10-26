@@ -4,6 +4,7 @@
 // uporabljajo vsi zasloni (profil igralca se odpre od koderkoli).
 // =====================================================================
 import { supabase } from '@/lib/supabase';
+import { getData } from '@/lib/dataCache';
 import { computeSeasons, monthTitles } from '@/lib/season';
 import { computeChallenges } from '@/lib/challenges';
 import { loadGenders } from '@/lib/gender';
@@ -48,16 +49,8 @@ export type PlayerStats = {
 export type AllData = { games: any[]; players: any[]; entries: any[]; radelci: any[]; stats: PlayerStats[] };
 export async function fetchAllData(): Promise<AllData> {
   await loadGenders();
-  const [g, p, e, r] = await Promise.all([
-    supabase.from('games').select('id, name, created_at, is_active').order('created_at', { ascending: false }),
-    supabase.from('players').select('*'),
-    supabase.from('score_entries').select('*').order('created_at', { ascending: true }),
-    supabase.from('radelci').select('player_id, game_id'),
-  ]);
-  if (g.error) throw g.error;
-  if (p.error) throw p.error;
-  if (e.error) throw e.error;
-  const games = g.data || [], players = p.data || [], entries = e.data || [], radelci = r.data || [];
+  // podatki iz skupnega pomnilnika (prenese se samo novo)
+  const { games, players, entries, radelci } = await getData();
   const stats = computePlayerStats(games, players, entries);
   const titles = monthTitles(computeSeasons(games, players));
   const ch = computeChallenges(games, players, entries, radelci).counts;

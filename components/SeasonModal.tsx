@@ -4,6 +4,8 @@ import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Image, Act
 import { ChevronLeft, ChevronRight, Trophy, Info } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { computeSeasons, SeasonMonth, SEASON } from '@/lib/season';
+import { getData } from '@/lib/dataCache';
+import PullToRefresh from '@/components/PullToRefresh';
 import { getAvatarUrl } from '@/lib/avatars';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import { g } from '@/lib/gender';
@@ -44,12 +46,10 @@ export default function SeasonModal({ visible, onClose }: Props) {
     (async () => {
       setLoading(true);
       try {
-        const [g, p] = await Promise.all([
-          supabase.from('games').select('id, created_at'),
-          supabase.from('players').select('game_id, name, total_score'),
-        ]);
-        if (!cancelled && !g.error && !p.error) {
-          setMonths(computeSeasons(g.data || [], p.data || []));
+        // podatki iz skupnega pomnilnika (prenese se samo novo)
+        const d = await getData();
+        if (!cancelled) {
+          setMonths(computeSeasons(d.games, d.players));
           setIndex(0);
         }
       } finally {
@@ -97,7 +97,8 @@ export default function SeasonModal({ visible, onClose }: Props) {
                 </View>
               )}
 
-              <ScrollView key={month.key} ref={scrollRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+              <PullToRefresh onRefresh={async () => { const d = await getData(); setMonths(computeSeasons(d.games, d.players)); }}>{(scrollProps) => (
+              <ScrollView {...scrollProps} key={month.key} ref={scrollRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
                 {/* lestvica meseca */}
                 {month.standings.length === 0 ? (
                   <Text style={styles.empty}>V tem mesecu še ni odigranih iger.</Text>
@@ -163,6 +164,7 @@ export default function SeasonModal({ visible, onClose }: Props) {
                   <Text style={[styles.infoLine, { marginTop: 4 }]}>Pri enakem številu točk odloči več zmag, nato več 2. in 3. mest, nato višji indeks %.</Text>
                 </View>
               </ScrollView>
+              )}</PullToRefresh>
             </>
           )}
 

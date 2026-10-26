@@ -81,6 +81,8 @@ const COLORS = {
 
 // Okna in kratka sporočila v dizajnu aplikacije
 import { showAlert, showToast } from '@/lib/alert';
+import { AnimatedNumber, ReorderList } from '@/components/Motion';
+import PullToRefresh from '@/components/PullToRefresh';
 
 const GRADIENT_COLORS = ['#0A84FF', '#0A84FF']; 
 const MONTHS_SHORT = ['JAN', 'FEB', 'MAR', 'APR', 'MAJ', 'JUN', 'JUL', 'AVG', 'SEP', 'OKT', 'NOV', 'DEC'];
@@ -164,6 +166,7 @@ export default function ActiveGame() {
     try { await fn(); } finally { busyRef.current[key] = false; }
   };
   const [finishing, setFinishing] = useState(false);
+  const [playersLoading, setPlayersLoading] = useState(false);
   const [finishedGameId, setFinishedGameId] = useState<string | null>(null); // za sliko večera v oknu zmagovalca
 
   useFocusEffect(useCallback(() => {
@@ -210,12 +213,12 @@ export default function ActiveGame() {
 
   const enterGame = async (selectedGame: Game) => {
     setLoading(true);
+    setPlayersLoading(true); // namesto "Dodaj igralce" se med nalaganjem vrti krogec
     try {
       setGameId(selectedGame.id);
       setGameName(selectedGame.name);
-      await loadPlayers(selectedGame.id);
-      await loadRadelci(selectedGame.id);
-    } catch (error) { console.error(error); } finally { setLoading(false); }
+      await Promise.all([loadPlayers(selectedGame.id), loadRadelci(selectedGame.id)]);
+    } catch (error) { console.error(error); } finally { setLoading(false); setPlayersLoading(false); }
   };
 
   const exitToLobby = () => {
@@ -508,9 +511,16 @@ export default function ActiveGame() {
       }
   };
 
+  // Potek igralca: okno se odpre takoj, vpisi pridejo za njim
+  const historyReq = useRef(0);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const loadPlayerHistory = async (pid: string) => {
-    const { data } = await supabase.from('score_entries').select('*').eq('player_id', pid).order('created_at');
-    setPlayerHistory(data || []); setSelectedPlayerId(pid); setShowHistoryModal(true);
+    const req = ++historyReq.current;
+    setPlayerHistory([]); setSelectedPlayerId(pid); setHistoryLoading(true); setShowHistoryModal(true);
+    try {
+      const { data } = await supabase.from('score_entries').select('*').eq('player_id', pid).order('created_at');
+      if (req === historyReq.current) setPlayerHistory(data || []);
+    } finally { if (req === historyReq.current) setHistoryLoading(false); }
   };
 
   const openLeaderboard = async () => {
@@ -689,7 +699,7 @@ export default function ActiveGame() {
           </View>
         </View>
         <TouchableOpacity style={styles.scoreContainer} onPress={() => openScoreInput(item.id)} activeOpacity={0.7}>
-          <Text style={[styles.scoreText, item.total_score < 0 && { color: COLORS.danger }]}>{item.total_score}</Text>
+          <AnimatedNumber value={item.total_score} style={[styles.scoreText, item.total_score < 0 && { color: COLORS.danger }]} />
         </TouchableOpacity>
         <ScrollView horizontal style={styles.radelciContainer} showsHorizontalScrollIndicator={false}>
           {pRadelci.map(r => (
@@ -731,7 +741,9 @@ export default function ActiveGame() {
     <View style={styles.container}>
         <Text style={styles.lobbyTitle}>Aktivne igre</Text>
         <View style={{ flex: 1 }}>
+            <PullToRefresh onRefresh={fetchActiveGamesList}>{(scrollProps) => (
             <FlatList 
+                {...scrollProps}
                 data={activeGamesList} 
                 keyExtractor={(item) => item.id} 
                 contentContainerStyle={styles.listContainer} 
@@ -752,6 +764,7 @@ export default function ActiveGame() {
                     </TouchableOpacity>
                 )} 
             />
+            )}</PullToRefresh>
             <View style={{ padding: 16, alignItems: 'center' }}>
                 <TouchableOpacity style={styles.bigStartButton} onPress={handleStartNewGame} activeOpacity={0.8}>
                     <View style={[styles.relativeContent, { gap: 10 }]}>
@@ -797,7 +810,15 @@ export default function ActiveGame() {
         </TouchableOpacity>
       </View>
 
-      <FlatList data={sortedPlayers} keyExtractor={(item) => item.id} renderItem={renderPlayer} contentContainerStyle={styles.listContainer} ListEmptyComponent={<Text style={styles.emptyText}>Dodaj igralce za začetek.</Text>} />
+      <PullToRefresh onRefresh={async () => { if (gameId) await Promise.all([loadPlayers(gameId), loadRadelci(gameId)]); }}>{(scrollProps) => (
+      <ScrollView {...scrollProps} style={{ flex: 1 }} contentContainerStyle={styles.listContainer}>
+        {sortedPlayers.length === 0 && (playersLoading
+          ? <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 50 }} />
+          : <Text style={styles.emptyText}>Dodaj igralce za začetek.</Text>)}
+        {/* kartice gladko zdrsnejo na novo mesto, ko se spremeni vrstni red */}
+        <ReorderList gap={12} items={sortedPlayers.map(item => ({ key: item.id, node: renderPlayer({ item }) }))} />
+      </ScrollView>
+      )}</PullToRefresh>
 
       <View style={styles.finishBar}>
         <TouchableOpacity style={styles.finishButton} onPress={() => setShowFinishGameModal(true)} activeOpacity={0.8}>
@@ -932,6 +953,7 @@ export default function ActiveGame() {
           <View style={[styles.sheetContent, styles.historyModal]}>
             <Text style={[styles.modalTitle, { marginBottom: 16 }]}>Zgodovina igralca</Text>
             <ScrollView style={styles.historyList}>
+              {historyLoading && <ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: 40 }} />}
               {playerHistory.map((entry, index) => {
                 let runningTotal = 0;
                 for (let i = 0; i <= index; i++) runningTotal += playerHistory[i].points;

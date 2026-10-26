@@ -22,7 +22,7 @@ export function loadWebFont() {
   const style = document.createElement('style');
   style.setAttribute('data-tarok', 'font');
   style.textContent = `
-    html, body { background-color: #000000; }
+    html, body { background-color: #000000; overscroll-behavior-y: contain; } /* brez osvežitve cele strani ob potegu; osvežimo samo seznam */
     div, span, input, textarea, button { font-family: 'Poppins', -apple-system, system-ui, sans-serif !important; }
     div:focus, div:focus-visible { outline: none; }
   `;

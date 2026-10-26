@@ -1,7 +1,7 @@
 // Dvorana slavnih - seznam rekordov vseh časov (zavihek "Rekordi" v lestvici)
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
-import { supabase } from '@/lib/supabase';
+import { getData } from '@/lib/dataCache';
 import { computeRecords, HallRecord } from '@/lib/records';
 import { getAvatarUrl } from '@/lib/avatars';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
@@ -21,12 +21,11 @@ export default function HallOfFame() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [g, p, e] = await Promise.all([
-        supabase.from('games').select('id, created_at'),
-        supabase.from('players').select('id, game_id, name, total_score'),
-        supabase.from('score_entries').select('id, player_id, game_id, points, created_at, is_valat, is_beggar'),
-      ]);
-      if (!cancelled && !g.error && !p.error && !e.error) setRecords(computeRecords(g.data || [], p.data || [], e.data || []));
+      // podatki iz skupnega pomnilnika (prenese se samo novo)
+      try {
+        const d = await getData();
+        if (!cancelled) setRecords(computeRecords(d.games, d.players, d.entries));
+      } catch (err) { console.error(err); }
     })();
     return () => { cancelled = true; };
   }, []);
