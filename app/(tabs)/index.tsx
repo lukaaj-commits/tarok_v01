@@ -776,7 +776,7 @@ export default function ActiveGame() {
           <UserPlus size={21} color={COLORS.primary} />
           <Text style={styles.tileText}>Igralec</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tile} onPress={addGlobalRadelc} activeOpacity={0.7}>
+        <TouchableOpacity style={[styles.tile, styles.tileRadelc]} onPress={addGlobalRadelc} activeOpacity={0.7}>
           <Plus size={21} color={COLORS.radelcBorder} />
           <Text style={styles.tileText}>Radelc</Text>
         </TouchableOpacity>
@@ -1305,7 +1305,7 @@ const styles = StyleSheet.create({
 
   scoreText: { color: COLORS.text, fontSize: 34, fontWeight: '600', letterSpacing: -0.5 },
   radelciContainer: { flexDirection: 'row', paddingVertical: 4, paddingLeft: 2 },
-  radelcBase: { width: 14, height: 14, borderRadius: 7, marginRight: 8 }, // ZMANJŠANI RADELCI
+  radelcBase: { width: 17, height: 17, borderRadius: 8.5, marginRight: 10 }, // radelci pri aktivni igri (malo večji za lažji pritisk)
   radelcUsed: { backgroundColor: COLORS.radelcFill, borderWidth: 0 }, 
   radelcUnused: { backgroundColor: 'transparent', borderWidth: 2, borderColor: COLORS.radelcBorder },
   miniRadelc: { width: 8, height: 8, borderRadius: 4 },
@@ -1415,6 +1415,7 @@ const styles = StyleSheet.create({
   tileRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 14 },
   tile: { flex: 1, height: 66, borderRadius: 16, backgroundColor: '#121A2B', borderWidth: 0.5, borderColor: 'rgba(100,170,255,0.14)', borderTopColor: 'rgba(120,190,255,0.40)', alignItems: 'center', justifyContent: 'center', gap: 5 },
   tileText: { color: COLORS.text, fontSize: 12, fontWeight: '500' },
+  tileRadelc: { backgroundColor: '#14243A', borderColor: 'rgba(100,210,255,0.22)', borderTopColor: 'rgba(100,210,255,0.55)' },
   finishBar: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
   finishButton: { height: 54, borderRadius: 16, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end', alignItems: 'center' },
