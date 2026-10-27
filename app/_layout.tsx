@@ -7,6 +7,7 @@ import { PlayerProfileProvider } from '@/components/PlayerProfileProvider';
 import AppBackground from '@/components/AppBackground';
 import { loadWebFont } from '@/lib/webFont';
 import DialogHost from '@/components/DialogHost';
+import PinGate from '@/components/PinGate';
 
 loadWebFont();
 
@@ -19,6 +20,7 @@ export default function RootLayout() {
   return (
     <AppBackground>
       <ThemeProvider value={navTheme}>
+      <PinGate>
       <PlayerProfileProvider>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000000' } }}>
           <Stack.Screen name="(tabs)" />
@@ -27,6 +29,7 @@ export default function RootLayout() {
         <DialogHost />
         <StatusBar style="light" />
       </PlayerProfileProvider>
+      </PinGate>
       </ThemeProvider>
     </AppBackground>
   );
