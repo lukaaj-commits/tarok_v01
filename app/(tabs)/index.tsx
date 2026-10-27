@@ -1262,6 +1262,7 @@ export default function ActiveGame() {
 
                 {finishedGameId && (
                     <GamePhotoButton
+                        key={finishedGameId}
                         gameId={finishedGameId}
                         style={{ marginTop: 22, alignSelf: 'stretch' }}
                         onPress={() => { if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current); }}

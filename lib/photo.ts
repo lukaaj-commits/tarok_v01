@@ -12,15 +12,27 @@ const MAX_SIDE = 1600;          // največja dolžina daljše stranice (pik)
 
 export const photoSupported = () => Platform.OS === 'web' && typeof document !== 'undefined';
 
-// Odpre kamero ('camera') ali izbiro slike iz galerije ('gallery')
+// Odpre kamero ('camera') ali izbiro slike iz galerije ('gallery').
+// iPhone (Safari): polje za izbiro datoteke mora biti v strani, sicer se izbira slike
+// ne javi aplikaciji (slika se ne naloži). Zato ga dodamo skrito in po izbiri odstranimo.
 export function pickImage(source: 'camera' | 'gallery' = 'gallery'): Promise<File | null> {
   return new Promise(resolve => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
     if (source === 'camera') input.setAttribute('capture', 'environment'); // zadnja kamera telefona
-    input.onchange = () => resolve(input.files && input.files[0] ? input.files[0] : null);
-    // če uporabnik okno zapre brez izbire, se ne zgodi nič
+    // skrito, a v strani; velikost pisave 16px prepreči samodejno povečavo strani na iPhonu
+    input.style.cssText = 'position:fixed;left:-1000px;top:0;width:1px;height:1px;opacity:0;font-size:16px;';
+    document.body.appendChild(input);
+    let done = false;
+    const finish = (file: File | null) => {
+      if (done) return;
+      done = true;
+      setTimeout(() => input.remove(), 0);
+      resolve(file);
+    };
+    input.addEventListener('change', () => finish(input.files && input.files[0] ? input.files[0] : null));
+    input.addEventListener('cancel', () => finish(null)); // uporabnik je okno zaprl brez izbire
     input.click();
   });
 }

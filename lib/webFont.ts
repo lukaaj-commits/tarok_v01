@@ -34,6 +34,9 @@ export function loadWebFont() {
 
   // Jezik strani (da brskalnik ne ponuja prevoda iz angleščine), ime in ikona za domači zaslon telefona
   document.documentElement.lang = 'sl';
+  // iPhone: brez samodejne povečave strani ob izbiri slike ali vnosu besedila
+  const vp = document.querySelector('meta[name="viewport"]');
+  if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, shrink-to-fit=no');
   const addMeta = (name: string, content: string) => {
     if (document.querySelector(`meta[name="${name}"]`)) return;
     const m = document.createElement('meta');
