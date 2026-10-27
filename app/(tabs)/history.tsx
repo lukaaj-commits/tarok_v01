@@ -488,7 +488,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                                             <View style={{width: 32, alignItems: 'center', justifyContent: 'center'}}>{rank === 1 ? <Trophy size={20} color="#FFD60A" /> : rank === 2 ? <Trophy size={20} color="#D1D1D6" /> : rank === 3 ? <Trophy size={20} color="#FF9F0A" /> : <Text style={[styles.rankText, {fontSize: 15, color: COLORS.textMuted}]}>{rank}.</Text>}</View>
                                             <Image source={{ uri: getAvatarUrl(stat.name) }} style={[styles.playerAvatar, {width: 34, height: 34, borderRadius: 17, marginLeft: 4, marginRight: 10}]} />
                                             <View style={{flex: 1, justifyContent: 'center'}}><Text style={[styles.leaderboardName, {fontSize: 16}]}>{stat.name}</Text><Text style={{color: COLORS.textMuted, fontSize: 12}}>{stat.total_games} iger</Text></View>
-                                            <View style={{flexDirection: 'row', gap: 6, alignItems: 'center'}}>
+                                            <View style={{flexDirection: 'row', gap: 14, alignItems: 'center'}}>
                                                 <View style={styles.medalBox}><Trophy size={14} color="#FFD60A" /><Text style={styles.medalText}>{stat.wins}</Text></View>
                                                 <View style={styles.medalBox}><Trophy size={14} color="#D1D1D6" /><Text style={styles.medalText}>{stat.second}</Text></View>
                                                 <View style={styles.medalBox}><Trophy size={14} color="#FF9F0A" /><Text style={styles.medalText}>{stat.third}</Text></View>
@@ -783,7 +783,7 @@ const styles = StyleSheet.create({
   rankText: { color: COLORS.textMuted, fontSize: 15, fontWeight: '600' }, 
   leaderboardName: { color: COLORS.text, fontSize: 16, fontWeight: '500', flex: 1 },
   medalBox: { flexDirection: 'row', alignItems: 'center', minWidth: 34 },
-  medalText: { color: '#fff', fontWeight: '600', marginLeft: 4, fontSize: 15 },
+  medalText: { color: '#fff', fontWeight: '400', marginLeft: 5, fontSize: 15 },
   detailHeader: { alignItems: 'center', marginBottom: 20 },
   detailScroll: { flex: 1, marginBottom: 16 },
   sectionTitle: { color: COLORS.text, fontSize: 17, fontWeight: '600', marginBottom: 10 },
