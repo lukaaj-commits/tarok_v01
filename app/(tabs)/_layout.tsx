@@ -6,11 +6,12 @@ import { T } from '@/lib/theme';
 import { ScreenWithGlow } from '@/components/AppBackground';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Ali je aplikacija odprta z ikone na domačem zaslonu (iPhone/Android), ne v brskalniku
+// Ali je aplikacija odprta z ikone na domačem zaslonu iPhona, ne v brskalniku
 const isHomeScreenApp = () => {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
   const nav: any = window.navigator;
-  return nav.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  // samo iPhone (navigator.standalone); na Androidu tega zameglitvenega pasu ni
+  return nav.standalone === true;
 };
 // iOS na domačem zaslonu pod uro doda zameglitveni pas; naslov in zvonček zato pomaknemo nižje
 const HOME_SCREEN_EXTRA_TOP = 16;

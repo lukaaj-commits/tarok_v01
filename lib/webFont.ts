@@ -51,4 +51,6 @@ export function loadWebFont() {
   };
   addLink('apple-touch-icon', '/apple-touch-icon.png', '180x180');
   addLink('icon', '/icon-512.png', '512x512');
+  // opis aplikacije za Android: nameščena se odpre brez vrstice brskalnika (kot prava aplikacija)
+  addLink('manifest', '/manifest.json');
 }
