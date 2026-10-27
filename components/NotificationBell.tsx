@@ -18,6 +18,18 @@ import TintBg from '@/components/TintBg';
 const SEEN_KEY = 'tarok_prebrana_obvestila_v2';
 // Obvestila se prikazujejo samo od tega dne naprej (starejša se ne pokažejo)
 const NOTIF_START = new Date(2026, 9, 26, 0, 0, 0).toISOString(); // 26. 10. 2026
+// Vsak telefon si ob prvem odprtju zapomni ta dan: obvestila se kažejo samo od tega dne naprej,
+// tako nihče ne dobi starih obvestil za nazaj (tudi če aplikacijo odpre šele čez nekaj dni)
+const FIRST_OPEN_KEY = 'tarok_obvestila_od_v1';
+async function notifCutoff(): Promise<string> {
+  let first = await AsyncStorage.getItem(FIRST_OPEN_KEY).catch(() => null);
+  if (!first) {
+    const d = new Date();
+    first = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0).toISOString();
+    await AsyncStorage.setItem(FIRST_OPEN_KEY, first).catch(() => {});
+  }
+  return first > NOTIF_START ? first : NOTIF_START;
+}
 const OLD_SEEN_KEYS = ['tarok_prebrana_obvestila_v1'];
 // ... in katera je uporabnik počistil (križec, podrs, Počisti vse)
 const DISMISSED_KEY = 'tarok_pocisceno_obvestila_v1';
@@ -101,10 +113,11 @@ export default function NotificationBell() {
       // podatki iz skupnega pomnilnika (po prvem nalaganju se prenese samo novo)
       const d = await getData();
       const { live, summaries } = computeNotifications(d.games, d.players, d.entries, d.radelci);
-      // prikažemo samo obvestila od NOTIF_START naprej (izračun pa upošteva vso zgodovino)
+      // prikažemo samo obvestila od dneva prvega odprtja na tem telefonu naprej (izračun pa upošteva vso zgodovino)
+      const cutoff = await notifCutoff();
       const items: FeedItem[] = [
-        ...live.filter(n => n.time >= NOTIF_START).map(n => ({ type: 'live' as const, key: n.id, time: n.time, n })),
-        ...summaries.filter(s => s.time >= NOTIF_START).map(s => ({ type: 'game' as const, key: `game:${s.gameId}`, time: s.time, g: s })),
+        ...live.filter(n => n.time >= cutoff).map(n => ({ type: 'live' as const, key: n.id, time: n.time, n })),
+        ...summaries.filter(s => s.time >= cutoff).map(s => ({ type: 'game' as const, key: `game:${s.gameId}`, time: s.time, g: s })),
       ].sort((a, b) => b.time.localeCompare(a.time));
       setFeed(items);
 

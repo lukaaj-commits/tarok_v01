@@ -4,14 +4,27 @@ import { Trophy, History } from 'lucide-react-native';
 import NotificationBell from '@/components/NotificationBell';
 import { T } from '@/lib/theme';
 import { ScreenWithGlow } from '@/components/AppBackground';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Ali je aplikacija odprta z ikone na domačem zaslonu (iPhone/Android), ne v brskalniku
+const isHomeScreenApp = () => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+  const nav: any = window.navigator;
+  return nav.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+};
+// iOS na domačem zaslonu pod uro doda zameglitveni pas; naslov in zvonček zato pomaknemo nižje
+const HOME_SCREEN_EXTRA_TOP = 16;
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+  const extraTop = isHomeScreenApp() ? HOME_SCREEN_EXTRA_TOP : 0;
   return (
     <Tabs
       // vsak zavihek dobi svoje neprosojno ozadje s sijem
       screenLayout={({ children }) => <ScreenWithGlow>{children}</ScreenWithGlow>}
       screenOptions={{
         headerShown: true,
+        headerStatusBarHeight: insets.top + extraTop,
         headerStyle: {
           backgroundColor: T.bg,
           borderBottomWidth: 0,
