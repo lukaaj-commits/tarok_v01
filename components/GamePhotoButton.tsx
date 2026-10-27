@@ -5,6 +5,13 @@ import { photoSupported, pickImage, compressImage, uploadGamePhoto } from '@/lib
 import { showAlert } from '@/lib/alert';
 import { Camera } from 'lucide-react-native';
 
+// iPhone/iPad: sistem sam ponudi izbiro (galerija, kamera, datoteka), zato našega okna ne kažemo
+const isIOS = () => {
+  if (typeof navigator === 'undefined') return false;
+  const n: any = navigator;
+  return /iPad|iPhone|iPod/.test(n.userAgent) || (n.platform === 'MacIntel' && n.maxTouchPoints > 1);
+};
+
 type Props = {
   gameId: string;
   photoUrl?: string | null;
@@ -39,10 +46,13 @@ export default function GamePhotoButton({ gameId, photoUrl, title, onChange, onP
     }
   };
 
+  // izbira slike: na iPhonu takoj sistemski meni, drugje naše okno (Slikaj zdaj / Iz galerije)
+  const openChooser = () => { if (isIOS()) chooseAndUpload('gallery'); else setChooser(true); };
+
   const press = () => {
     onPress?.();
     if (uploading) return;
-    if (current) setViewer(true); else setChooser(true);
+    if (current) setViewer(true); else openChooser();
   };
 
   return (
@@ -75,7 +85,7 @@ export default function GamePhotoButton({ gameId, photoUrl, title, onChange, onP
             <Image source={{ uri: current }} style={styles.photo} resizeMode="contain" />
             {!!title && <Text style={styles.title}>{title}</Text>}
             <View style={styles.row}>
-              <TouchableOpacity style={[styles.vButton, styles.replace]} disabled={uploading} onPress={() => setChooser(true)}>
+              <TouchableOpacity style={[styles.vButton, styles.replace]} disabled={uploading} onPress={openChooser}>
                 {uploading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.vText}>Zamenjaj</Text>}
               </TouchableOpacity>
               <TouchableOpacity style={[styles.vButton, styles.close]} onPress={() => setViewer(false)}>
