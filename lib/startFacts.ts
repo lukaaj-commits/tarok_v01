@@ -96,6 +96,13 @@ export async function buildFacts(finishedCount: number | null): Promise<Fact[]> 
   const ch = leaders(stats, unlocked, s => s.name);
   if (ch && ch.length === 1) facts.push({ key: 'challenges', parts: [T('Največ izzivov '), T(g(ch[0], 'je odklenil ', 'je odklenila ')), S(ch[0])] });
 
+  // Grand Slam: vseh 5 dosežkov v profilu (enaki pogoji kot v Profilu igralca)
+  const gs = stats.filter(x => x.longest_win_streak >= 3 && x.valat_count >= 2 && x.phoenix_count >= 3 && x.beggar_wins >= 5 && x.dominator_count >= 3).map(x => x.name);
+  if (gs.length === 0) facts.push({ key: 'grandslam', parts: [T('Grand Slama še nihče ni osvojil')] });
+  else if (gs.length === 1) facts.push({ key: 'grandslam', parts: [T(g(gs[0], 'Grand Slam je osvojil ', 'Grand Slam je osvojila ')), S(gs[0])] });
+  else if (gs.length === 2) facts.push({ key: 'grandslam', parts: [T('Grand Slam imata '), S(joinNames(gs))] });
+  else facts.push({ key: 'grandslam', parts: [T('Grand Slam ima že '), S(String(gs.length)), T(' igralcev')] });
+
   // 6) trenutni niz zmag (vsaj 3, en igralec)
   const hot = leaders(stats, s => s.current_win_streak, s => s.name, 3);
   if (hot && hot.length === 1) {
