@@ -41,8 +41,8 @@ export function loadWebFont() {
     document.head.appendChild(m);
   };
   addMeta('theme-color', '#000000');
-  addMeta('apple-mobile-web-app-title', 'Tarok');
-  addMeta('application-name', 'Tarok');
+  addMeta('apple-mobile-web-app-title', 'Tarok 2.1');
+  addMeta('application-name', 'Tarok 2.1');
   const addLink = (rel: string, href: string, sizes?: string) => {
     const l = document.createElement('link');
     l.rel = rel; l.href = href;

@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Tarok",
+    "name": "Tarok 2.1",
     "slug": "tarok2-final",
-    "version": "1.0.0",
+    "version": "2.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/adaptive-icon.png",
     "scheme": "tarok2app",
