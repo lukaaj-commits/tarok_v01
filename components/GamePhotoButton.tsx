@@ -1,5 +1,5 @@
 // Gumb "📸 Slika večera": doda sliko igre, ali jo pokaže (z možnostjo Zamenjaj)
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, Image, ActivityIndicator, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { photoSupported, pickImage, compressImage, uploadGamePhoto } from '@/lib/photo';
 import { showAlert } from '@/lib/alert';
@@ -26,7 +26,16 @@ export default function GamePhotoButton({ gameId, photoUrl, title, onChange, onP
   const [viewer, setViewer] = useState(false);
   const [chooser, setChooser] = useState(false); // izbira: kamera ali galerija
   const [url, setUrl] = useState<string | null>(photoUrl || null);
-  const current = url || photoUrl || null;
+  // če je bila slika izbrisana iz baze (povezava ostane, datoteke ni), jo obravnavamo, kot da je ni
+  const [missing, setMissing] = useState<string | null>(null);
+  const linked = url || photoUrl || null;
+  const current = linked && linked !== missing ? linked : null;
+  useEffect(() => {
+    if (!linked || typeof window === 'undefined' || !(window as any).Image) return;
+    const img = new (window as any).Image();
+    img.onerror = () => setMissing(linked);
+    img.src = linked;
+  }, [linked]);
 
   const chooseAndUpload = async (source: 'camera' | 'gallery') => {
     setChooser(false);
@@ -82,7 +91,7 @@ export default function GamePhotoButton({ gameId, photoUrl, title, onChange, onP
       {viewer && current && (
         <Modal visible transparent animationType="fade" onRequestClose={() => setViewer(false)}>
           <View style={styles.overlay}>
-            <Image source={{ uri: current }} style={styles.photo} resizeMode="contain" />
+            <Image source={{ uri: current }} style={styles.photo} resizeMode="contain" onError={() => { setMissing(current); setViewer(false); }} />
             {!!title && <Text style={styles.title}>{title}</Text>}
             <View style={styles.row}>
               <TouchableOpacity style={[styles.vButton, styles.replace]} disabled={uploading} onPress={openChooser}>
@@ -104,7 +113,7 @@ const styles = StyleSheet.create({
   buttonEmpty: { backgroundColor: 'rgba(255,255,255,0.09)', borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)' },
   buttonHas: { backgroundColor: '#30D158', borderColor: '#30D158' },
   text: { color: '#fff', fontSize: 16, fontWeight: '500' },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  overlay: { flex: 1, backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center', padding: 16 }, // neprosojno: gumbi okna pod njim se ne vidijo skozi
   photo: { width: '100%', height: '75%' },
   title: { color: '#cbd5e1', fontSize: 15, marginTop: 12 },
   row: { flexDirection: 'row', gap: 12, marginTop: 18, width: '100%', maxWidth: 420 },
