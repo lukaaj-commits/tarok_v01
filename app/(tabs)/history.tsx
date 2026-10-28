@@ -28,6 +28,7 @@ import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import SeasonModal from '@/components/SeasonModal';
 import TintBg from '@/components/TintBg';
 import { g } from '@/lib/gender';
+import { gameMoment as computeMoment } from '@/lib/gameMoment';
 import { confirmDialog } from '@/lib/alert';
 import PullToRefresh from '@/components/PullToRefresh';
 
@@ -338,6 +339,9 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
     return awards.slice(0, 4);
   };
 
+  // Moment večera (logika v lib/gameMoment.ts)
+  const gameMoment = () => computeMoment(gamePlayers, playerHistory);
+
   const renderGameIcon = (entry: ScoreEntry) => {
     const iconColor = entry.is_valat ? COLORS.warning : "#fff";
     if (entry.is_beggar) return <Triangle size={8} color={iconColor} fill={iconColor} style={{ opacity: 0.9 }} />;
@@ -595,6 +599,18 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                       </View>
                     </View>
                   )}
+
+                  {/* Moment večera: en stavek o tem, kaj je zaznamovalo igro */}
+                  {!selectedGame?.is_active && !detailsLoading && (() => {
+                    const m = gameMoment();
+                    if (!m) return null;
+                    return (
+                      <View style={{ marginTop: 18 }}>
+                        <Text style={styles.sectionLabel}>Moment večera</Text>
+                        <Text style={styles.momentText}>{m}</Text>
+                      </View>
+                    );
+                  })()}
                 </View>
               </ViewShot>
             </ScrollView>
@@ -835,6 +851,7 @@ const styles = StyleSheet.create({
   awardTitle: { color: COLORS.awardLabel, fontSize: 11, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' }, 
   awardName: { color: COLORS.text, fontSize: 16, fontWeight: '600', marginVertical: 1 },
   awardDesc: { color: COLORS.textMuted, fontSize: 12 },
+  momentText: { color: COLORS.text, fontSize: 15, lineHeight: 21, fontStyle: 'italic' },
   
   winnerCard: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 96, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, marginBottom: 8, backgroundColor: 'transparent', overflow: 'hidden', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
   winnerText: { color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '600', letterSpacing: 1.6 },
