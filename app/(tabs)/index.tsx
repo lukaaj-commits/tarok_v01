@@ -84,6 +84,8 @@ import { showAlert, showToast } from '@/lib/alert';
 import { AnimatedNumber, ReorderList } from '@/components/Motion';
 import PullToRefresh from '@/components/PullToRefresh';
 import { buildFacts, pickFact, Fact } from '@/lib/startFacts';
+import { HomeStoryCard } from '@/components/StoryEntry';
+import { openStoryFlow } from '@/lib/storyEntry';
 
 const GRADIENT_COLORS = ['#0A84FF', '#0A84FF']; 
 const MONTHS_SHORT = ['JAN', 'FEB', 'MAR', 'APR', 'MAJ', 'JUN', 'JUL', 'AVG', 'SEP', 'OKT', 'NOV', 'DEC'];
@@ -750,6 +752,10 @@ export default function ActiveGame() {
         <View style={{ marginTop: 6 }}>
             <StartGameButton onPress={handleStartNewGame} />
         </View>
+        {/* prvih 7 dni v mesecu: "Oktober je za nami" (zgodba prejšnjega meseca) */}
+        <View style={styles.storyCardWrap}>
+            <HomeStoryCard onOpen={openStoryFlow} />
+        </View>
     </View>
   );
 
@@ -1291,6 +1297,7 @@ export default function ActiveGame() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  storyCardWrap: { position: 'absolute', left: 20, right: 20, bottom: 20 },
   
   absoluteGradient: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 },
   relativeContent: { position: 'relative', zIndex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },

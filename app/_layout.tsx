@@ -8,6 +8,7 @@ import AppBackground from '@/components/AppBackground';
 import { loadWebFont } from '@/lib/webFont';
 import DialogHost from '@/components/DialogHost';
 import PinGate from '@/components/PinGate';
+import { StoryEntryHost } from '@/components/StoryEntry';
 
 loadWebFont();
 
@@ -26,6 +27,8 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="+not-found" />
         </Stack>
+        {/* zgodba prejšnjega meseca (z začetnega zaslona ali zvonca) */}
+        <StoryEntryHost />
         <DialogHost />
         <StatusBar style="light" />
       </PlayerProfileProvider>

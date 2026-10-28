@@ -11,6 +11,10 @@ import { getAvatarUrl } from '@/lib/avatars';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import { loadGenders, g } from '@/lib/gender';
 import TintBg from '@/components/TintBg';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useStoryEntry } from '@/components/StoryEntry';
+import { openStoryFlow, StoryEntry } from '@/lib/storyEntry';
+import { MONTH_NAMES } from '@/lib/season';
 
 // Ta telefon si zapomni, katera obvestila je že videl
 // v2: ob posodobitvi aplikacije (nov dizajn) se vsa obstoječa obvestila štejejo kot prebrana,
@@ -52,7 +56,8 @@ const clean = (t: string) => (t || '').replace(/[\p{Extended_Pictographic}\uFE0F
 
 type FeedItem =
   | { type: 'live'; key: string; time: string; n: AppNotification }
-  | { type: 'game'; key: string; time: string; g: GameSummary };
+  | { type: 'game'; key: string; time: string; g: GameSummary }
+  | { type: 'story'; key: string; time: string; e: StoryEntry; me: string | null };
 
 // Starejša obvestila so imela ključ brez igre na koncu. Da se ob posodobitvi ne pokažejo
 // znova kot nova (ali znova po tem, ko si jih zaprl), za obvestila pred to spremembo
@@ -164,8 +169,17 @@ export default function NotificationBell() {
     };
   }, [load, channelName]);
 
+  // zgodba prejšnjega meseca (prvih 7 dni v mesecu) je vedno na vrhu
+  const { entry, me } = useStoryEntry();
+  const feedAll = useMemo<FeedItem[]>(() => {
+    if (!entry) return feed;
+    const d = new Date();
+    const first = new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
+    return [{ type: 'story' as const, key: `story:${entry.target}`, time: first, e: entry, me }, ...feed];
+  }, [feed, entry, me]);
+
   // Prikazana obvestila = vsa, ki jih uporabnik ni počistil
-  const visible = useMemo(() => feed.filter(i => !inSet(dismissed, i)).slice(0, MAX_ITEMS), [feed, dismissed]);
+  const visible = useMemo(() => feedAll.filter(i => !inSet(dismissed, i)).slice(0, MAX_ITEMS), [feedAll, dismissed]);
   const unreadKeys = useMemo(() => (seen ? visible.filter(i => !inSet(seen, i)).map(i => i.key) : []), [visible, seen]);
 
   // Val okoli zvonca, ko pride novo obvestilo (ne ob prvem nalaganju)
@@ -184,7 +198,7 @@ export default function NotificationBell() {
   };
   const dismissOne = (key: string) => saveDismissed(new Set([...dismissed, key]));
   const dismissAll = () => {
-    const keys = feed.map(i => i.key);
+    const keys = feedAll.map(i => i.key);
     saveDismissed(new Set([...dismissed, ...keys]));
     const allSeen = new Set([...(seen || []), ...keys]);
     setSeen(allSeen);
@@ -201,7 +215,7 @@ export default function NotificationBell() {
   // Ob zaprtju označimo vse kot prebrano
   const closeFeed = async () => {
     setOpen(false);
-    const all = new Set([...(seen || []), ...feed.map(i => i.key)]);
+    const all = new Set([...(seen || []), ...feedAll.map(i => i.key)]);
     setSeen(all);
     await AsyncStorage.setItem(SEEN_KEY, JSON.stringify([...all])).catch(() => {});
   };
@@ -245,7 +259,28 @@ export default function NotificationBell() {
               <PullToRefresh onRefresh={load}>{(scrollProps) => (
               <ScrollView {...scrollProps} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
                 {visible.map(item =>
-                  item.type === 'live' ? (
+                  item.type === 'story' ? (
+                    <SwipeToDismiss key={item.key} onDismiss={() => dismissOne(item.key)}>
+                    <TouchableOpacity activeOpacity={0.7} onPress={() => { closeFeed(); setTimeout(openStoryFlow, 350); }} style={[styles.card, { alignItems: 'center', gap: 12 }]}>
+                      <LinearGradient colors={(item.e.year ? ['#FFD60A', '#FF9F0A', '#FFF3B0'] : ['#0A84FF', '#64D2FF', '#5E5CE6']) as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.storyRing}>
+                        <View style={styles.storyGap}>
+                          {item.me
+                            ? <Image source={{ uri: getAvatarUrl(item.me) }} style={styles.storyAvatar} />
+                            : <View style={[styles.storyAvatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(40,100,200,0.25)' }]}><Text style={{ fontSize: 9, fontWeight: '700', color: item.e.year ? '#FFD60A' : '#FFFFFF' }}>{item.e.year ? item.e.target : MONTH_NAMES[Number(item.e.target.slice(5)) - 1].slice(0, 3).toUpperCase()}</Text></View>}
+                        </View>
+                      </LinearGradient>
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.metaRow}>
+                          {isNew(item) && <View style={styles.newDot} />}
+                          <Text style={styles.time}>Zgodba</Text>
+                        </View>
+                        <Text style={styles.itemTitle}>{item.me ? (item.e.year ? `Tvoje leto ${item.e.target} je pripravljeno` : `Tvoj ${MONTH_NAMES[Number(item.e.target.slice(5)) - 1].toLowerCase()} je pripravljen`) : item.e.title}</Text>
+                        <Text style={styles.itemText}>{item.me ? 'Tapni in poglej svojo zgodbo' : item.e.sub}</Text>
+                      </View>
+                      <TouchableOpacity onPress={() => dismissOne(item.key)} style={styles.closeOne} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><X size={13} color={C.muted} strokeWidth={3} /></TouchableOpacity>
+                    </TouchableOpacity>
+                    </SwipeToDismiss>
+                  ) : item.type === 'live' ? (
                     <SwipeToDismiss key={item.key} onDismiss={() => dismissOne(item.key)}>
                     <TouchableOpacity activeOpacity={0.7} disabled={!item.n.player} onPress={() => item.n.player && openProfile(item.n.player)} style={styles.card}>
                       <View style={{ flex: 1 }}>
@@ -332,4 +367,7 @@ const styles = StyleSheet.create({
   clearAllText: { color: C.primary, fontSize: 13, fontWeight: '500' },
   closeCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   hint: { color: '#636366', fontSize: 11, textAlign: 'center', marginTop: 14 },
+  storyRing: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  storyGap: { width: 35, height: 35, borderRadius: 18, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
+  storyAvatar: { width: 31, height: 31, borderRadius: 16, backgroundColor: '#1C1C1E' },
 });
