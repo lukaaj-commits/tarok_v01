@@ -9,6 +9,8 @@ import DuelModal from '@/components/DuelModal';
 import TintBg from '@/components/TintBg';
 import { g } from '@/lib/gender';
 import { CHALLENGES, IZZIVI, IZZIVI_START } from '@/lib/challenges';
+import StoryRow from '@/components/StoryRow';
+import { PhoneOwnerRow } from '@/components/WhoAmI';
 
 const COLORS = {
   bg: '#000000',
@@ -164,6 +166,8 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
 
                             {tab === 'stats' ? (
                             <>
+                            {/* zgodbe po mesecih (krogi kot na Instagramu) */}
+                            <StoryRow name={player.name} />
 
 
                             <View style={styles.sectionHead}>
@@ -291,6 +295,8 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                             </>
                             )}
                         </ScrollView>
+                        {/* kdo uporablja ta telefon (za "Tvoj mesec" na začetnem zaslonu) */}
+                        <PhoneOwnerRow />
                         <TouchableOpacity style={styles.closeButton} onPress={() => onClose()}><Text style={styles.closeButtonText}>Zapri</Text></TouchableOpacity>
                     </>
                 )}
