@@ -71,7 +71,7 @@ export default function GamePhotoButton({ gameId, photoUrl, title, onChange, onP
           <><ActivityIndicator size="small" color="#fff" /><Text style={styles.text}>Nalagam …</Text></>
         ) : (
           // ko je slika že naložena: zelen gumb brez ikone fotoaparata
-          current ? <Text style={styles.text}>Slika večera</Text> : <><Camera size={19} color="#fff" /><Text style={styles.text}>Slika večera</Text></>
+          current ? <><Image source={{ uri: current }} style={styles.thumb} /><Text style={styles.text}>Slika večera</Text></> : <><Camera size={19} color="#fff" /><Text style={styles.text}>Slika večera</Text></>
         )}
       </TouchableOpacity>
 
@@ -111,7 +111,9 @@ export default function GamePhotoButton({ gameId, photoUrl, title, onChange, onP
 const styles = StyleSheet.create({
   button: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 50, paddingHorizontal: 14, borderRadius: 16, borderWidth: 0.5 },
   buttonEmpty: { backgroundColor: 'rgba(255,255,255,0.09)', borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)' },
-  buttonHas: { backgroundColor: '#30D158', borderColor: '#30D158' },
+  // ko je slika naložena: enak steklen gumb, namesto fotoaparata miniatura slike
+  buttonHas: { backgroundColor: 'rgba(255,255,255,0.09)', borderColor: 'rgba(255,255,255,0.10)', borderTopColor: 'rgba(255,255,255,0.22)' },
+  thumb: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', backgroundColor: 'rgba(255,255,255,0.08)' },
   text: { color: '#fff', fontSize: 16, fontWeight: '500' },
   overlay: { flex: 1, backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center', padding: 16 }, // neprosojno: gumbi okna pod njim se ne vidijo skozi
   photo: { width: '100%', height: '75%' },
