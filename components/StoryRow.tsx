@@ -8,6 +8,7 @@ import { storyPeriods } from '@/lib/monthStory';
 import { loadSeen, isNewStory } from '@/lib/storySeen';
 import { MONTH_NAMES } from '@/lib/season';
 import StoryViewer from '@/components/StoryViewer';
+import { emit } from '@/lib/storyEntry';
 
 const BLUE = ['#0A84FF', '#64D2FF', '#5E5CE6'] as const;
 const GOLD = ['#FFD60A', '#FF9F0A', '#FFF3B0'] as const;
@@ -70,7 +71,7 @@ export default function StoryRow({ name }: { name: string }) {
           periods={periods}
           start={open}
           onClose={() => setOpen(null)}
-          onSeen={p => setSeen(prev => new Set(prev).add(`${name}|${p}`))}
+          onSeen={p => { setSeen(prev => new Set(prev).add(`${name}|${p}`)); emit(); }} // krogec zgoraj in kartica se osvežita takoj
         />
       )}
     </View>
