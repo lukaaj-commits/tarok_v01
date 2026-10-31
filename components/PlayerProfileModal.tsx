@@ -249,7 +249,7 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                                     <View style={styles.tintCard}>
                                         <TintBg />
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Trophy size={12} color="#FFD60A" strokeWidth={2.4} /><Text style={styles.tintLabel}>Igralec meseca</Text></View>
-                                        <Text style={styles.tintValue}>{(player.month_titles || []).length > 0 ? `×${(player.month_titles || []).length}` : '–'}</Text>
+                                        <Text style={styles.tintValue}>{(player.month_titles || []).length > 0 ? `${(player.month_titles || []).length}×` : '–'}</Text>
                                         <Text style={styles.tintSub}>{(player.month_titles || []).length > 0 ? (player.month_titles || []).join(' · ') : 'Še brez naslova'}</Text>
                                     </View>
                                     <View style={styles.tintCard}>
