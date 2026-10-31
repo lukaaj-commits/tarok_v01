@@ -29,12 +29,14 @@ export async function takenByOthers(): Promise<Set<string> | null> {
   } catch { return null; }
 }
 
-// ime dobi ta telefon; prejšnje ime tega telefona se sprosti
+// ime dobi ta telefon; vsa druga imena tega telefona se sprostijo (en telefon = največ eno ime)
 export async function claimName(name: string, previous: string | null) {
   try {
     const me = await deviceId();
     if (previous && previous !== name) await releaseName(previous);
-    await supabase.from('izbrani_igralci').upsert({ ime: name, naprava: me, posodobljeno: new Date().toISOString() });
+    const { error } = await supabase.from('izbrani_igralci').upsert({ ime: name, naprava: me, posodobljeno: new Date().toISOString() });
+    // šele ko je novo ime zapisano, pospravimo morebitna stara imena tega telefona
+    if (!error) await supabase.from('izbrani_igralci').delete().eq('naprava', me).neq('ime', name);
   } catch {}
 }
 
