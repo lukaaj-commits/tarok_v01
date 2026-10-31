@@ -79,3 +79,38 @@ export async function uploadGamePhoto(gameId: string, blob: Blob): Promise<strin
   if (updErr) throw updErr;
   return url;
 }
+
+// =====================================================================
+// PROFILNA SLIKA - kvadrat iz sredine, 512 x 512, shrani v isto shrambo (mapa "profili")
+// =====================================================================
+const PROFILE_SIDE = 512;
+
+// ime -> varno ime datoteke (šumniki, presledki)
+const fileKey = (name: string) => Array.from(new TextEncoder().encode(name.trim())).map(b => b.toString(16).padStart(2, '0')).join('');
+
+export async function cropSquare(file: File | Blob): Promise<Blob> {
+  const img = await loadImage(file as File);
+  const s = Math.min(img.naturalWidth, img.naturalHeight);
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = Math.min(PROFILE_SIDE, s);
+  canvas.getContext('2d')!.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, canvas.width, canvas.height);
+  return toJpeg(canvas, 0.85);
+}
+
+export async function uploadProfilePhoto(name: string, blob: Blob): Promise<string> {
+  const path = `profili/${fileKey(name)}.jpg`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, blob, { upsert: true, contentType: 'image/jpeg', cacheControl: '3600' });
+  if (error) throw error;
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  const url = `${data.publicUrl}?v=${Date.now()}`;
+  const { error: e2 } = await supabase.from('profilne_slike').upsert({ ime: name.trim(), url, posodobljeno: new Date().toISOString() });
+  if (e2) throw e2;
+  return url;
+}
+
+// vrne prejšnjo sliko (odstrani povezavo in datoteko)
+export async function removeProfilePhoto(name: string) {
+  const { error } = await supabase.from('profilne_slike').delete().eq('ime', name.trim());
+  if (error) throw error;
+  await supabase.storage.from(BUCKET).remove([`profili/${fileKey(name)}.jpg`]).catch(() => {});
+}

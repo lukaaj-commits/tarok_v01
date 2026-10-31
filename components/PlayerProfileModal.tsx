@@ -10,6 +10,9 @@ import TintBg from '@/components/TintBg';
 import { g } from '@/lib/gender';
 import { CHALLENGES, IZZIVI, IZZIVI_START } from '@/lib/challenges';
 import StoryRow from '@/components/StoryRow';
+import SwipeTabs from '@/components/SwipeTabs';
+import ProfileAvatar from '@/components/ProfileAvatar';
+import { MonthRankRow, TableStats } from '@/components/ProfileExtras';
 import { PhoneOwnerRow } from '@/components/WhoAmI';
 
 const COLORS = {
@@ -53,6 +56,12 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
   const [tab, setTab] = useState<'stats' | 'ach'>('stats');
   const [showClassic, setShowClassic] = useState(false);
   const detailScrollRef = useRef<ScrollView>(null);
+  const scrollY = useRef(0);
+  const tabsY = useRef(0);
+  const changeTab = (t: 'stats' | 'ach') => {
+    if (scrollY.current > tabsY.current) detailScrollRef.current?.scrollTo({ y: tabsY.current, animated: false });
+    setTab(t);
+  };
 
   // ob odprtju novega igralca: začni na vrhu in pokaži zadnjih 5 iger
   useEffect(() => {
@@ -143,28 +152,30 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
              <View style={[styles.modalContent, styles.historyModal]}>
                 {player && (
                     <>
-                        <ScrollView ref={detailScrollRef} style={styles.detailScroll} showsVerticalScrollIndicator={false}>
+                        <ScrollView ref={detailScrollRef} style={styles.detailScroll} showsVerticalScrollIndicator={false} scrollEventThrottle={16} onScroll={e => { scrollY.current = e.nativeEvent.contentOffset.y; }}>
                             {/* glava: slika, ime, odigrane igre in zmage, indeks */}
                             <View style={styles.profileHead}>
-                                <Image source={{ uri: getAvatarUrl(player.name) }} style={styles.profileAvatar} />
+                                <ProfileAvatar name={player.name} style={styles.profileAvatar} />
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.profileName} numberOfLines={1}>{player.name}</Text>
                                     <Text style={styles.profileSub}>{player.total_games} {plural(player.total_games, 'igra', 'igri', 'igre', 'iger')} · {player.wins} {plural(player.wins, 'zmaga', 'zmagi', 'zmage', 'zmag')} · <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>{Math.round(player.avg_performance)} %</Text></Text>
                                 </View>
                                 <TouchableOpacity onPress={() => setShowDuel(true)} activeOpacity={0.7} style={styles.duelCircle} accessibilityLabel="Primerjaj z">
-                                    <TintBg />
-                                    <Swords size={20} color="#fff" strokeWidth={2} />
+                                    <LinearGradient colors={['rgba(255,214,10,0.30)', 'rgba(255,159,10,0.08)']} start={{ x: 0, y: 0 }} end={{ x: 0.85, y: 0.85 }} style={StyleSheet.absoluteFill} />
+                                    <Swords size={20} color="#FFD60A" strokeWidth={2} />
                                     <Text style={styles.duelCircleText}>Primerjaj</Text>
                                 </TouchableOpacity>
                             </View>
 
                             {/* zavihka */}
-                            <View style={styles.tabContainer}>
-                                <TouchableOpacity style={[styles.tabButton, tab === 'stats' && styles.tabButtonActive]} onPress={() => setTab('stats')}><Text style={[styles.tabText, tab === 'stats' && styles.tabTextActive]}>Statistika</Text></TouchableOpacity>
-                                <TouchableOpacity style={[styles.tabButton, tab === 'ach' && styles.tabButtonActive]} onPress={() => setTab('ach')}><Text style={[styles.tabText, tab === 'ach' && styles.tabTextActive]}>Dosežki</Text></TouchableOpacity>
+                            <View style={styles.tabContainer} onLayout={e => { tabsY.current = e.nativeEvent.layout.y; }}>
+                                <TouchableOpacity style={[styles.tabButton, tab === 'stats' && styles.tabButtonActive]} onPress={() => changeTab('stats')}><Text style={[styles.tabText, tab === 'stats' && styles.tabTextActive]}>Statistika</Text></TouchableOpacity>
+                                <TouchableOpacity style={[styles.tabButton, tab === 'ach' && styles.tabButtonActive]} onPress={() => changeTab('ach')}><Text style={[styles.tabText, tab === 'ach' && styles.tabTextActive]}>Dosežki</Text></TouchableOpacity>
                             </View>
 
-                            {tab === 'stats' ? (
+                            <SwipeTabs canPrev={tab === 'ach'} canNext={tab === 'stats'} onSwipe={d => changeTab(d === 1 ? 'ach' : 'stats')}>
+                            {/* oba zavihka ostaneta naložena (brez poskakovanja ob vrnitvi), viden je le izbrani */}
+                            <View style={tab !== 'stats' ? { display: 'none' } : undefined}>
                             <>
                             {/* zgodbe po mesecih (krogi kot na Instagramu) */}
                             <StoryRow name={player.name} />
@@ -180,7 +191,7 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                                 ); })()}
                             </View>
                             <View style={styles.chartSection}>
-                                <View style={styles.chartContainer} onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}>
+                                <View style={styles.chartContainer} onLayout={(event) => { const w = event.nativeEvent.layout.width; if (w > 0) setChartWidth(w); }}>
                                     <View style={[styles.gridLine, {top: 0}]}><Text style={styles.gridLabel}>1.</Text></View><View style={[styles.gridLine, {top: '50%'}]}><Text style={styles.gridLabel}>5.</Text></View><View style={[styles.gridLine, {top: '100%'}]}><Text style={styles.gridLabel}>10.</Text></View>
                                     {(() => {
                                         if (chartWidth === 0) return null;
@@ -199,6 +210,7 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                                 </View>
                                 <View style={styles.chartXAxis}><Text style={styles.axisLabel}>Starejše · zadnjih 10 iger</Text><Text style={styles.axisLabel}>Novejše</Text></View>
                             </View>
+                            <MonthRankRow name={player.name} style={{ marginTop: 14 }} />
 
                             <View style={styles.lastGamesSection}>
                                 <View style={{flexDirection:'row', alignItems:'center', justifyContent: 'space-between', marginBottom:10}}>
@@ -242,6 +254,7 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                                 </View>
                             </View>
 
+                            <TableStats name={player.name} />
                             <View style={styles.rivalsSection}>
                                 <Text style={[styles.sectionTitle, { marginBottom: 6 }]}>Osebni rivali</Text>
                                 {(() => {
@@ -259,7 +272,8 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
 
                             
                             </>
-                            ) : (
+                            </View>
+                            <View style={tab !== 'ach' ? { display: 'none' } : undefined}>
                             <>
 {classicUnlocked < 5 && renderClassic()}
                             <View style={styles.recordsSection}>
@@ -293,7 +307,8 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                                 </View>
                             )}
                             </>
-                            )}
+                            </View>
+                            </SwipeTabs>
                         </ScrollView>
                         {/* kdo uporablja ta telefon (za "Tvoj mesec" na začetnem zaslonu) */}
                         <PhoneOwnerRow />
@@ -322,7 +337,7 @@ const styles = StyleSheet.create({
   doneSub: { flex: 1, color: COLORS.textMuted, fontSize: 12 },
   doneToggle: { color: COLORS.primary, fontSize: 13, fontWeight: '500' },
   formRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 12 },
-  duelCircle: { width: 64, height: 64, borderRadius: 32, marginRight: 4, alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: 'transparent', overflow: 'hidden', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.12)', borderTopColor: 'rgba(255,255,255,0.24)' },
+  duelCircle: { width: 64, height: 64, borderRadius: 32, marginRight: 4, alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: 'transparent', overflow: 'hidden', borderWidth: 0.5, borderColor: 'rgba(255,214,10,0.35)', borderTopColor: 'rgba(255,230,140,0.55)' },
   duelCircleText: { color: '#fff', fontSize: 10, fontWeight: '500' },
   collCount: { color: COLORS.textMuted, fontSize: 13, fontWeight: '500' },
   collSub: { color: '#636366', fontSize: 12, marginBottom: 6, paddingHorizontal: 2 },

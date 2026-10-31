@@ -86,6 +86,7 @@ import PullToRefresh from '@/components/PullToRefresh';
 import { buildFacts, pickFact, Fact } from '@/lib/startFacts';
 import { HomeStoryCard } from '@/components/StoryEntry';
 import { openStoryFlow } from '@/lib/storyEntry';
+import SwipeTabs from '@/components/SwipeTabs';
 
 const GRADIENT_COLORS = ['#0A84FF', '#0A84FF']; 
 const MONTHS_SHORT = ['JAN', 'FEB', 'MAR', 'APR', 'MAJ', 'JUN', 'JUL', 'AVG', 'SEP', 'OKT', 'NOV', 'DEC'];
@@ -1019,6 +1020,7 @@ export default function ActiveGame() {
                 </TouchableOpacity>
             </View>
 
+            <SwipeTabs style={{ flex: 1 }} canPrev={leaderboardTab === 'chart'} canNext={leaderboardTab === 'list'} onSwipe={d => setLeaderboardTab(d === 1 ? 'chart' : 'list')}>
             {leaderboardTab === 'list' ? (
                 <ScrollView style={styles.historyList}>
                 {[...players].sort((a, b) => b.total_score - a.total_score).map((player, index, array) => {
@@ -1094,6 +1096,7 @@ export default function ActiveGame() {
                     )}
                 </View>
             )}
+            </SwipeTabs>
 
             <TouchableOpacity style={styles.closeButton} onPress={() => setShowLeaderboardModal(false)}><Text style={styles.modalButtonText}>Zapri</Text></TouchableOpacity>
           </View>

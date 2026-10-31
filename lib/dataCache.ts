@@ -6,6 +6,7 @@
 //  - za ostale samo vpise, ustvarjene po zadnji osvežitvi.
 // Rezultati so enaki, kot če bi vsakič prenesli vse, le da se prenese nekaj KB namesto ~2 MB.
 import { supabase } from '@/lib/supabase';
+import { refreshCustomAvatars } from '@/lib/avatars';
 
 export type CacheData = { games: any[]; players: any[]; entries: any[]; radelci: any[] };
 
@@ -91,11 +92,13 @@ export function getData(): Promise<CacheData> {
   if (inflight) return inflight;
   inflight = (async () => {
     try {
+      const avatars = refreshCustomAvatars(); // profilne slike (majhna tabela) hkrati s podatki
       if (!state) await fullLoad();
       else {
         try { await incremental(); }
         catch (e) { state = null; await fullLoad(); } // če gre kaj narobe, raje naložimo vse znova
       }
+      await avatars;
       lastResult = snapshot();
       lastSyncAt = Date.now();
       return lastResult;

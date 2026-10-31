@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { View, TouchableOpacity, Image, StyleSheet, Platform, AppState } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { User } from 'lucide-react-native';
-import { getAvatarUrl } from '@/lib/avatars';
+import { getAvatarUrl, useAvatarVersion } from '@/lib/avatars';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import { WhoAmISheet, useMyPlayer, verifyMyPlayer } from '@/components/WhoAmI';
 import { getData } from '@/lib/dataCache';
@@ -17,6 +17,7 @@ const SIZE = 34;
 
 export default function HeaderAvatar() {
   const me = useMyPlayer();
+  useAvatarVersion(); // nova profilna slika se takoj pokaže tudi tu
   const { openProfile } = usePlayerProfile();
   const [who, setWho] = useState(false);
   const [hasNew, setHasNew] = useState(false);

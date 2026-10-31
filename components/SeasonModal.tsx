@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Trophy, Info } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { computeSeasons, SeasonMonth, SEASON } from '@/lib/season';
 import { getData } from '@/lib/dataCache';
-import PullToRefresh from '@/components/PullToRefresh';
+import SwipeTabs from '@/components/SwipeTabs';
 import { getAvatarUrl } from '@/lib/avatars';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import { g } from '@/lib/gender';
@@ -131,8 +131,8 @@ export default function SeasonModal({ visible, onClose }: Props) {
                 </View>
               )}
 
-              <PullToRefresh onRefresh={async () => { const d = await getData(); setMonths(computeSeasons(d.games, d.players)); }}>{(scrollProps) => (
-              <ScrollView {...scrollProps} key={month.key} ref={scrollRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+              <SwipeTabs style={{ flex: 1 }} canPrev={index < months.length - 1} canNext={index > 0} onSwipe={d => setIndex(i => i - d)}>
+              <ScrollView key={month.key} ref={scrollRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
                 {/* lestvica meseca */}
                 {month.standings.length === 0 ? (
                   <Text style={styles.empty}>V tem mesecu še ni odigranih iger.</Text>
@@ -174,7 +174,7 @@ export default function SeasonModal({ visible, onClose }: Props) {
                 </View>
               </ScrollView>
 
-              )}</PullToRefresh>
+              </SwipeTabs>
             </>
           )}
 
