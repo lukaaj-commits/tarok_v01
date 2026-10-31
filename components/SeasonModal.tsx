@@ -10,6 +10,8 @@ import { getAvatarUrl } from '@/lib/avatars';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import { g } from '@/lib/gender';
 import TintBg from '@/components/TintBg';
+import { useMyPlayer } from '@/components/WhoAmI';
+import { meRowStyle, meAvatarStyle } from '@/components/MyRow';
 
 const C = {
   card: '#121A2B',
@@ -60,8 +62,40 @@ export default function SeasonModal({ visible, onClose }: Props) {
   }, [visible]);
 
   const month = months[index];
+  // igralec tega telefona: njegova vrstica je poudarjena
+  const me = useMyPlayer();
   const pastChampions = months.filter(m => m.champions.length > 0);
   const medalColor = (rank: number) => (rank === 1 ? C.gold : rank === 2 ? C.silver : rank === 3 ? C.bronze : null);
+
+  // vrstica lestvice meseca (enak izgled kot prej); tvoja vrstica je poudarjena
+  const seasonRow = (r: any, lineHidden = false) => {
+    if (!month) return null;
+    const mc = r.eligible ? medalColor(r.rank) : null;
+    const isChampion = !month.isCurrent && month.champions.includes(r.name);
+    const mine = r.name === me;
+    return (
+      <TouchableOpacity key={r.name} onPress={() => openProfile(r.name)} activeOpacity={0.7} style={[styles.rowOuter, lineHidden && !isChampion && { borderBottomColor: 'transparent' }, isChampion && styles.championRow, mine && !isChampion && meRowStyle, !r.eligible && { opacity: 0.45 }]}>
+        {isChampion && <TintBg />}
+        {isChampion && <View style={styles.championTagRow}><Trophy size={13} color={C.gold} strokeWidth={2.4} /><Text style={styles.championTag}>{g(r.name, 'IGRALEC', 'IGRALKA')} MESECA</Text></View>}
+        <View style={styles.rowInner}>
+        <View style={styles.rankBox}>
+          {mc ? <Trophy size={20} color={mc} /> : <Text style={styles.rankText}>{r.eligible ? `${r.rank}.` : '–'}</Text>}
+        </View>
+        <Image source={{ uri: getAvatarUrl(r.name) }} style={[styles.avatar, isChampion && styles.championAvatar, mine && meAvatarStyle]} />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.name, mine && { fontWeight: '600' }]} numberOfLines={1}>{r.name}</Text>
+          <Text style={styles.sub}>{r.games} {r.games === 1 ? 'igra' : r.games === 2 ? 'igri' : r.games <= 4 ? 'igre' : 'iger'}{!r.eligible ? ' · premalo iger' : ''}</Text>
+        </View>
+        <View style={styles.places}>
+          <View style={styles.medal}><Trophy size={13} color={C.gold} /><Text style={styles.medalText}>{r.wins}</Text></View>
+          <View style={styles.medal}><Trophy size={13} color={C.silver} /><Text style={styles.medalText}>{r.second}</Text></View>
+          <View style={styles.medal}><Trophy size={13} color={C.bronze} /><Text style={styles.medalText}>{r.third}</Text></View>
+        </View>
+        <Text style={styles.points}>{r.points}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -103,32 +137,7 @@ export default function SeasonModal({ visible, onClose }: Props) {
                 {month.standings.length === 0 ? (
                   <Text style={styles.empty}>V tem mesecu še ni odigranih iger.</Text>
                 ) : (
-                  month.standings.map(r => {
-                    const mc = r.eligible ? medalColor(r.rank) : null;
-                    const isChampion = !month.isCurrent && month.champions.includes(r.name);
-                    return (
-                      <TouchableOpacity key={r.name} onPress={() => openProfile(r.name)} activeOpacity={0.7} style={[styles.rowOuter, isChampion && styles.championRow, !r.eligible && { opacity: 0.45 }]}>
-                        {isChampion && <TintBg />}
-                        {isChampion && <View style={styles.championTagRow}><Trophy size={13} color={C.gold} strokeWidth={2.4} /><Text style={styles.championTag}>{g(r.name, 'IGRALEC', 'IGRALKA')} MESECA</Text></View>}
-                        <View style={styles.rowInner}>
-                        <View style={styles.rankBox}>
-                          {mc ? <Trophy size={20} color={mc} /> : <Text style={styles.rankText}>{r.eligible ? `${r.rank}.` : '–'}</Text>}
-                        </View>
-                        <Image source={{ uri: getAvatarUrl(r.name) }} style={[styles.avatar, isChampion && styles.championAvatar]} />
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.name} numberOfLines={1}>{r.name}</Text>
-                                                    <Text style={styles.sub}>{r.games} {r.games === 1 ? 'igra' : r.games === 2 ? 'igri' : r.games <= 4 ? 'igre' : 'iger'}{!r.eligible ? ' · premalo iger' : ''}</Text>
-                        </View>
-                        <View style={styles.places}>
-                          <View style={styles.medal}><Trophy size={13} color={C.gold} /><Text style={styles.medalText}>{r.wins}</Text></View>
-                          <View style={styles.medal}><Trophy size={13} color={C.silver} /><Text style={styles.medalText}>{r.second}</Text></View>
-                          <View style={styles.medal}><Trophy size={13} color={C.bronze} /><Text style={styles.medalText}>{r.third}</Text></View>
-                        </View>
-                        <Text style={styles.points}>{r.points}</Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })
+                  month.standings.map((r, i, arr) => seasonRow(r, arr[i + 1]?.name === me))
                 )}
 
                 {/* prvaki vseh mesecev */}
@@ -164,6 +173,7 @@ export default function SeasonModal({ visible, onClose }: Props) {
                   <Text style={[styles.infoLine, { marginTop: 4 }]}>Pri enakem številu točk odloči več zmag, nato več 2. in 3. mest, nato višji indeks %.</Text>
                 </View>
               </ScrollView>
+
               )}</PullToRefresh>
             </>
           )}

@@ -39,6 +39,8 @@ const winnerWord = (names: string, upper = false) => {
 };
 import HallOfFame from '@/components/HallOfFame';
 import GamePhotoButton from '@/components/GamePhotoButton';
+import { useMyPlayer } from '@/components/WhoAmI';
+import { meRowStyle, meAvatarStyle } from '@/components/MyRow';
 
 type PlayerSummary = { name: string; total_score: number; };
 
@@ -131,6 +133,8 @@ export default function History() {
   const [statsLoading, setStatsLoading] = useState(false);
   
   const [globalStatsTab, setGlobalStatsTab] = useState<'classic' | 'index' | 'records'>('classic');
+  // igralec tega telefona: njegova vrstica je na lestvici poudarjena
+  const me = useMyPlayer();
   
   
   const [showPlayerSelectModal, setShowPlayerSelectModal] = useState(false);
@@ -366,6 +370,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
     );
   };
 
+
   const openGlobalPlayerDetails = (player: PlayerStats) => {
       showProfile(player);
   };
@@ -428,6 +433,46 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
 
   const indexSortedStats = [...globalStats].filter(s => s.total_games >= 5).sort((a, b) => b.avg_performance - a.avg_performance);
 
+  // vrstice lestvice (enak izgled kot prej); tvoja vrstica je poudarjena
+  const rankBadge = (rank: number) => rank === 1 ? <Trophy size={20} color="#FFD60A" /> : rank === 2 ? <Trophy size={20} color="#D1D1D6" /> : rank === 3 ? <Trophy size={20} color="#FF9F0A" /> : <Text style={[styles.rankText, {fontSize: 15, color: COLORS.textMuted}]}>{rank}.</Text>;
+  // lineHidden: vrstica tik nad tvojo nima ločilne črte (da se ne dotika modre podlage)
+  const classicRow = (stat: PlayerStats, lineHidden = false) => {
+    const rank = classicSortedStats.findIndex(s => s.wins === stat.wins && s.second === stat.second && s.third === stat.third) + 1;
+    const mine = stat.name === me;
+    return (
+      <TouchableOpacity key={stat.name} style={[styles.leaderboardItem, lineHidden && { borderBottomColor: 'transparent' }, mine && meRowStyle]} onPress={() => openGlobalPlayerDetails(stat)}>
+        <View style={{width: 32, alignItems: 'center', justifyContent: 'center'}}>{rankBadge(rank)}</View>
+        <Image source={{ uri: getAvatarUrl(stat.name) }} style={[styles.playerAvatar, {width: 34, height: 34, borderRadius: 17, marginLeft: 4, marginRight: 10}, mine && meAvatarStyle]} />
+        <View style={{flex: 1, justifyContent: 'center'}}><Text style={[styles.leaderboardName, {fontSize: 16}, mine && { fontWeight: '600' }]}>{stat.name}</Text><Text style={{color: COLORS.textMuted, fontSize: 12}}>{stat.total_games} iger</Text></View>
+        <View style={{flexDirection: 'row', gap: 14, alignItems: 'center'}}>
+          <View style={styles.medalBox}><Trophy size={14} color="#FFD60A" /><Text style={styles.medalText}>{stat.wins}</Text></View>
+          <View style={styles.medalBox}><Trophy size={14} color="#D1D1D6" /><Text style={styles.medalText}>{stat.second}</Text></View>
+          <View style={styles.medalBox}><Trophy size={14} color="#FF9F0A" /><Text style={styles.medalText}>{stat.third}</Text></View>
+          <ChevronRight size={16} color={COLORS.textMuted} style={{marginLeft: 2}} />
+        </View>
+      </TouchableOpacity>
+    );
+  };
+  const indexRow = (stat: PlayerStats, lineHidden = false) => {
+    const rank = indexSortedStats.findIndex(s => s.avg_performance === stat.avg_performance) + 1;
+    const showUp = stat.avg_performance > stat.prev_performance;
+    const showDown = stat.avg_performance < stat.prev_performance;
+    const mine = stat.name === me;
+    return (
+      <TouchableOpacity key={stat.name} style={[styles.leaderboardItem, lineHidden && { borderBottomColor: 'transparent' }, mine && meRowStyle]} onPress={() => openGlobalPlayerDetails(stat)}>
+        <View style={{width: 32, alignItems: 'center', justifyContent: 'center'}}>{rankBadge(rank)}</View>
+        <Image source={{ uri: getAvatarUrl(stat.name) }} style={[styles.playerAvatar, {width: 34, height: 34, borderRadius: 17, marginLeft: 4, marginRight: 10}, mine && meAvatarStyle]} />
+        <View style={{flex: 1, justifyContent: 'center'}}><Text style={[styles.leaderboardName, {fontSize: 16}, mine && { fontWeight: '600' }]}>{stat.name}</Text><Text style={{color: COLORS.textMuted, fontSize: 12}}>{stat.total_games} iger</Text></View>
+        <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 4}}>
+          {showUp && <TrendingUp size={14} color={COLORS.success} style={{marginRight: 8}} />}
+          {showDown && <TrendingDown size={14} color={COLORS.danger} style={{marginRight: 8}} />}
+          <Text style={{color: COLORS.text, fontSize: 18, fontWeight: '600'}}>{Math.round(stat.avg_performance)} %</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+
   if (loading) return (<View style={styles.container}><Text style={styles.loadingText}>Nalaganje...</Text></View>);
 
   return (
@@ -485,43 +530,12 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                             </ScrollView>
                         ) : globalStatsTab === 'classic' ? (
                             <ScrollView {...scrollProps} style={styles.historyList} showsVerticalScrollIndicator={false}>
-                                {classicSortedStats.map((stat, index) => {
-                                    const rank = classicSortedStats.findIndex(s => s.wins === stat.wins && s.second === stat.second && s.third === stat.third) + 1;
-                                    return (
-                                        <TouchableOpacity key={stat.name} style={styles.leaderboardItem} onPress={() => openGlobalPlayerDetails(stat)}>
-                                            <View style={{width: 32, alignItems: 'center', justifyContent: 'center'}}>{rank === 1 ? <Trophy size={20} color="#FFD60A" /> : rank === 2 ? <Trophy size={20} color="#D1D1D6" /> : rank === 3 ? <Trophy size={20} color="#FF9F0A" /> : <Text style={[styles.rankText, {fontSize: 15, color: COLORS.textMuted}]}>{rank}.</Text>}</View>
-                                            <Image source={{ uri: getAvatarUrl(stat.name) }} style={[styles.playerAvatar, {width: 34, height: 34, borderRadius: 17, marginLeft: 4, marginRight: 10}]} />
-                                            <View style={{flex: 1, justifyContent: 'center'}}><Text style={[styles.leaderboardName, {fontSize: 16}]}>{stat.name}</Text><Text style={{color: COLORS.textMuted, fontSize: 12}}>{stat.total_games} iger</Text></View>
-                                            <View style={{flexDirection: 'row', gap: 14, alignItems: 'center'}}>
-                                                <View style={styles.medalBox}><Trophy size={14} color="#FFD60A" /><Text style={styles.medalText}>{stat.wins}</Text></View>
-                                                <View style={styles.medalBox}><Trophy size={14} color="#D1D1D6" /><Text style={styles.medalText}>{stat.second}</Text></View>
-                                                <View style={styles.medalBox}><Trophy size={14} color="#FF9F0A" /><Text style={styles.medalText}>{stat.third}</Text></View>
-                                                <ChevronRight size={16} color={COLORS.textMuted} style={{marginLeft: 2}} />
-                                            </View>
-                                        </TouchableOpacity>
-                                    );
-                                })}
+                                {classicSortedStats.map((stat, i, arr) => classicRow(stat, arr[i + 1]?.name === me))}
                             </ScrollView>
                         ) : (
                             <ScrollView {...scrollProps} style={styles.historyList} showsVerticalScrollIndicator={false}>
                                 {indexSortedStats.length === 0 ? (<View style={{alignItems: 'center', marginTop: 40}}><BarChart2 size={40} color={COLORS.textMuted} style={{marginBottom: 10}} /><Text style={{color: COLORS.textMuted, textAlign: 'center', paddingHorizontal: 20}}>Še noben igralec ni odigral dovolj iger za izračun indeksa.</Text></View>) : (
-                                    indexSortedStats.map((stat, index) => {
-                                        const rank = indexSortedStats.findIndex(s => s.avg_performance === stat.avg_performance) + 1;
-                                        const showUp = stat.avg_performance > stat.prev_performance;
-                                        const showDown = stat.avg_performance < stat.prev_performance;
-                                        return (
-                                            <TouchableOpacity key={stat.name} style={styles.leaderboardItem} onPress={() => openGlobalPlayerDetails(stat)}>
-                                                <View style={{width: 32, alignItems: 'center', justifyContent: 'center'}}>{rank === 1 ? <Trophy size={20} color="#FFD60A" /> : rank === 2 ? <Trophy size={20} color="#D1D1D6" /> : rank === 3 ? <Trophy size={20} color="#FF9F0A" /> : <Text style={[styles.rankText, {fontSize: 15, color: COLORS.textMuted}]}>{rank}.</Text>}</View>
-                                                <Image source={{ uri: getAvatarUrl(stat.name) }} style={[styles.playerAvatar, {width: 34, height: 34, borderRadius: 17, marginLeft: 4, marginRight: 10}]} />
-                                                <View style={{flex: 1, justifyContent: 'center'}}><Text style={[styles.leaderboardName, {fontSize: 16}]}>{stat.name}</Text><Text style={{color: COLORS.textMuted, fontSize: 12}}>{stat.total_games} iger</Text></View>
-                                                <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 4}}>
-                                                    {showUp && <TrendingUp size={14} color={COLORS.success} style={{marginRight: 8}} />}
-                                                    {showDown && <TrendingDown size={14} color={COLORS.danger} style={{marginRight: 8}} />}
-                                                    <Text style={{color: COLORS.text, fontSize: 18, fontWeight: '600'}}>{Math.round(stat.avg_performance)} %</Text>
-                                                </View>
-                                            </TouchableOpacity>
-                                        );
-                                    })
+                                    indexSortedStats.map((stat, i, arr) => indexRow(stat, arr[i + 1]?.name === me))
                                 )}
                                 <Text style={{color: '#636366', fontSize: 11, textAlign: 'center', marginTop: 12, marginBottom: 10, lineHeight: 15}}>* Prikazani so le igralci z vsaj 5 odigranimi igrami. Puščica označuje spremembo po zadnji igri.</Text>
                             </ScrollView>
