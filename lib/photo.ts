@@ -114,3 +114,8 @@ export async function removeProfilePhoto(name: string) {
   if (error) throw error;
   await supabase.storage.from(BUCKET).remove([`profili/${fileKey(name)}.jpg`]).catch(() => {});
 }
+
+// ob brisanju igre: odstrani še njeno sliko večera iz shrambe (če je ni, se ne zgodi nič)
+export async function removeGamePhoto(gameId: string) {
+  try { await supabase.storage.from(BUCKET).remove([`${gameId}.jpg`]); } catch {}
+}

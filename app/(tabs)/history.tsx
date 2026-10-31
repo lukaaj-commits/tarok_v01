@@ -24,6 +24,7 @@ import * as Haptics from 'expo-haptics';
 // @ts-ignore
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { fetchPlayerStats, PlayerStats } from '@/lib/playerStats';
+import { removeGamePhoto } from '@/lib/photo';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import SeasonModal from '@/components/SeasonModal';
 import TintBg from '@/components/TintBg';
@@ -42,6 +43,9 @@ import HallOfFame from '@/components/HallOfFame';
 import GamePhotoButton from '@/components/GamePhotoButton';
 import { useMyPlayer } from '@/components/WhoAmI';
 import { meRowStyle, meAvatarStyle } from '@/components/MyRow';
+
+// skrbnik: samo on lahko briše igre v Zgodovini
+const ADMIN_NAME = 'Luka Š';
 
 type PlayerSummary = { name: string; total_score: number; };
 
@@ -136,6 +140,8 @@ export default function History() {
   const [globalStatsTab, setGlobalStatsTab] = useState<'classic' | 'index' | 'records'>('classic');
   // igralec tega telefona: njegova vrstica je na lestvici poudarjena
   const me = useMyPlayer();
+  // skrbniški način: igre lahko briše samo telefon, na katerem je izbran Luka Š
+  const isAdmin = me === ADMIN_NAME;
   
   
   const [showPlayerSelectModal, setShowPlayerSelectModal] = useState(false);
@@ -284,7 +290,12 @@ export default function History() {
   };
   
   const performDeleteGame = async (gameId: string) => {
-      try { await supabase.from('games').delete().eq('id', gameId); setShowGameModal(false); await loadGames(); } catch (e) { console.error(e); }
+      try {
+          const { error } = await supabase.from('games').delete().eq('id', gameId);
+          if (error) throw error;
+          await removeGamePhoto(gameId); // skupaj z igro izgine tudi slika večera
+          setShowGameModal(false); await loadGames();
+      } catch (e) { console.error(e); }
   };
 
   // Potek igre: vsi vpisi te igre so že naloženi ob odprtju podrobnosti, zato se okno odpre takoj
@@ -550,7 +561,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
             
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <TouchableOpacity style={styles.gameModalInfoBtn} onPress={() => { if (!detailsLoading) loadAllPlayersHistory(); }}><Info size={17} color="#fff" /><Text style={{color: '#fff', marginLeft: 7, fontWeight: '500', fontSize: 14}}>Potek igre</Text></TouchableOpacity>
-              {!selectedGame?.is_active && selectedGame && (<TouchableOpacity style={styles.gameModalTrashBtn} onPress={() => deleteGame(selectedGame.id)}><Trash2 size={17} color={COLORS.danger} /></TouchableOpacity>)}
+              {isAdmin && !selectedGame?.is_active && selectedGame && (<TouchableOpacity style={styles.gameModalTrashBtn} onPress={() => deleteGame(selectedGame.id)}><Trash2 size={17} color={COLORS.danger} /></TouchableOpacity>)}
             </View>
 
             <ScrollView style={styles.playersListContainer} showsVerticalScrollIndicator={false}>
