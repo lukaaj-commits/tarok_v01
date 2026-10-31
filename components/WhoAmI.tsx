@@ -1,11 +1,15 @@
-// "Kdo si?" - kateri igralec uporablja ta telefon (shranjeno samo na telefonu).
-// Potrebno za vstop "Tvoj oktober" na začetnem zaslonu; v profilu ga lahko kadarkoli spremeniš.
+// "Kdo si?" - kateri igralec uporablja ta telefon (shranjeno na telefonu in v tabeli izbrani_igralci).
+// Potrebno za vstop "Tvoj oktober" na začetnem zaslonu in krog s sliko; v profilu ga lahko kadarkoli spremeniš.
+// Ime, ki ga drži drug telefon, se lahko prevzame po vprašanju "Si res ti?" (drugi telefon ga izgubi).
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Image, Pressable, Animated, ActivityIndicator, useWindowDimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Check, Eye } from 'lucide-react-native';
 import { getData } from '@/lib/dataCache';
 import { getAvatarUrl } from '@/lib/avatars';
+import { claimName, releaseName, checkName, takenByOthers } from '@/lib/claims';
+import { confirmDialog, showToast } from '@/lib/alert';
+import { g } from '@/lib/gender';
 
 const KEY = 'tarok_moj_igralec_v1';
 let current: string | null | undefined;
@@ -21,6 +25,32 @@ export async function setMyPlayer(name: string | null) {
   try { name ? await AsyncStorage.setItem(KEY, name) : await AsyncStorage.removeItem(KEY); } catch {}
   listeners.forEach(l => l(name));
 }
+// izbira imena na tem telefonu (zapiše se tudi v bazo; prejšnje ime se sprosti)
+export async function chooseMyPlayer(name: string) {
+  const prev = await getMyPlayer();
+  await setMyPlayer(name);
+  claimName(name, prev);
+}
+// "Samo gledam" v profilu: počisti izbiro in sprosti ime
+export async function clearMyPlayer() {
+  const prev = await getMyPlayer();
+  await setMyPlayer(null);
+  if (prev) releaseName(prev);
+}
+// ob odprtju aplikacije: ali je ime med tem prevzel drug telefon?
+let verifying = false;
+export async function verifyMyPlayer() {
+  if (verifying) return;
+  verifying = true;
+  try {
+    const me = await getMyPlayer();
+    if (me && (await checkName(me)) === 'lost') {
+      await setMyPlayer(null);
+      showToast('Tvoje ime je bilo izbrano na drugem telefonu.', 3500);
+    }
+  } finally { verifying = false; }
+}
+
 export function useMyPlayer() {
   const [name, setName] = useState<string | null>(current ?? null);
   useEffect(() => {
@@ -44,6 +74,7 @@ async function playerNames() {
 // okno od spodaj; onPick(ime) ali onPick(null) = "Samo gledam" (se ne shrani)
 export function WhoAmISheet({ onPick, onClose }: { onPick: (name: string | null) => void; onClose: () => void }) {
   const [names, setNames] = useState<string[] | null>(namesCache);
+  const [taken, setTaken] = useState<Set<string>>(new Set()); // imena na drugih telefonih
   const mine = useMyPlayer();
   const { height } = useWindowDimensions();
   const sheetH = Math.round(height * 0.8);
@@ -52,6 +83,7 @@ export function WhoAmISheet({ onPick, onClose }: { onPick: (name: string | null)
 
   useEffect(() => {
     preloadPlayerNames().then(setNames);
+    takenByOthers().then(t => t && setTaken(t));
     // ozadje se pojavi, okno pride od spodaj
     Animated.parallel([
       Animated.timing(fade, { toValue: 1, duration: 220, useNativeDriver: false }),
@@ -81,9 +113,25 @@ export function WhoAmISheet({ onPick, onClose }: { onPick: (name: string | null)
         ) : (
           <ScrollView style={{ marginTop: 14, flex: 1 }} showsVerticalScrollIndicator={false}>
             {names.map(n => (
-              <TouchableOpacity key={n} activeOpacity={0.7} style={styles.row} onPress={async () => { await setMyPlayer(n); close(() => onPick(n)); }}>
+              <TouchableOpacity key={n} activeOpacity={0.7} style={styles.row} onPress={async () => {
+                // ime drži drug telefon: najprej vprašamo
+                if (taken.has(n) && mine !== n) {
+                  const ok = await confirmDialog({
+                    title: `${n} je že ${g(n, 'izbran', 'izbrana')} na drugem telefonu.`,
+                    message: 'Si res ti? Drugi telefon bo izbiro izgubil.',
+                    confirmText: 'Da, to sem jaz',
+                    cancelText: 'Prekliči',
+                  });
+                  if (!ok) return;
+                }
+                await chooseMyPlayer(n);
+                close(() => onPick(n));
+              }}>
                 <Image source={{ uri: getAvatarUrl(n) }} style={styles.avatar} />
-                <Text style={styles.name}>{n}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.name}>{n}</Text>
+                  {taken.has(n) && mine !== n && <Text style={styles.takenText}>na drugem telefonu</Text>}
+                </View>
                 {mine === n && <Check size={20} color="#0A84FF" strokeWidth={2.6} />}
               </TouchableOpacity>
             ))}
@@ -113,7 +161,7 @@ export function PhoneOwnerRow() {
         <Text style={styles.ownerLink}>{mine ? 'Spremeni' : 'Izberi'}</Text>
       </TouchableOpacity>
       {/* v profilu "Samo gledam" počisti izbiro (če se je kdo zmotil) */}
-      {open && <WhoAmISheet onPick={async n => { if (!n) await setMyPlayer(null); setOpen(false); }} onClose={() => setOpen(false)} />}
+      {open && <WhoAmISheet onPick={async n => { if (!n) await clearMyPlayer(); setOpen(false); }} onClose={() => setOpen(false)} />}
     </>
   );
 }
@@ -128,6 +176,7 @@ const styles = StyleSheet.create({
   avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#1C1C1E' },
   eye: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.25)' },
   name: { flex: 1, fontSize: 17, color: '#FFFFFF' },
+  takenText: { fontSize: 12, color: '#8E8E93', marginTop: 1 },
   ownerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 4, marginBottom: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.10)' },
   ownerText: { fontSize: 13, color: '#8E8E93' },
   ownerLink: { fontSize: 13, fontWeight: '500', color: '#0A84FF' },

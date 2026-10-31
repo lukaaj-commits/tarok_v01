@@ -2,6 +2,8 @@ import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 import { Trophy, History } from 'lucide-react-native';
 import NotificationBell from '@/components/NotificationBell';
+import HeaderAvatar from '@/components/HeaderAvatar';
+import { View } from 'react-native';
 import { T } from '@/lib/theme';
 import { ScreenWithGlow } from '@/components/AppBackground';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,7 +38,8 @@ export default function TabLayout() {
         headerShadowVisible: false,
         headerTintColor: T.text,
         headerTitleStyle: { fontSize: 20, fontWeight: '600' },
-        headerRight: () => <NotificationBell />,
+        // desno: zvonec in krog s sliko igralca tega telefona (tap odpre tvoj profil)
+        headerRight: () => <View style={{ flexDirection: 'row', alignItems: 'center' }}><NotificationBell /><HeaderAvatar /></View>,
         sceneStyle: { backgroundColor: T.bg },
         tabBarStyle: {
           backgroundColor: T.tabBar,
