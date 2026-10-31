@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
+  Pressable,
   Modal,
   FlatList,
   ScrollView,
@@ -402,6 +403,39 @@ export default function ActiveGame() {
     setScoreInput(''); 
     setScoreMode('none'); 
     setShowScoreModal(true);
+  };
+
+  // POPRAVEK VPISA (samo med aktivno igro): dolg pritisk na vpis -> nove točke
+  const [editEntry, setEditEntry] = useState<ScoreEntry | null>(null);
+  const [editInput, setEditInput] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const openEdit = (entry: ScoreEntry) => { setEditEntry(entry); setEditInput(String(entry.points)); };
+  const handleEditPad = (value: string) => {
+    if (value === 'DEL') { setEditInput(prev => prev.slice(0, -1)); return; }
+    if (value === '-') { setEditInput(prev => (prev.startsWith('-') ? prev.substring(1) : '-' + prev)); return; }
+    setEditInput(prev => (prev.replace('-', '').length >= 5 ? prev : prev + value));
+  };
+  const saveEdit = async () => {
+    if (!editEntry || editSaving) return;
+    const points = parseInt(editInput, 10);
+    if (isNaN(points)) { showAlert('Napaka', 'Neveljaven vnos.'); return; }
+    if (points === Number(editEntry.points)) { setEditEntry(null); return; }
+    const pid = editEntry.player_id;
+    if (!pid) return;
+    setEditSaving(true);
+    try {
+      const { error } = await supabase.from('score_entries').update({ points }).eq('id', editEntry.id);
+      if (error) throw error;
+      const total = await recalcPlayerTotal(pid); // seštevek iz vseh vpisov
+      setPlayers(prev => prev.map(p => (p.id === pid ? { ...p, total_score: total } : p)));
+      const fix = (list: ScoreEntry[]) => list.map(e => (e.id === editEntry.id ? { ...e, points } : e));
+      setAllGameHistory(fix); setPlayerHistory(fix);
+      const who = players.find(p => p.id === editEntry.player_id)?.name || 'igralec';
+      showToast(`Popravljeno: ${who} ${Number(editEntry.points) > 0 ? '+' : ''}${editEntry.points} → ${points > 0 ? '+' : ''}${points}`);
+      setEditEntry(null);
+    } catch (e: any) {
+      showAlert('Napaka', 'Vpisa ni bilo mogoče popraviti: ' + (e?.message || e));
+    } finally { setEditSaving(false); }
   };
 
   const handleNumpadPress = (value: string) => {
@@ -974,14 +1008,15 @@ export default function ActiveGame() {
       <Modal visible={showHistoryModal} transparent animationType="slide" onRequestClose={() => setShowHistoryModal(false)}>
         <View style={styles.sheetOverlay}>
           <View style={[styles.sheetContent, styles.historyModal]}>
-            <Text style={[styles.modalTitle, { marginBottom: 16 }]}>Zgodovina igralca</Text>
+            <Text style={[styles.modalTitle, { marginBottom: 4 }]}>Zgodovina igralca</Text>
+            <Text style={styles.editHint}>Za popravek točk pridrži vpis.</Text>
             <ScrollView style={styles.historyList}>
               {historyLoading && <ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: 40 }} />}
               {playerHistory.map((entry, index) => {
                 let runningTotal = 0;
                 for (let i = 0; i <= index; i++) runningTotal += playerHistory[i].points;
                 return (
-                  <View key={entry.id} style={styles.historyItem}>
+                  <Pressable key={entry.id} delayLongPress={500} unstable_pressDelay={120} onLongPress={() => openEdit(entry)} style={({ pressed }) => [styles.historyItem, pressed && styles.historyItemPressed]}>
                     <View style={styles.pointsWrapper}>
                       <View style={styles.fixedPointsWidth}>
                           <Text style={[styles.historyPoints, entry.is_valat ? {color: COLORS.warning} : (entry.points > 0 ? styles.positivePoints : styles.negativePoints)]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
@@ -992,7 +1027,7 @@ export default function ActiveGame() {
                     </View>
                     <Text style={styles.historyTotal}>= {runningTotal}</Text>
                     <Text style={styles.historyDate}>{new Date(entry.created_at).toLocaleTimeString('sl-SI', {hour:'2-digit', minute:'2-digit'})}</Text>
-                  </View>
+                  </Pressable>
                 );
               })}
             </ScrollView>
@@ -1103,8 +1138,9 @@ export default function ActiveGame() {
       <Modal visible={showAllHistoryModal} transparent animationType="slide" onRequestClose={() => setShowAllHistoryModal(false)}>
         <View style={styles.sheetOverlay}>
           <View style={[styles.sheetContent, styles.historyModal]}>
-            <Text style={[styles.modalTitle, { marginBottom: 0 }]}>Potek igre</Text>
-            <ScrollView style={[styles.historyList, { marginTop: 20 }]}>
+            <Text style={[styles.modalTitle, { marginBottom: 4 }]}>Potek igre</Text>
+            <Text style={styles.editHint}>Za popravek točk pridrži vpis.</Text>
+            <ScrollView style={[styles.historyList, { marginTop: 4 }]}>
               {[...players].sort((a, b) => b.total_score - a.total_score).map((player, playerIndex, array) => {
                   const playerEntries = allGameHistory.filter((e) => e.player_id === player.id);
                   if (playerEntries.length === 0) return null;
@@ -1133,7 +1169,7 @@ export default function ActiveGame() {
                         let runningTotal = 0;
                         for (let i = 0; i <= index; i++) { runningTotal += playerEntries[i].points; }
                         return (
-                          <View key={entry.id} style={styles.historyItem}>
+                          <Pressable key={entry.id} delayLongPress={500} unstable_pressDelay={120} onLongPress={() => openEdit(entry)} style={({ pressed }) => [styles.historyItem, pressed && styles.historyItemPressed]}>
                              <View style={styles.pointsWrapper}>
                                 <View style={styles.fixedPointsWidth}>
                                     <Text style={[styles.historyPoints, entry.is_valat ? {color: COLORS.warning} : (entry.points > 0 ? styles.positivePoints : styles.negativePoints)]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
@@ -1144,7 +1180,7 @@ export default function ActiveGame() {
                              </View>
                             <Text style={styles.historyTotal}>= {runningTotal}</Text>
                             <Text style={styles.historyDate}>{new Date(entry.created_at).toLocaleTimeString('sl-SI', {hour: '2-digit', minute:'2-digit'})}</Text>
-                          </View>
+                          </Pressable>
                         );
                       })}
                     </View>
@@ -1155,6 +1191,36 @@ export default function ActiveGame() {
           </View>
         </View>
       </Modal>
+
+      {editEntry && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setEditEntry(null)}>
+          <View style={styles.sheetOverlay}>
+            <View style={styles.sheetContent}>
+              <Text style={[styles.modalTitle, { marginBottom: 4 }]}>Popravi vpis</Text>
+              <Text style={styles.editHint}>
+                {players.find(p => p.id === editEntry.player_id)?.name || ''} · {new Date(editEntry.created_at).toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })} · prej {Number(editEntry.points) > 0 ? '+' : ''}{editEntry.points}
+              </Text>
+              <View style={styles.scoreDisplay}><Text style={styles.scoreDisplayText}>{editInput && editInput !== '-' ? (editInput.startsWith('-') ? editInput : `+${editInput}`) : '0'}</Text></View>
+              <View style={styles.numpadContainer}>
+                {[[1, 2, 3], [4, 5, 6], [7, 8, 9]].map((row, i) => (
+                  <View key={i} style={styles.numpadRow}>{row.map(n => (<TouchableOpacity key={n} style={styles.numpadButton} onPress={() => handleEditPad(String(n))}><Text style={styles.numpadText}>{n}</Text></TouchableOpacity>))}</View>
+                ))}
+                <View style={styles.numpadRow}>
+                  <TouchableOpacity style={[styles.numpadButton, styles.numpadActionButton]} onPress={() => handleEditPad('-')}><Text style={[styles.numpadText, { fontSize: 20, letterSpacing: 3 }]}>+/−</Text></TouchableOpacity>
+                  <TouchableOpacity style={styles.numpadButton} onPress={() => handleEditPad('0')}><Text style={styles.numpadText}>0</Text></TouchableOpacity>
+                  <TouchableOpacity style={[styles.numpadButton, styles.numpadActionButton]} onPress={() => handleEditPad('DEL')}><Delete size={24} color="#fff" /></TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => setEditEntry(null)}><Text style={styles.modalButtonText}>Prekliči</Text></TouchableOpacity>
+                <TouchableOpacity style={[styles.modalButton, styles.primaryModalButton]} onPress={saveEdit} disabled={editSaving}>
+                  {editSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.modalButtonText}>Shrani</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
 
       <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
         <View style={styles.modalOverlay}>
@@ -1422,6 +1488,8 @@ const styles = StyleSheet.create({
   historyModal: { height: '70%' },
   historyList: { flex: 1, marginBottom: 16 },
   
+  historyItemPressed: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10 },
+  editHint: { color: '#8E8E93', fontSize: 13, textAlign: 'center', marginBottom: 12 },
   historyItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.08)' },
   pointsWrapper: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'center', gap: 6 },
   fixedPointsWidth: { width: 60, alignItems: 'flex-end', paddingRight: 5 },
