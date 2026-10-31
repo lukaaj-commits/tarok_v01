@@ -68,10 +68,10 @@ export default function SeasonModal({ visible, onClose }: Props) {
   const medalColor = (rank: number) => (rank === 1 ? C.gold : rank === 2 ? C.silver : rank === 3 ? C.bronze : null);
 
   // vrstica lestvice meseca (enak izgled kot prej); tvoja vrstica je poudarjena
-  const seasonRow = (r: any, lineHidden = false) => {
-    if (!month) return null;
+  const seasonRow = (r: any, lineHidden: boolean, mo: SeasonMonth) => {
+    if (!mo) return null;
     const mc = r.eligible ? medalColor(r.rank) : null;
-    const isChampion = !month.isCurrent && month.champions.includes(r.name);
+    const isChampion = !mo.isCurrent && mo.champions.includes(r.name);
     const mine = r.name === me;
     return (
       <TouchableOpacity key={r.name} onPress={() => openProfile(r.name)} activeOpacity={0.7} style={[styles.rowOuter, lineHidden && !isChampion && { borderBottomColor: 'transparent' }, isChampion && styles.championRow, mine && !isChampion && meRowStyle, !r.eligible && { opacity: 0.45 }]}>
@@ -97,47 +97,14 @@ export default function SeasonModal({ visible, onClose }: Props) {
     );
   };
 
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <Text style={styles.title}>Sezona</Text>
-
-          {loading || !month ? (
-            <ActivityIndicator size="large" color={C.primary} style={{ marginTop: 40, flex: 1 }} />
-          ) : (
-            <>
-              {/* izbira meseca */}
-              <View style={styles.monthRow}>
-                <TouchableOpacity disabled={index >= months.length - 1} onPress={() => setIndex(i => i + 1)} style={styles.arrow}>
-                  <ChevronLeft size={22} color={index >= months.length - 1 ? '#48484A' : C.text} />
-                </TouchableOpacity>
-                <View style={{ alignItems: 'center', flex: 1 }}>
-                  <Text style={styles.monthLabel}>{month.label.toUpperCase()}</Text>
-                  <Text style={styles.monthSub}>
-                    {month.isCurrent ? '● v teku · ' : ''}{month.gameCount} {month.gameCount === 1 ? 'igra' : month.gameCount === 2 ? 'igri' : month.gameCount <= 4 ? 'igre' : 'iger'}
-                  </Text>
-                </View>
-                <TouchableOpacity disabled={index === 0} onPress={() => setIndex(i => i - 1)} style={styles.arrow}>
-                  <ChevronRight size={22} color={index === 0 ? '#48484A' : C.text} />
-                </TouchableOpacity>
-              </View>
-
-              {month.standings.length > 0 && (
-                <View style={styles.legend}>
-                  <Text style={[styles.legendText, { flex: 1, paddingLeft: 12 }]}>Igralec</Text>
-                  <Text style={[styles.legendText, { width: PLACES_WIDTH, textAlign: 'center', marginRight: -4 }]}>Uvrstitve</Text>
-                  <Text numberOfLines={1} style={[styles.legendText, { width: POINTS_WIDTH, textAlign: 'right' }]}>Točke</Text>
-                </View>
-              )}
-
-              <SwipeTabs style={{ flex: 1 }} canPrev={index < months.length - 1} canNext={index > 0} onSwipe={d => setIndex(i => i - d)}>
-              <ScrollView key={month.key} ref={scrollRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+  // ena stran (mesec) za drsenje levo/desno
+  const monthPage = (mo: SeasonMonth) => (
+              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
                 {/* lestvica meseca */}
-                {month.standings.length === 0 ? (
+                {mo.standings.length === 0 ? (
                   <Text style={styles.empty}>V tem mesecu še ni odigranih iger.</Text>
                 ) : (
-                  month.standings.map((r, i, arr) => seasonRow(r, arr[i + 1]?.name === me))
+                  mo.standings.map((r, i, arr) => seasonRow(r, arr[i + 1]?.name === me, mo))
                 )}
 
                 {/* prvaki vseh mesecev */}
@@ -173,8 +140,46 @@ export default function SeasonModal({ visible, onClose }: Props) {
                   <Text style={[styles.infoLine, { marginTop: 4 }]}>Pri enakem številu točk odloči več zmag, nato več 2. in 3. mest, nato višji indeks %.</Text>
                 </View>
               </ScrollView>
+  );
 
-              </SwipeTabs>
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <View style={styles.sheet}>
+          <Text style={styles.title}>Sezona</Text>
+
+          {loading || !month ? (
+            <ActivityIndicator size="large" color={C.primary} style={{ marginTop: 40, flex: 1 }} />
+          ) : (
+            <>
+              {/* izbira meseca */}
+              <View style={styles.monthRow}>
+                <TouchableOpacity disabled={index >= months.length - 1} onPress={() => setIndex(i => i + 1)} style={styles.arrow}>
+                  <ChevronLeft size={22} color={index >= months.length - 1 ? '#48484A' : C.text} />
+                </TouchableOpacity>
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Text style={styles.monthLabel}>{month.label.toUpperCase()}</Text>
+                  <Text style={styles.monthSub}>
+                    {month.isCurrent ? '● v teku · ' : ''}{month.gameCount} {month.gameCount === 1 ? 'igra' : month.gameCount === 2 ? 'igri' : month.gameCount <= 4 ? 'igre' : 'iger'}
+                  </Text>
+                </View>
+                <TouchableOpacity disabled={index === 0} onPress={() => setIndex(i => i - 1)} style={styles.arrow}>
+                  <ChevronRight size={22} color={index === 0 ? '#48484A' : C.text} />
+                </TouchableOpacity>
+              </View>
+
+              {month.standings.length > 0 && (
+                <View style={styles.legend}>
+                  <Text style={[styles.legendText, { flex: 1, paddingLeft: 12 }]}>Igralec</Text>
+                  <Text style={[styles.legendText, { width: PLACES_WIDTH, textAlign: 'center', marginRight: -4 }]}>Uvrstitve</Text>
+                  <Text numberOfLines={1} style={[styles.legendText, { width: POINTS_WIDTH, textAlign: 'right' }]}>Točke</Text>
+                </View>
+              )}
+
+              <SwipeTabs fill style={{ flex: 1 }} count={months.length} index={months.length - 1 - index}
+                onChange={v => setIndex(months.length - 1 - v)} pageKey={v => months[months.length - 1 - v].key}
+                renderPage={v => monthPage(months[months.length - 1 - v])} />
+
             </>
           )}
 

@@ -1,5 +1,5 @@
 // Profil igralca (prestavljeno iz zaslona Zgodovina - izgled in vsebina NESPREMENJENA)
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { TrendingUp, TrendingDown, Swords, Trophy, Zap, Lock, Check, Sigma, Divide, BarChart3, Flame } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -58,10 +58,17 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
   const detailScrollRef = useRef<ScrollView>(null);
   const scrollY = useRef(0);
   const tabsY = useRef(0);
+  const scrollToTabs = useRef(false);
   const changeTab = (t: 'stats' | 'ach') => {
-    if (scrollY.current > tabsY.current) detailScrollRef.current?.scrollTo({ y: tabsY.current, animated: false });
+    // če si nižje od zavihkov, ostaneta zavihka na vrhu (premik naredimo skupaj z menjavo, brez utripa)
+    scrollToTabs.current = scrollY.current > tabsY.current;
     setTab(t);
   };
+  useLayoutEffect(() => {
+    if (!scrollToTabs.current) return;
+    scrollToTabs.current = false;
+    detailScrollRef.current?.scrollTo({ y: tabsY.current, animated: false });
+  }, [tab]);
 
   // ob odprtju novega igralca: začni na vrhu in pokaži zadnjih 5 iger
   useEffect(() => {
@@ -173,9 +180,9 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                                 <TouchableOpacity style={[styles.tabButton, tab === 'ach' && styles.tabButtonActive]} onPress={() => changeTab('ach')}><Text style={[styles.tabText, tab === 'ach' && styles.tabTextActive]}>Dosežki</Text></TouchableOpacity>
                             </View>
 
-                            <SwipeTabs canPrev={tab === 'ach'} canNext={tab === 'stats'} onSwipe={d => changeTab(d === 1 ? 'ach' : 'stats')}>
+                            <SwipeTabs index={tab === 'stats' ? 0 : 1} onChange={i => changeTab(i === 0 ? 'stats' : 'ach')} neighborTop={() => scrollY.current - tabsY.current}>
                             {/* oba zavihka ostaneta naložena (brez poskakovanja ob vrnitvi), viden je le izbrani */}
-                            <View style={tab !== 'stats' ? { display: 'none' } : undefined}>
+                            <View>
                             <>
                             {/* zgodbe po mesecih (krogi kot na Instagramu) */}
                             <StoryRow name={player.name} />
@@ -273,7 +280,7 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                             
                             </>
                             </View>
-                            <View style={tab !== 'ach' ? { display: 'none' } : undefined}>
+                            <View>
                             <>
 {classicUnlocked < 5 && renderClassic()}
                             <View style={styles.recordsSection}>

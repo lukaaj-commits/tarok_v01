@@ -1020,8 +1020,7 @@ export default function ActiveGame() {
                 </TouchableOpacity>
             </View>
 
-            <SwipeTabs style={{ flex: 1 }} canPrev={leaderboardTab === 'chart'} canNext={leaderboardTab === 'list'} onSwipe={d => setLeaderboardTab(d === 1 ? 'chart' : 'list')}>
-            {leaderboardTab === 'list' ? (
+            <SwipeTabs fill style={{ flex: 1 }} index={leaderboardTab === 'list' ? 0 : 1} onChange={i => setLeaderboardTab(i === 0 ? 'list' : 'chart')}>
                 <ScrollView style={styles.historyList}>
                 {[...players].sort((a, b) => b.total_score - a.total_score).map((player, index, array) => {
                     const pRadelci = radelci.filter(r => r.player_id === player.id);
@@ -1047,7 +1046,6 @@ export default function ActiveGame() {
                     );
                 })}
                 </ScrollView>
-            ) : (
                 <View style={styles.chartContainer}>
                     {allGameHistory.length > 0 ? (
                         <>
@@ -1095,7 +1093,6 @@ export default function ActiveGame() {
                         <Text style={styles.emptyText}>Za graf vnesi točke.</Text>
                     )}
                 </View>
-            )}
             </SwipeTabs>
 
             <TouchableOpacity style={styles.closeButton} onPress={() => setShowLeaderboardModal(false)}><Text style={styles.modalButtonText}>Zapri</Text></TouchableOpacity>

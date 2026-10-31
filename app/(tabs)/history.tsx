@@ -524,24 +524,20 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                     <TouchableOpacity style={[styles.tabButton, globalStatsTab === 'records' && styles.tabButtonActive]} onPress={() => setGlobalStatsTab('records')}><Text style={[styles.tabText, globalStatsTab === 'records' && styles.tabTextActive]}>Rekordi</Text></TouchableOpacity>
                 </View>
                 {statsLoading ? (<ActivityIndicator size="large" color={COLORS.primary} style={{marginTop: 20}} />) : (
-                    <SwipeTabs style={{ flex: 1 }} canPrev={globalStatsTab !== 'classic'} canNext={globalStatsTab !== 'records'} onSwipe={d => setGlobalStatsTab(t => (['classic', 'index', 'records'] as const)[(['classic', 'index', 'records'] as const).indexOf(t) + d])}><>
-                        {globalStatsTab === 'records' ? (
-                            <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
-                                <HallOfFame key={statsVersion} />
-                            </ScrollView>
-                        ) : globalStatsTab === 'classic' ? (
+                    <SwipeTabs fill style={{ flex: 1 }} index={['classic', 'index', 'records'].indexOf(globalStatsTab)} onChange={i => setGlobalStatsTab((['classic', 'index', 'records'] as const)[i])}>
                             <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
                                 {classicSortedStats.map((stat, i, arr) => classicRow(stat, arr[i + 1]?.name === me))}
                             </ScrollView>
-                        ) : (
                             <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
                                 {indexSortedStats.length === 0 ? (<View style={{alignItems: 'center', marginTop: 40}}><BarChart2 size={40} color={COLORS.textMuted} style={{marginBottom: 10}} /><Text style={{color: COLORS.textMuted, textAlign: 'center', paddingHorizontal: 20}}>Še noben igralec ni odigral dovolj iger za izračun indeksa.</Text></View>) : (
                                     indexSortedStats.map((stat, i, arr) => indexRow(stat, arr[i + 1]?.name === me))
                                 )}
                                 <Text style={{color: '#636366', fontSize: 11, textAlign: 'center', marginTop: 12, marginBottom: 10, lineHeight: 15}}>* Prikazani so le igralci z vsaj 5 odigranimi igrami. Puščica označuje spremembo po zadnji igri.</Text>
                             </ScrollView>
-                        )}
-                    </></SwipeTabs>
+                            <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
+                                <HallOfFame key={statsVersion} />
+                            </ScrollView>
+                    </SwipeTabs>
                 )}
                 <TouchableOpacity style={styles.closeButton} onPress={() => setShowGlobalStatsModal(false)}><Text style={styles.closeButtonText}>Zapri</Text></TouchableOpacity>
             </View>
