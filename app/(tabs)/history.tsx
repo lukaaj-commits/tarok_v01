@@ -24,6 +24,7 @@ import * as Haptics from 'expo-haptics';
 // @ts-ignore
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { fetchPlayerStats, PlayerStats } from '@/lib/playerStats';
+import TableStatsModal from '@/components/TableStatsModal';
 import { removeGamePhoto } from '@/lib/photo';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import SeasonModal from '@/components/SeasonModal';
@@ -144,6 +145,7 @@ export default function History() {
   const [globalStatsTab, setGlobalStatsTab] = useState<'classic' | 'index' | 'records'>('classic');
   // igralec tega telefona: njegova vrstica je na lestvici poudarjena
   const me = useMyPlayer();
+  const [showTableStats, setShowTableStats] = useState(false);
   // skrbniški način: igre lahko briše samo telefon, na katerem je izbran Luka Š
   const isAdmin = me === ADMIN_NAME;
   
@@ -496,7 +498,11 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
   return (
     <View style={styles.container}>
       <View style={styles.mainHeader}>
-          <Text style={styles.headerSub}>{(() => { const n = games.filter(g => !g.is_active).length; return `${n} ${n % 100 === 1 ? 'odigrana igra' : n % 100 === 2 ? 'odigrani igri' : n % 100 === 3 || n % 100 === 4 ? 'odigrane igre' : 'odigranih iger'}`; })()}</Text>
+          {/* tap odpre statistiko "Za mizo" (namenoma diskretno) */}
+          <TouchableOpacity activeOpacity={0.6} onPress={() => setShowTableStats(true)} style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4, marginBottom: 14 }}>
+            <Text style={[styles.headerSub, { marginBottom: 0 }]}>{(() => { const n = games.filter(g => !g.is_active).length; return `${n} ${n % 100 === 1 ? 'odigrana igra' : n % 100 === 2 ? 'odigrani igri' : n % 100 === 3 || n % 100 === 4 ? 'odigrane igre' : 'odigranih iger'}`; })()}</Text>
+            <ChevronRight size={15} color="#636366" style={{ marginTop: 1 }} />
+          </TouchableOpacity>
           <View style={styles.tileRow}>
               <TouchableOpacity style={styles.tile} onPress={() => setShowSeasonModal(true)} activeOpacity={0.7}><CalendarDays size={21} color={COLORS.primary} /><Text style={styles.tileText}>Sezona</Text></TouchableOpacity>
               <TouchableOpacity style={styles.tile} onPress={() => loadGlobalStats('select')} activeOpacity={0.7}><Users size={21} color={COLORS.primary} /><Text style={styles.tileText}>Igralci</Text></TouchableOpacity>
@@ -505,6 +511,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
       </View>
 
       <SeasonModal visible={showSeasonModal} onClose={() => setShowSeasonModal(false)} />
+      {showTableStats && <TableStatsModal visible onClose={() => setShowTableStats(false)} />}
 
       <Modal visible={showPlayerSelectModal} transparent animationType="fade" onRequestClose={() => setShowPlayerSelectModal(false)}>
          <View style={styles.centerOverlay}>
