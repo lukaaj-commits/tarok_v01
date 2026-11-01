@@ -34,6 +34,7 @@ import { gameMoment as computeMoment } from '@/lib/gameMoment';
 import { confirmDialog } from '@/lib/alert';
 import PullToRefresh from '@/components/PullToRefresh';
 import SwipeTabs from '@/components/SwipeTabs';
+import TapButton from '@/components/TapButton';
 
 // "Zmagovalec" / "Zmagovalka" / "Zmagovalci" glede na spol in število zmagovalcev
 const winnerWord = (names: string, upper = false) => {
@@ -563,7 +564,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                             </ScrollView>
                     </SwipeTabs>
                 )}
-                <TouchableOpacity style={styles.closeButton} onPress={() => setShowGlobalStatsModal(false)}><Text style={styles.closeButtonText}>Zapri</Text></TouchableOpacity>
+                <TapButton style={styles.closeButton} onPress={() => setShowGlobalStatsModal(false)}><Text style={styles.closeButtonText}>Zapri</Text></TapButton>
             </View>
          </View>
       </Modal>

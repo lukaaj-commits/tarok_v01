@@ -94,6 +94,7 @@ import { openStoryFlow } from '@/lib/storyEntry';
 import { getAskPartner, setAskPartner, useKeepAwake } from '@/components/AskPartnerRow';
 import GameChart from '@/components/GameChart';
 import SwipeTabs from '@/components/SwipeTabs';
+import TapButton from '@/components/TapButton';
 import TableScreen, { TableCounts } from '@/components/TableScreen';
 
 const GRADIENT_COLORS = ['#0A84FF', '#0A84FF']; 
@@ -1353,7 +1354,7 @@ export default function ActiveGame() {
                 </View>
             </SwipeTabs>
 
-            <TouchableOpacity style={[styles.closeButton, { marginTop: 14 }]} onPress={() => setShowLeaderboardModal(false)}><Text style={styles.modalButtonText}>Zapri</Text></TouchableOpacity>
+            <TapButton style={[styles.closeButton, { marginTop: 14 }]} onPress={() => setShowLeaderboardModal(false)}><Text style={styles.modalButtonText}>Zapri</Text></TapButton>
           </View>
         </View>
       </Modal>

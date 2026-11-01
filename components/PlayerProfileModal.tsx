@@ -11,6 +11,7 @@ import { g } from '@/lib/gender';
 import { CHALLENGES, IZZIVI, IZZIVI_START } from '@/lib/challenges';
 import StoryRow from '@/components/StoryRow';
 import SwipeTabs from '@/components/SwipeTabs';
+import TapButton from '@/components/TapButton';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import { MonthRankRow, TableStats } from '@/components/ProfileExtras';
 import { PhoneOwnerRow, useMyPlayer } from '@/components/WhoAmI';
@@ -324,7 +325,7 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                         </ScrollView>
                         {/* kdo uporablja ta telefon (za "Tvoj mesec" na začetnem zaslonu) */}
                         <PhoneOwnerRow />
-                        <TouchableOpacity style={styles.closeButton} onPress={() => onClose()}><Text style={styles.closeButtonText}>Zapri</Text></TouchableOpacity>
+                        <TapButton style={styles.closeButton} onPress={() => onClose()}><Text style={styles.closeButtonText}>Zapri</Text></TapButton>
                     </>
                 )}
              </View>

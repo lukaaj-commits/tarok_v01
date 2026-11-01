@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { computeSeasons, SeasonMonth, SEASON } from '@/lib/season';
 import { getData } from '@/lib/dataCache';
 import SwipeTabs from '@/components/SwipeTabs';
+import TapButton from '@/components/TapButton';
 import { getAvatarUrl } from '@/lib/avatars';
 import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import { g } from '@/lib/gender';
@@ -183,9 +184,9 @@ export default function SeasonModal({ visible, onClose }: Props) {
             </>
           )}
 
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+          <TapButton style={styles.closeButton} onPress={onClose}>
             <Text style={styles.closeText}>Zapri</Text>
-          </TouchableOpacity>
+          </TapButton>
         </View>
       </View>
     </Modal>

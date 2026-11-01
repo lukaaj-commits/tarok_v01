@@ -124,7 +124,8 @@ export default function SwipeTabs({ index, onChange, count, renderPage, pageKey,
       onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}
       // ko drsiš vodoravno, prevzamemo dotik: vrstica pod prstom se ne obarva kot pritisnjena
       onMoveShouldSetResponderCapture={() => mode.current === 'h'}
-      onResponderTerminationRequest={() => false}>
+      // dotik zadržimo le med vodoravnim drsenjem; sicer ga takoj sprostimo (npr. za gumb Zapri)
+      onResponderTerminationRequest={() => mode.current !== 'h'}>
       <Animated.View style={[fill && { flex: 1 }, { transform: [{ translateX: x }] }]}>
         {shown.map(i => {
           const off = i - index;
