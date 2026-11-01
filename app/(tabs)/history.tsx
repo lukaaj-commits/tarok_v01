@@ -45,6 +45,8 @@ import { useMyPlayer } from '@/components/WhoAmI';
 import { meRowStyle, meAvatarStyle } from '@/components/MyRow';
 
 // skrbnik: samo on lahko briše igre v Zgodovini
+const KLOP_COLOR = '#BF5AF2';  // klop: vijoličen romb
+const KAZEN_COLOR = '#FF6961'; // kazen: rdeč klicaj
 const ADMIN_NAME = 'Luka Š';
 
 type PlayerSummary = { name: string; total_score: number; };
@@ -72,6 +74,8 @@ type ScoreEntry = {
   is_partner?: boolean;
   is_beggar?: boolean;
   is_valat?: boolean;
+  is_klop?: boolean;
+  is_kazen?: boolean;
   is_penalty?: boolean;
 };
 
@@ -198,7 +202,7 @@ export default function History() {
           const maxTime = Math.max(...timestamps);
           playerHistory.forEach(e => {
               const eTime = new Date(e.created_at).getTime();
-              if (maxTime - eTime < 5000 && e.points < 0 && !e.played && !e.is_partner && !e.is_beggar && !e.is_valat && Math.abs(e.points) % 50 === 0) {
+              if (maxTime - eTime < 5000 && e.points < 0 && !e.played && !e.is_partner && !e.is_beggar && !e.is_valat && !e.is_klop && !e.is_kazen && Math.abs(e.points) % 50 === 0) {
                   penaltyEntryIds.add(e.id);
               }
           });
@@ -363,6 +367,8 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
     if (entry.is_beggar) return <Triangle size={8} color={iconColor} fill={iconColor} style={{ opacity: 0.9 }} />;
     if (entry.is_partner) return <Circle size={8} color={iconColor} style={{ opacity: 0.8 }} />;
     if (entry.played) return <View style={[styles.playedDot, entry.is_valat && {backgroundColor: COLORS.warning}]} />;
+    if (entry.is_klop) return <View style={{ width: 7, height: 7, borderWidth: 1.6, borderColor: KLOP_COLOR, transform: [{ rotate: '45deg' }] }} />;
+    if (entry.is_kazen) return <Text style={{ color: KAZEN_COLOR, fontSize: 12, fontWeight: '800', lineHeight: 13 }}>!</Text>;
     return null;
   };
   

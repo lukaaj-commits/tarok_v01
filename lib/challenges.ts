@@ -38,7 +38,7 @@ export type CGame = { id: string; created_at: string; is_active: boolean };
 export type CPlayer = { id: string; game_id: string; name: string; total_score: number };
 export type CEntry = {
   id: string; player_id: string; game_id: string; points: number; created_at: string;
-  played?: boolean | null; is_partner?: boolean | null; is_beggar?: boolean | null; is_valat?: boolean | null; is_penalty?: boolean | null;
+  played?: boolean | null; is_partner?: boolean | null; is_beggar?: boolean | null; is_valat?: boolean | null; is_penalty?: boolean | null; is_klop?: boolean | null; is_kazen?: boolean | null;
 };
 export type CRadelc = { player_id: string; game_id: string };
 
@@ -149,7 +149,7 @@ export function computeChallenges(games: CGame[], players: CPlayer[], entries: C
         const nRad = radelci.filter(r => r.game_id === g.id && r.player_id === p.id).length;
         const endMs = new Date(endTime).getTime();
         const hadPenalty = ge.some(e => e.player_id === p.id && (e.is_penalty ||
-          (!e.played && !e.is_partner && !e.is_beggar && !e.is_valat && e.points < 0 && e.points % 50 === 0 && endMs - new Date(e.created_at).getTime() < 5000)));
+          (!e.played && !e.is_partner && !e.is_beggar && !e.is_valat && !e.is_klop && !e.is_kazen && e.points < 0 && e.points % 50 === 0 && endMs - new Date(e.created_at).getTime() < 5000)));
         if (nRad >= 3 && !hadPenalty) hit('cistilec', p.name, endTime, g.id);
         // Opazovalec: vsaj 4 igre v partiji, igralec ni igral niti enkrat
         if (rounds.length >= 4 && !rounds.some(r => r.decl.player_id === p.id)) hit('opazovalec', p.name, endTime, g.id);

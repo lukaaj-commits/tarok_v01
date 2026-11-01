@@ -44,6 +44,8 @@ type ScoreEntry = {
   is_partner?: boolean;
   is_beggar?: boolean;  
   is_valat?: boolean; 
+  is_klop?: boolean;
+  is_kazen?: boolean;
 };
 
 type Game = { 
@@ -90,6 +92,8 @@ import { openStoryFlow } from '@/lib/storyEntry';
 import SwipeTabs from '@/components/SwipeTabs';
 
 const GRADIENT_COLORS = ['#0A84FF', '#0A84FF']; 
+const KLOP_COLOR = '#BF5AF2';  // klop: vijoličen romb
+const KAZEN_COLOR = '#FF6961'; // kazen: rdeč klicaj
 const MONTHS_SHORT = ['JAN', 'FEB', 'MAR', 'APR', 'MAJ', 'JUN', 'JUL', 'AVG', 'SEP', 'OKT', 'NOV', 'DEC'];
 const CHART_COLORS = [
   '#0A84FF', '#FF9F0A', '#30D158', '#FF453A', '#BF5AF2', '#64D2FF', '#FFD60A', '#FF375F'
@@ -398,7 +402,14 @@ export default function ActiveGame() {
     setRadelci(radelci.map(r => r.id === radId ? { ...r, is_used: !current } : r));
   };
 
+  // Vpis brez oznake: pred shranjevanjem vprašamo, kaj je bil (Kazen, Igral, Klican, Berač, Klop)
+  type EntryKind = 'played' | 'partner' | 'beggar' | 'klop' | 'kazen';
+  const entryKind = useRef<EntryKind | null>(null);
+  const [askKind, setAskKind] = useState(false);
+  const chooseKind = (k: EntryKind) => { entryKind.current = k; setAskKind(false); submitScore(); };
+
   const openScoreInput = (playerId: string) => {
+    entryKind.current = null;
     setSelectedPlayerId(playerId); 
     setScoreInput(''); 
     setScoreMode('none'); 
@@ -450,6 +461,8 @@ export default function ActiveGame() {
     if (scoreInput === '-') { setScoreInput(''); return; }
     const points = parseInt(scoreInput, 10);
     if (isNaN(points)) { showAlert("Napaka", "Neveljaven vnos."); return; }
+    // nič ni označeno: najprej vprašamo, kaj je bil vpis
+    if (scoreMode === 'none' && !entryKind.current) { setAskKind(true); return; }
 
     const valatValues = [250, 500, 1000, 2000, 4000, 8000, 16000, -250, -500, -1000, -2000, -4000, -8000, -16000];
     if (valatValues.includes(points)) {
@@ -474,22 +487,25 @@ export default function ActiveGame() {
   const performSubmit = (points: number, isValat: boolean) => once('submit', () => doSubmit(points, isValat));
   const doSubmit = async (points: number, isValat: boolean) => {
     setSubmitting(true);
+    const kind = entryKind.current || scoreMode; // izbira v vprašanju ali gumb v oknu
     try {
       const { error } = await supabase.from('score_entries').insert({
         player_id: selectedPlayerId, 
         game_id: gameId, 
         points, 
-        played: scoreMode === 'played' || scoreMode === 'beggar', 
-        is_partner: scoreMode === 'partner',                     
-        is_beggar: scoreMode === 'beggar',
-        is_valat: isValat 
+        played: kind === 'played' || kind === 'beggar', 
+        is_partner: kind === 'partner',                     
+        is_beggar: kind === 'beggar',
+        is_valat: isValat,
+        is_klop: kind === 'klop',
+        is_kazen: kind === 'kazen',
       });
       if (error) throw error;
 
       const newScore = await recalcPlayerTotal(selectedPlayerId!);
       setPlayers(prev => prev.map(p => p.id === selectedPlayerId ? { ...p, total_score: newScore } : p));
       if (newScore === 0) setShowKlopModal(true);
-      setShowScoreModal(false); setScoreInput('');
+      setShowScoreModal(false); setScoreInput(''); entryKind.current = null;
     } catch (e: any) { showAlert("Napaka", e.message); } finally { setSubmitting(false); }
   };
 
@@ -723,6 +739,8 @@ export default function ActiveGame() {
     if (entry.played) {
       return <View style={[styles.playedDot, entry.is_valat && { backgroundColor: COLORS.warning }]} />;
     }
+    if (entry.is_klop) return <View style={{ width: 7, height: 7, borderWidth: 1.6, borderColor: KLOP_COLOR, transform: [{ rotate: '45deg' }] }} />;
+    if (entry.is_kazen) return <Text style={{ color: KAZEN_COLOR, fontSize: 12, fontWeight: '800', lineHeight: 13 }}>!</Text>;
     return null;
   };
 
@@ -1265,6 +1283,33 @@ export default function ActiveGame() {
       </Modal>
 
       {/* NAŠ NOV IN LEP VALAT MODAL */}
+      {askKind && (
+        <Modal visible transparent animationType="slide" onRequestClose={() => setAskKind(false)}>
+          <View style={styles.sheetOverlay}>
+            <View style={styles.sheetContent}>
+              <Text style={[styles.modalTitle, { marginBottom: 2 }]}>Kaj je bil ta vpis?</Text>
+              <Text style={styles.editHint}>
+                {getSelectedPlayerName()} · <Text style={{ color: scoreInput.startsWith('-') ? COLORS.danger : '#30D158', fontWeight: '600' }}>{scoreInput.startsWith('-') ? scoreInput.replace('-', '−') : `+${scoreInput}`}</Text> · ni označeno
+              </Text>
+              <TouchableOpacity activeOpacity={0.8} style={styles.kazenButton} onPress={() => chooseKind('kazen')}>
+                <Text style={{ color: KAZEN_COLOR, fontSize: 19, fontWeight: '800' }}>!</Text>
+                <Text style={styles.kindBigText}>Kazen</Text>
+              </TouchableOpacity>
+              <Text style={[styles.editHint, { marginTop: 6, marginBottom: 14, fontSize: 12 }]}>ujet mond, napačno mešanje …</Text>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity activeOpacity={0.8} style={styles.kindButton} onPress={() => chooseKind('played')}><View style={styles.playedDot} /><Text style={styles.kindText}>{g(getSelectedPlayerName(), 'Igral', 'Igrala')}</Text></TouchableOpacity>
+                <TouchableOpacity activeOpacity={0.8} style={styles.kindButton} onPress={() => chooseKind('partner')}><Circle size={9} color="#fff" /><Text style={styles.kindText}>{g(getSelectedPlayerName(), 'Klican', 'Klicana')}</Text></TouchableOpacity>
+                <TouchableOpacity activeOpacity={0.8} style={styles.kindButton} onPress={() => chooseKind('beggar')}><Triangle size={9} color="#fff" fill="#fff" /><Text style={styles.kindText}>Berač</Text></TouchableOpacity>
+              </View>
+              <TouchableOpacity activeOpacity={0.8} style={styles.klopButtonKind} onPress={() => chooseKind('klop')}>
+                <View style={{ width: 9, height: 9, borderWidth: 1.6, borderColor: KLOP_COLOR, transform: [{ rotate: '45deg' }] }} />
+                <Text style={styles.kindText}>Klop</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       <Modal visible={showValatModal} transparent animationType="fade" onRequestClose={() => setShowValatModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -1488,6 +1533,11 @@ const styles = StyleSheet.create({
   historyModal: { height: '70%' },
   historyList: { flex: 1, marginBottom: 16 },
   
+  kazenButton: { height: 62, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: 'rgba(255,69,58,0.15)', borderWidth: 0.5, borderColor: 'rgba(255,69,58,0.35)', borderTopColor: 'rgba(255,120,110,0.55)', marginTop: 8 },
+  kindBigText: { color: '#FFFFFF', fontSize: 18, fontWeight: '600' },
+  kindButton: { flex: 1, height: 54, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.10)', borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.18)' },
+  klopButtonKind: { height: 54, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 10, backgroundColor: 'rgba(191,90,242,0.15)', borderWidth: 0.5, borderColor: 'rgba(191,90,242,0.35)', borderTopColor: 'rgba(210,140,250,0.55)' },
+  kindText: { color: '#FFFFFF', fontSize: 16, fontWeight: '500' },
   historyItemPressed: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10 },
   editHint: { color: '#8E8E93', fontSize: 13, textAlign: 'center', marginBottom: 12 },
   historyItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.08)' },

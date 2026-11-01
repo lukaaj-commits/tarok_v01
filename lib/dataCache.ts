@@ -10,7 +10,7 @@ import { refreshCustomAvatars } from '@/lib/avatars';
 
 export type CacheData = { games: any[]; players: any[]; entries: any[]; radelci: any[] };
 
-const ENTRY_COLS = 'id, player_id, game_id, points, created_at, played, is_partner, is_beggar, is_valat, is_penalty';
+const ENTRY_COLS = 'id, player_id, game_id, points, created_at, played, is_partner, is_beggar, is_valat, is_penalty, is_klop, is_kazen';
 const PLAYER_COLS = 'id, game_id, name, position, total_score, created_at, profile_id';
 const RADELC_COLS = 'id, player_id, game_id, created_at';
 const OVERLAP_MS = 5 * 60 * 1000;   // varnostno prekrivanje pri "samo novo" (dvojnike odstranimo po id)
