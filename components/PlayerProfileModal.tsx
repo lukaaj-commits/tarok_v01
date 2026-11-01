@@ -170,8 +170,8 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                                     <Text style={styles.profileSub}>{player.total_games} {plural(player.total_games, 'igra', 'igri', 'igre', 'iger')} · {player.wins} {plural(player.wins, 'zmaga', 'zmagi', 'zmage', 'zmag')} · <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>{Math.round(player.avg_performance)} %</Text></Text>
                                 </View>
                                 <TouchableOpacity onPress={() => setShowDuel(true)} activeOpacity={0.7} style={styles.duelCircle} accessibilityLabel="Primerjaj z">
-                                    <LinearGradient colors={['rgba(255,214,10,0.30)', 'rgba(255,159,10,0.08)']} start={{ x: 0, y: 0 }} end={{ x: 0.85, y: 0.85 }} style={StyleSheet.absoluteFill} />
-                                    <Swords size={20} color="#FFD60A" strokeWidth={2} />
+                                    <LinearGradient colors={['rgba(10,132,255,0.32)', 'rgba(10,132,255,0.10)']} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }} style={StyleSheet.absoluteFill} />
+                                    <Swords size={20} color="#64D2FF" strokeWidth={2} />
                                     <Text style={styles.duelCircleText}>Primerjaj</Text>
                                 </TouchableOpacity>
                             </View>
@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
   doneSub: { flex: 1, color: COLORS.textMuted, fontSize: 12 },
   doneToggle: { color: COLORS.primary, fontSize: 13, fontWeight: '500' },
   formRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 12 },
-  duelCircle: { width: 64, height: 64, borderRadius: 32, marginRight: 4, alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: 'transparent', overflow: 'hidden', borderWidth: 0.5, borderColor: 'rgba(255,214,10,0.35)', borderTopColor: 'rgba(255,230,140,0.55)' },
+  duelCircle: { width: 64, height: 64, borderRadius: 32, marginRight: 4, alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: 'transparent', overflow: 'hidden', borderWidth: 0.5, borderColor: 'rgba(100,170,255,0.30)', borderTopColor: 'rgba(140,200,255,0.55)' },
   duelCircleText: { color: '#fff', fontSize: 10, fontWeight: '500' },
   collCount: { color: COLORS.textMuted, fontSize: 13, fontWeight: '500' },
   collSub: { color: '#636366', fontSize: 12, marginBottom: 6, paddingHorizontal: 2 },
