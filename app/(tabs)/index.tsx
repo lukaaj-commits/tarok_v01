@@ -25,7 +25,7 @@ import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import { g, loadGenders } from '@/lib/gender';
 import GamePhotoButton from '@/components/GamePhotoButton';
 import StartGameButton from '@/components/StartGameButton';
-import { Plus, Minus, Info, Trash2, RotateCcw, Play, ChevronLeft, ChevronRight, Trophy, Search, UserPlus, Check, Delete, Circle, Triangle, X } from 'lucide-react-native';
+import { Plus, Minus, Info, Trash2, RotateCcw, Play, ChevronLeft, ChevronRight, Trophy, Search, UserPlus, Check, Delete, Circle, Triangle, X, Maximize2 } from 'lucide-react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { LinearGradient } from 'expo-linear-gradient'; 
 import * as Haptics from 'expo-haptics';
@@ -94,6 +94,7 @@ import { openStoryFlow } from '@/lib/storyEntry';
 import { getAskPartner, setAskPartner, useKeepAwake } from '@/components/AskPartnerRow';
 import GameChart from '@/components/GameChart';
 import SwipeTabs from '@/components/SwipeTabs';
+import TableScreen, { TableCounts } from '@/components/TableScreen';
 
 const GRADIENT_COLORS = ['#0A84FF', '#0A84FF']; 
 const KLOP_COLOR = '#BF5AF2';  // klop: vijoličen romb
@@ -138,6 +139,8 @@ export default function ActiveGame() {
   const [radelci, setRadelci] = useState<Radelc[]>([]);
   const [finishedCount, setFinishedCount] = useState<number | null>(null); // število odigranih iger (za začetni zaslon)
   const [playedCounts, setPlayedCounts] = useState<Record<string, number>>({}); // kolikokrat je igralec igral (tudi berač)
+  const [tableCounts, setTableCounts] = useState<TableCounts>({}); // za mizni zaslon: igral, klican, berač ločeno
+  const [showTable, setShowTable] = useState(false); // mizni zaslon
   const [allProfiles, setAllProfiles] = useState<PlayerProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -274,14 +277,21 @@ export default function ActiveGame() {
   // Kolikokrat je vsak igralec v tej igri igral (igral ali berač; klican ne šteje).
   // Osveži se ob vsaki spremembi igralcev (vnos, razveljavitev, sprememba z drugega telefona).
   useEffect(() => {
-    if (!gameId) { setPlayedCounts({}); return; }
+    if (!gameId) { setPlayedCounts({}); setTableCounts({}); return; }
     let cancelled = false;
     (async () => {
-      const { data } = await supabase.from('score_entries').select('player_id, played, is_beggar').eq('game_id', gameId);
+      const { data } = await supabase.from('score_entries').select('player_id, played, is_beggar, is_partner').eq('game_id', gameId);
       if (cancelled || !data) return;
       const counts: Record<string, number> = {};
       data.forEach((e: any) => { if (e.played || e.is_beggar) counts[e.player_id] = (counts[e.player_id] || 0) + 1; });
       setPlayedCounts(counts);
+      const tc: TableCounts = {};
+      data.forEach((e: any) => {
+        const c = tc[e.player_id] || (tc[e.player_id] = { played: 0, partner: 0, beggar: 0 });
+        if (e.is_beggar) c.beggar++; else if (e.played) c.played++;
+        if (e.is_partner) c.partner++;
+      });
+      setTableCounts(tc);
     })();
     return () => { cancelled = true; };
   }, [gameId, players]);
@@ -328,7 +338,7 @@ export default function ActiveGame() {
     // zapremo morebitna odprta okna
     setShowScoreModal(false); setAskKind(false); setKlopVals(null); setPartnerAsk(null); setEditEntry(null);
     setShowValatModal(false); setShowHistoryModal(false); setShowAllHistoryModal(false); setShowLeaderboardModal(false);
-    setShowAddPlayerModal(false); setShowFinishGameModal(false);
+    setShowAddPlayerModal(false); setShowFinishGameModal(false); setShowTable(false);
     if (!pl || !pl.length) { exitToLobby(); return true; }
     const maxScore = Math.max(...pl.map((p: any) => p.total_score));
     const names = pl.filter((p: any) => p.total_score === maxScore).map((p: any) => p.name).join(' & ');
@@ -364,6 +374,11 @@ export default function ActiveGame() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'radelci', filter: gameFilter }, refresh)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'radelci', filter: gameFilter }, refresh)
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'radelci' }, refresh)
+      .subscribe();
+    // Zaključek igre poslušamo v LOČENI povezavi: če tabela games v Supabase nima vklopljenih
+    // sprotnih sprememb, Supabase zavrne celo povezavo - tako pa ostanejo točke in radelci v živo.
+    const gamesChannel = supabase
+      .channel(`igra-konec-${gameId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` }, refresh)
       .subscribe();
 
@@ -375,6 +390,7 @@ export default function ActiveGame() {
     return () => {
       if (timer) clearTimeout(timer);
       supabase.removeChannel(channel);
+      supabase.removeChannel(gamesChannel);
       appStateSub.remove();
       if (Platform.OS === 'web') document.removeEventListener('visibilitychange', onVisible);
     };
@@ -1067,6 +1083,9 @@ export default function ActiveGame() {
         <View style={{ flex: 1, alignItems: 'flex-end', marginLeft: 10 }}>
             <Text style={styles.headerGameTitle} numberOfLines={1}>{getFormattedTitle({ id: gameId || '', name: gameName, created_at: activeGamesList.find(g => g.id === gameId)?.created_at || new Date().toISOString(), is_active: true })}</Text>
         </View>
+        <TouchableOpacity onPress={() => setShowTable(true)} style={styles.tableBtn} activeOpacity={0.7} hitSlop={8} accessibilityLabel="Mizni zaslon">
+          <Maximize2 size={16} color={COLORS.primary} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.tileRow}>
@@ -1500,11 +1519,14 @@ export default function ActiveGame() {
         </Modal>
       )}
 
+      <TableScreen visible={showTable} onClose={() => setShowTable(false)} players={players} counts={tableCounts}
+        radelci={radelci.reduce((m: Record<string, number>, r: any) => { if (!r.is_used) m[r.player_id] = (m[r.player_id] || 0) + 1; return m; }, {})} />
+
       {partnerAsk && (
         <Modal visible transparent animationType="slide" onRequestClose={() => setPartnerAsk(null)}>
           <View style={styles.sheetOverlay}>
             <View style={styles.sheetContent}>
-              <Text style={[styles.modalTitle, { marginBottom: 2 }]}>{partnerAsk.kind === 'played' ? 'Koga je klical?' : 'Kdo je igral?'}</Text>
+              <Text style={[styles.modalTitle, { marginBottom: 2 }]}>{partnerAsk.kind === 'played' ? g(players.find(p => p.id === partnerAsk.from)?.name, 'Koga je klical?', 'Koga je klicala?') : 'Kdo je igral?'}</Text>
               {(() => { const n = players.find(p => p.id === partnerAsk.from)?.name || ''; return (
                 <Text style={styles.editHint}>
                   {n} · <Text style={{ color: partnerAsk.points >= 0 ? '#30D158' : COLORS.danger, fontWeight: '600' }}>{partnerAsk.points > 0 ? '+' : ''}{partnerAsk.points}</Text> · {partnerAsk.kind === 'played' ? g(n, 'igral', 'igrala') : g(n, 'klican', 'klicana')}
@@ -1699,6 +1721,7 @@ const styles = StyleSheet.create({
       paddingTop: 16, paddingHorizontal: 16, paddingBottom: 10, backgroundColor: 'transparent' 
   },
   backButton: { flexDirection: 'row', alignItems: 'center' },
+  tableBtn: { width: 34, height: 34, borderRadius: 17, marginLeft: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10,132,255,0.14)', borderWidth: 0.5, borderColor: 'rgba(10,132,255,0.35)' },
   backButtonText: { color: COLORS.primary, fontSize: 16, fontWeight: '500' },
   headerGameTitle: { color: COLORS.textMuted, fontSize: 14, fontWeight: '400', textAlign: 'right', flex: 1, marginLeft: 16 },
   headerLeaderText: { color: COLORS.winnerGrey, fontSize: 13, fontWeight: '400', marginTop: 2 },
