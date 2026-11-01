@@ -23,7 +23,7 @@ import { usePlayerProfile } from '@/components/PlayerProfileProvider';
 import { g, loadGenders } from '@/lib/gender';
 import GamePhotoButton from '@/components/GamePhotoButton';
 import StartGameButton from '@/components/StartGameButton';
-import { Plus, Minus, Info, Trash2, RotateCcw, Play, ChevronLeft, Trophy, Search, UserPlus, Check, Delete, Circle, Triangle, X } from 'lucide-react-native';
+import { Plus, Minus, Info, Trash2, RotateCcw, Play, ChevronLeft, ChevronRight, Trophy, Search, UserPlus, Check, Delete, Circle, Triangle, X } from 'lucide-react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { LinearGradient } from 'expo-linear-gradient'; 
 import * as Haptics from 'expo-haptics';
@@ -89,6 +89,7 @@ import PullToRefresh from '@/components/PullToRefresh';
 import { buildFacts, pickFact, Fact } from '@/lib/startFacts';
 import { HomeStoryCard } from '@/components/StoryEntry';
 import { openStoryFlow } from '@/lib/storyEntry';
+import { getAskPartner, setAskPartner } from '@/components/AskPartnerRow';
 import GameChart from '@/components/GameChart';
 import SwipeTabs from '@/components/SwipeTabs';
 
@@ -409,6 +410,33 @@ export default function ActiveGame() {
   const [askKind, setAskKind] = useState(false);
   const chooseKind = (k: EntryKind) => { entryKind.current = k; setAskKind(false); submitScore(); };
 
+  // "Koga je klical?" / "Kdo je igral?" (nastavitev telefona, privzeto izklopljeno)
+  const [partnerAsk, setPartnerAsk] = useState<{ from: string; points: number; kind: 'played' | 'partner'; isValat: boolean } | null>(null);
+  const partnerBusy = useRef(false);
+  const savePartner = async (otherId: string) => {
+    if (!partnerAsk || partnerBusy.current) return;
+    partnerBusy.current = true;
+    const ask = partnerAsk;
+    const otherIsPartner = ask.kind === 'played'; // igralec -> drugi je klican; klican -> drugi je igral
+    try {
+      const { error } = await supabase.from('score_entries').insert({
+        player_id: otherId, game_id: gameId, points: ask.points,
+        played: !otherIsPartner, is_partner: otherIsPartner, is_beggar: false, is_valat: ask.isValat,
+        is_klop: false, is_kazen: false,
+      });
+      if (error) throw error;
+      const total = await recalcPlayerTotal(otherId);
+      setPlayers(prev => prev.map(p => (p.id === otherId ? { ...p, total_score: total } : p)));
+      const nameOf = (id: string) => players.find(p => p.id === id)?.name || '';
+      const pts = `${ask.points > 0 ? '+' : ''}${ask.points}`;
+      const decl = otherIsPartner ? ask.from : otherId, part = otherIsPartner ? otherId : ask.from;
+      showToast(`${nameOf(decl)} ${pts} · ${g(nameOf(part), 'klican', 'klicana')} ${nameOf(part)} ${pts}`);
+      setPartnerAsk(null);
+    } catch (e: any) {
+      showAlert('Napaka', e?.message || String(e));
+    } finally { partnerBusy.current = false; }
+  };
+
   const openScoreInput = (playerId: string) => {
     entryKind.current = null;
     setSelectedPlayerId(playerId); 
@@ -507,6 +535,9 @@ export default function ActiveGame() {
       setPlayers(prev => prev.map(p => p.id === selectedPlayerId ? { ...p, total_score: newScore } : p));
       if (newScore === 0) setShowKlopModal(true);
       setShowScoreModal(false); setScoreInput(''); entryKind.current = null;
+      if ((kind === 'played' || kind === 'partner') && players.length > 1 && await getAskPartner()) {
+        setPartnerAsk({ from: selectedPlayerId!, points, kind, isValat });
+      }
     } catch (e: any) { showAlert("Napaka", e.message); } finally { setSubmitting(false); }
   };
 
@@ -1300,6 +1331,36 @@ export default function ActiveGame() {
         </Modal>
       )}
 
+      {partnerAsk && (
+        <Modal visible transparent animationType="slide" onRequestClose={() => setPartnerAsk(null)}>
+          <View style={styles.sheetOverlay}>
+            <View style={styles.sheetContent}>
+              <Text style={[styles.modalTitle, { marginBottom: 2 }]}>{partnerAsk.kind === 'played' ? 'Koga je klical?' : 'Kdo je igral?'}</Text>
+              {(() => { const n = players.find(p => p.id === partnerAsk.from)?.name || ''; return (
+                <Text style={styles.editHint}>
+                  {n} · <Text style={{ color: partnerAsk.points >= 0 ? '#30D158' : COLORS.danger, fontWeight: '600' }}>{partnerAsk.points > 0 ? '+' : ''}{partnerAsk.points}</Text> · {partnerAsk.kind === 'played' ? g(n, 'igral', 'igrala') : g(n, 'klican', 'klicana')}
+                </Text>
+              ); })()}
+              <ScrollView style={{ maxHeight: 340 }}>
+                {players.filter(p => p.id !== partnerAsk.from).map(p => (
+                  <TouchableOpacity key={p.id} activeOpacity={0.7} style={styles.askRow} onPress={() => savePartner(p.id)}>
+                    <Image source={{ uri: getAvatarUrl(p.name) }} style={styles.askAvatar} />
+                    <Text style={styles.askName}>{p.name}</Text>
+                    <ChevronRight size={18} color="#636366" />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <TouchableOpacity activeOpacity={0.8} style={[styles.klopKindButton, { marginTop: 16 }]} onPress={() => setPartnerAsk(null)}>
+                <Text style={styles.kindText}>{partnerAsk.kind === 'played' ? g(players.find(p => p.id === partnerAsk.from)?.name, 'Igral sam', 'Igrala sama') : 'Preskoči'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ alignItems: 'center', paddingTop: 14 }} onPress={() => { setAskPartner(false); setPartnerAsk(null); showToast('Izklopljeno. Vklopiš v profilu, čisto spodaj.'); }}>
+                <Text style={{ color: '#636366', fontSize: 12.5 }}>Ne sprašuj več</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       <Modal visible={showValatModal} transparent animationType="fade" onRequestClose={() => setShowValatModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -1527,6 +1588,9 @@ const styles = StyleSheet.create({
   kindBigText: { color: '#FFFFFF', fontSize: 18, fontWeight: '600' },
   kindButton: { flex: 1, height: 54, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.10)', borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.18)' },
   klopKindButton: { height: 54, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 10, backgroundColor: 'rgba(255,255,255,0.10)', borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.18)' },
+  askRow: { flexDirection: 'row', alignItems: 'center', gap: 14, height: 56, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.08)' },
+  askAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#1C1C1E' },
+  askName: { flex: 1, color: '#FFFFFF', fontSize: 17 },
   kindText: { color: '#FFFFFF', fontSize: 16, fontWeight: '500' },
   historyItemPressed: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10 },
   editHint: { color: '#8E8E93', fontSize: 13, textAlign: 'center', marginBottom: 12 },

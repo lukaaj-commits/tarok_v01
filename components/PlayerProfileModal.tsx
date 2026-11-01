@@ -14,6 +14,7 @@ import SwipeTabs from '@/components/SwipeTabs';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import { MonthRankRow, TableStats } from '@/components/ProfileExtras';
 import { PhoneOwnerRow } from '@/components/WhoAmI';
+import AskPartnerRow from '@/components/AskPartnerRow';
 
 const COLORS = {
   bg: '#000000',
@@ -316,6 +317,8 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                             </>
                             </View>
                             </SwipeTabs>
+                            {/* nastavitev tega telefona, čisto na dnu vsebine */}
+                            <AskPartnerRow />
                         </ScrollView>
                         {/* kdo uporablja ta telefon (za "Tvoj mesec" na začetnem zaslonu) */}
                         <PhoneOwnerRow />
