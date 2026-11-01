@@ -314,6 +314,33 @@ export default function ActiveGame() {
     setRadelcHint(radelcWorthy(foreign[foreign.length - 1]));
   };
 
+  // KONEC IGRE NA VSEH TELEFONIH: ko igro zaključi drug telefon, tudi tu pokažemo okno zmagovalca
+  const finishingRef = useRef(false);            // ta telefon je pritisnil "Zaključi igro"
+  const announcedRef = useRef<string | null>(null); // za to igro je okno že prikazano
+  useEffect(() => { finishingRef.current = false; announcedRef.current = null; }, [gameId]);
+  const checkFinished = async (gid: string): Promise<boolean> => {
+    if (finishingRef.current || announcedRef.current === gid) return true;
+    const { data: gm } = await supabase.from('games').select('is_active').eq('id', gid).maybeSingle();
+    if (!gm || gm.is_active) return false;
+    if (finishingRef.current || announcedRef.current === gid) return true;
+    announcedRef.current = gid;
+    const { data: pl } = await supabase.from('players').select('name, total_score').eq('game_id', gid);
+    // zapremo morebitna odprta okna
+    setShowScoreModal(false); setAskKind(false); setKlopVals(null); setPartnerAsk(null); setEditEntry(null);
+    setShowValatModal(false); setShowHistoryModal(false); setShowAllHistoryModal(false); setShowLeaderboardModal(false);
+    setShowAddPlayerModal(false); setShowFinishGameModal(false);
+    if (!pl || !pl.length) { exitToLobby(); return true; }
+    const maxScore = Math.max(...pl.map((p: any) => p.total_score));
+    const names = pl.filter((p: any) => p.total_score === maxScore).map((p: any) => p.name).join(' & ');
+    setWinnerData({ names, score: maxScore });
+    setFinishedGameId(gid);
+    setShowWinnerPopup(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current);
+    popupTimeoutRef.current = setTimeout(() => { setShowWinnerPopup(false); exitToLobby(); }, 5000);
+    return true;
+  };
+
   // REZULTATI V ŽIVO: ko je igra odprta, poslušamo spremembe igralcev in radelcev te igre
   // (točke, razveljavitve, radelci z drugih naprav) in ob spremembi ponovno naložimo stanje.
   useEffect(() => {
@@ -322,7 +349,11 @@ export default function ActiveGame() {
     // Več hkratnih sprememb (npr. radelc za vse igralce) združimo v eno osvežitev
     const refresh = () => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => { loadPlayers(gameId); loadRadelci(gameId); checkNewEntries(gameId); }, 300);
+      timer = setTimeout(() => {
+        loadPlayers(gameId); loadRadelci(gameId); checkNewEntries(gameId);
+        // zaključek pride takoj za zadnjimi točkami: če igra še teče, preverimo še enkrat malo kasneje
+        checkFinished(gameId).then(done => { if (!done) setTimeout(() => checkFinished(gameId), 1500); });
+      }, 300);
     };
     const gameFilter = `game_id=eq.${gameId}`;
     const channel = supabase
@@ -333,6 +364,7 @@ export default function ActiveGame() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'radelci', filter: gameFilter }, refresh)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'radelci', filter: gameFilter }, refresh)
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'radelci' }, refresh)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${gameId}` }, refresh)
       .subscribe();
 
     // Ko se telefon zbudi ali se vrneš v aplikacijo/brskalnik, naložimo sveže stanje
@@ -812,6 +844,7 @@ export default function ActiveGame() {
 
   const finishGame = async () => {
     if (!gameId) return;
+    finishingRef.current = true; // okno zmagovalca prikaže ta funkcija sama
     setLoading(true);
     try {
         const finalPlayers = [...players];
@@ -853,7 +886,7 @@ export default function ActiveGame() {
         } else {
             exitToLobby();
         }
-    } catch (e) { showAlert("Napaka", "Prišlo je do napake pri zaključevanju."); } finally { setLoading(false); }
+    } catch (e) { finishingRef.current = false; showAlert("Napaka", "Prišlo je do napake pri zaključevanju."); } finally { setLoading(false); }
   };
 
   const getSelectedPlayerName = () => players.find(x => x.id === selectedPlayerId)?.name || '';
