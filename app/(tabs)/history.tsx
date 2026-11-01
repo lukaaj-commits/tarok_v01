@@ -694,7 +694,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
                         for (let i = 0; i <= index; i++) { runningTotal += playerEntries[i].points; }
                         
                         const isPenalty = penaltyEntryIds.has(entry.id) || !!entry.is_penalty;
-                        const pointsColor = isPenalty ? COLORS.warning : (entry.is_valat ? COLORS.warning : (entry.points > 0 ? styles.positivePoints.color : styles.negativePoints.color));
+                        const pointsColor = isPenalty ? COLORS.warning : (entry.is_valat ? COLORS.warning : (entry.points >= 0 ? styles.positivePoints.color : styles.negativePoints.color));
 
                         return (
                           <View key={entry.id} style={styles.historyItem}>

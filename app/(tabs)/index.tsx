@@ -89,6 +89,7 @@ import PullToRefresh from '@/components/PullToRefresh';
 import { buildFacts, pickFact, Fact } from '@/lib/startFacts';
 import { HomeStoryCard } from '@/components/StoryEntry';
 import { openStoryFlow } from '@/lib/storyEntry';
+import GameChart from '@/components/GameChart';
 import SwipeTabs from '@/components/SwipeTabs';
 
 const GRADIENT_COLORS = ['#0A84FF', '#0A84FF']; 
@@ -587,6 +588,14 @@ export default function ActiveGame() {
     } finally { if (req === historyReq.current) setHistoryLoading(false); }
   };
 
+  // ko je Stanje igre odprto in se točke spremenijo (tudi z drugega telefona), osvežimo potek za graf
+  const scoreSig = players.map(p => `${p.id}:${p.total_score}`).join('|');
+  useEffect(() => {
+    if (!showLeaderboardModal || !gameId) return;
+    supabase.from('score_entries').select('*').eq('game_id', gameId).order('created_at', { ascending: true })
+      .then(({ data }) => { if (data) setAllGameHistory(data); });
+  }, [scoreSig, showLeaderboardModal, gameId]);
+
   const openLeaderboard = async () => {
     setShowLeaderboardModal(true);
     setLeaderboardTab('list');
@@ -778,7 +787,6 @@ export default function ActiveGame() {
     );
   };
 
-  const chartData = prepareChartData();
 
   // Glavni seznam: vodilni vedno na vrhu (pri enakih točkah ostane vrstni red dodajanja)
   const sortedPlayers = [...players].sort((a, b) => b.total_score - a.total_score || a.position - b.position);
@@ -1037,7 +1045,7 @@ export default function ActiveGame() {
                   <Pressable key={entry.id} delayLongPress={500} unstable_pressDelay={120} onLongPress={() => openEdit(entry)} style={({ pressed }) => [styles.historyItem, pressed && styles.historyItemPressed]}>
                     <View style={styles.pointsWrapper}>
                       <View style={styles.fixedPointsWidth}>
-                          <Text style={[styles.historyPoints, entry.is_valat ? {color: COLORS.warning} : (entry.points > 0 ? styles.positivePoints : styles.negativePoints)]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
+                          <Text style={[styles.historyPoints, entry.is_valat ? {color: COLORS.warning} : (entry.points >= 0 ? styles.positivePoints : styles.negativePoints)]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
                       </View>
                       <View style={styles.dotContainer}>
                           {renderGameIcon(entry)}
@@ -1056,7 +1064,7 @@ export default function ActiveGame() {
 
       <Modal visible={showLeaderboardModal} transparent animationType="slide" onRequestClose={() => setShowLeaderboardModal(false)}>
         <View style={styles.sheetOverlay}>
-          <View style={[styles.sheetContent, styles.historyModal]}>
+          <View style={[styles.sheetContent, styles.historyModal, { height: '80%' }]}>
             <View style={styles.leaderboardHeader}>
                 <Text style={[styles.modalTitle, { marginBottom: 0 }]}>Stanje igre</Text>
                 <TouchableOpacity onPress={() => setShowAllHistoryModal(true)} style={styles.statsButton}>
@@ -1102,28 +1110,10 @@ export default function ActiveGame() {
                 <View style={styles.chartContainer}>
                     {allGameHistory.length > 0 ? (
                         <>
-                            <ScrollView horizontal contentContainerStyle={{paddingBottom: 20}}>
-                                <LineChart
-                                    data={chartData}
-                                    width={Math.max(Dimensions.get("window").width - 60, chartData.labels.length * 40)}
-                                    height={280}
-                                    chartConfig={{
-                                        backgroundColor: COLORS.chartBg,
-                                        backgroundGradientFrom: COLORS.chartBg,
-                                        backgroundGradientTo: COLORS.chartBg,
-                                        decimalPlaces: 0,
-                                        color: (opacity = 1) => `rgba(255, 255, 255, ${opacity * 0.6})`,
-                                        labelColor: (opacity = 1) => `rgba(142, 142, 147, ${opacity})`,
-                                        style: { borderRadius: 16 },
-                                        propsForDots: { r: "4", strokeWidth: "2", stroke: COLORS.chartBg },
-                                        propsForBackgroundLines: { stroke: 'rgba(255,255,255,0.07)', strokeDasharray: '' }
-                                    }}
-                                    bezier
-                                    withShadow={false}
-                                    style={{ marginVertical: 8, borderRadius: 16 }}
-                                    withLegend={false} 
-                                />
-                            </ScrollView>
+                            <View style={{ marginTop: 8, borderRadius: 16, backgroundColor: COLORS.chartBg, paddingVertical: 6 }}>
+                                <GameChart height={280} players={players} entries={allGameHistory} focusId={focusedPlayerId}
+                                    colorOf={id => CHART_COLORS[Math.max(0, players.findIndex(p => p.id === id)) % CHART_COLORS.length]} />
+                            </View>
                             
                             <View style={[styles.legendContainer, { marginTop: 10 }]}>
                                 {players.map((p, index) => {
@@ -1148,7 +1138,7 @@ export default function ActiveGame() {
                 </View>
             </SwipeTabs>
 
-            <TouchableOpacity style={styles.closeButton} onPress={() => setShowLeaderboardModal(false)}><Text style={styles.modalButtonText}>Zapri</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.closeButton, { marginTop: 14 }]} onPress={() => setShowLeaderboardModal(false)}><Text style={styles.modalButtonText}>Zapri</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1190,7 +1180,7 @@ export default function ActiveGame() {
                           <Pressable key={entry.id} delayLongPress={500} unstable_pressDelay={120} onLongPress={() => openEdit(entry)} style={({ pressed }) => [styles.historyItem, pressed && styles.historyItemPressed]}>
                              <View style={styles.pointsWrapper}>
                                 <View style={styles.fixedPointsWidth}>
-                                    <Text style={[styles.historyPoints, entry.is_valat ? {color: COLORS.warning} : (entry.points > 0 ? styles.positivePoints : styles.negativePoints)]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
+                                    <Text style={[styles.historyPoints, entry.is_valat ? {color: COLORS.warning} : (entry.points >= 0 ? styles.positivePoints : styles.negativePoints)]}>{entry.points > 0 ? '+' : ''}{entry.points}</Text>
                                 </View>
                                 <View style={styles.dotContainer}>
                                     {renderGameIcon(entry)}
@@ -1301,7 +1291,7 @@ export default function ActiveGame() {
                 <TouchableOpacity activeOpacity={0.8} style={styles.kindButton} onPress={() => chooseKind('partner')}><Circle size={9} color="#fff" /><Text style={styles.kindText}>{g(getSelectedPlayerName(), 'Klican', 'Klicana')}</Text></TouchableOpacity>
                 <TouchableOpacity activeOpacity={0.8} style={styles.kindButton} onPress={() => chooseKind('beggar')}><Triangle size={9} color="#fff" fill="#fff" /><Text style={styles.kindText}>Berač</Text></TouchableOpacity>
               </View>
-              <TouchableOpacity activeOpacity={0.8} style={styles.klopButtonKind} onPress={() => chooseKind('klop')}>
+              <TouchableOpacity activeOpacity={0.8} style={styles.klopKindButton} onPress={() => chooseKind('klop')}>
                 <View style={{ width: 9, height: 9, borderWidth: 1.6, borderColor: KLOP_COLOR, transform: [{ rotate: '45deg' }] }} />
                 <Text style={styles.kindText}>Klop</Text>
               </TouchableOpacity>
@@ -1536,7 +1526,7 @@ const styles = StyleSheet.create({
   kazenButton: { height: 62, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: 'rgba(255,69,58,0.15)', borderWidth: 0.5, borderColor: 'rgba(255,69,58,0.35)', borderTopColor: 'rgba(255,120,110,0.55)', marginTop: 8 },
   kindBigText: { color: '#FFFFFF', fontSize: 18, fontWeight: '600' },
   kindButton: { flex: 1, height: 54, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.10)', borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.18)' },
-  klopButtonKind: { height: 54, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 10, backgroundColor: 'rgba(191,90,242,0.15)', borderWidth: 0.5, borderColor: 'rgba(191,90,242,0.35)', borderTopColor: 'rgba(210,140,250,0.55)' },
+  klopKindButton: { height: 54, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 10, backgroundColor: 'rgba(255,255,255,0.10)', borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.18)' },
   kindText: { color: '#FFFFFF', fontSize: 16, fontWeight: '500' },
   historyItemPressed: { backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10 },
   editHint: { color: '#8E8E93', fontSize: 13, textAlign: 'center', marginBottom: 12 },
