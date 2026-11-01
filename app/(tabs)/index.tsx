@@ -438,7 +438,76 @@ export default function ActiveGame() {
   type EntryKind = 'played' | 'partner' | 'beggar' | 'klop' | 'kazen';
   const entryKind = useRef<EntryKind | null>(null);
   const [askKind, setAskKind] = useState(false);
-  const chooseKind = (k: EntryKind) => { entryKind.current = k; setAskKind(false); submitScore(); };
+  const chooseKind = (k: EntryKind) => {
+    setAskKind(false);
+    if (k === 'klop') { openKlop(); return; } // klop: vsem igralcem naenkrat
+    entryKind.current = k; submitScore();
+  };
+
+  // KLOP ZA VSE NAENKRAT: seznam vseh igralcev, ena številčnica, en Potrdi
+  const [klopVals, setKlopVals] = useState<Record<string, string> | null>(null);
+  const [klopActive, setKlopActive] = useState<string | null>(null);
+  const [klopSaving, setKlopSaving] = useState(false);
+  const openKlop = () => {
+    const first = selectedPlayerId!;
+    // pri klopu so točke privzeto minus (vpisane brez znaka obrnemo; s +/− se da spremeniti)
+    const v = scoreInput && !scoreInput.startsWith('-') && Number(scoreInput) !== 0 ? '-' + scoreInput : scoreInput;
+    setKlopVals({ [first]: v });
+    // prvi prazen igralec za tistim, ki smo ga že vpisali
+    const next = players.find(p => p.id !== first);
+    setKlopActive(next ? next.id : first);
+    setShowScoreModal(false); setScoreInput('');
+  };
+  const klopPad = (value: string) => {
+    if (!klopActive) return;
+    setKlopVals(prev => {
+      const cur = (prev && prev[klopActive]) || '';
+      let nv = cur;
+      if (value === 'DEL') nv = cur.slice(0, -1);
+      else if (value === '-') nv = cur.startsWith('-') ? cur.substring(1) : '-' + cur;
+      else if (cur === '') nv = value === '0' ? '0' : '-' + value; // prva števka: privzeto minus
+      else if (cur.replace('-', '').length < 5) nv = cur + value;
+      return { ...(prev || {}), [klopActive]: nv };
+    });
+  };
+  const saveKlop = async () => {
+    if (!klopVals || klopSaving || !gameId) return;
+    const rows = players
+      .map(p => ({ p, v: (klopVals[p.id] || '').trim() }))
+      .filter(x => x.v && x.v !== '-')
+      .map(x => ({ p: x.p, points: parseInt(x.v, 10) }))
+      .filter(x => !isNaN(x.points));
+    if (!rows.length) { showToast('Vpiši točke vsaj enemu igralcu.'); return; }
+    const missing = players.filter(p => !rows.some(r => r.p.id === p.id)).map(p => p.name);
+    if (missing.length) {
+      const names = missing.length > 1 ? `${missing.slice(0, -1).join(', ')} in ${missing[missing.length - 1]}` : missing[0];
+      const ok = await confirmDialog({ title: `${names} ${missing.length > 1 ? (missing.length === 2 ? 'nimata' : 'nimajo') : 'nima'} točk.`, confirmText: 'Potrdi vseeno', cancelText: 'Popravi' });
+      if (!ok) return;
+    }
+    const odd = rows.filter(r => r.points % 5 !== 0);
+    if (odd.length) {
+      const ok = await confirmDialog({ title: `${odd.map(r => `${r.p.name} ${r.points > 0 ? '+' : ''}${r.points}`).join(', ')}, si prepričan?`, confirmText: 'Potrdi', cancelText: 'Popravi' });
+      if (!ok) return;
+    }
+    setKlopSaving(true);
+    try {
+      const { data: inserted, error } = await supabase.from('score_entries').insert(rows.map(r => ({
+        player_id: r.p.id, game_id: gameId, points: r.points,
+        played: false, is_partner: false, is_beggar: false, is_valat: false, is_klop: true, is_kazen: false,
+      }))).select('id');
+      if (error) throw error;
+      (inserted || []).forEach((r: any) => ownEntryIds.current.add(r.id));
+      const totals = await Promise.all(rows.map(r => recalcPlayerTotal(r.p.id).then(t => [r.p.id, t] as const)));
+      const map = new Map(totals);
+      setPlayers(prev => prev.map(p => (map.has(p.id) ? { ...p, total_score: map.get(p.id)! } : p)));
+      if (totals.some(([, t]) => t === 0)) setShowKlopModal(true);
+      setRadelcHint(true);
+      showToast('Klop vpisan');
+      setKlopVals(null); setKlopActive(null);
+    } catch (e: any) {
+      showAlert('Napaka', e?.message || String(e));
+    } finally { setKlopSaving(false); }
+  };
 
   // ZASLON NE UGASNE: med aktivno igro (nastavitev telefona, privzeto izklopljeno)
   const keepAwake = useKeepAwake();
@@ -1422,6 +1491,51 @@ export default function ActiveGame() {
         </Modal>
       )}
 
+      {klopVals && (
+        <Modal visible transparent animationType="slide" onRequestClose={() => { setKlopVals(null); setKlopActive(null); }}>
+          <View style={styles.sheetOverlay}>
+            <View style={[styles.sheetContent, { maxHeight: '94%' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
+                <View style={{ width: 10, height: 10, borderWidth: 1.6, borderColor: KLOP_COLOR, transform: [{ rotate: '45deg' }] }} />
+                <Text style={[styles.modalTitle, { marginBottom: 0 }]}>Klop</Text>
+              </View>
+              <Text style={styles.editHint}>tapni igralca in vpiši njegove točke</Text>
+              <ScrollView style={{ maxHeight: 300 }}>
+                {players.map(p => {
+                  const v = klopVals[p.id] || '';
+                  const on = p.id === klopActive;
+                  const shown = v && v !== '-' ? (v.startsWith('-') ? v.replace('-', '−') : v) : (v === '-' ? '−' : '–');
+                  const col = !v || v === '-' ? '#8E8E93' : v.startsWith('-') ? COLORS.danger : '#30D158';
+                  return (
+                    <TouchableOpacity key={p.id} activeOpacity={0.7} onPress={() => setKlopActive(p.id)} style={[styles.klopRow, on && styles.klopRowOn]}>
+                      <Image source={{ uri: getAvatarUrl(p.name) }} style={styles.askAvatar} />
+                      <Text style={[styles.askName, on && { fontWeight: '600' }]}>{p.name}</Text>
+                      <Text style={{ color: col, fontSize: 20, fontWeight: '600' }}>{shown}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              <View style={[styles.numpadContainer, { marginTop: 12 }]}>
+                {[[1, 2, 3], [4, 5, 6], [7, 8, 9]].map((row, i) => (
+                  <View key={i} style={styles.numpadRow}>{row.map(n => (<TouchableOpacity key={n} style={[styles.numpadButton, { height: 48 }]} onPress={() => klopPad(String(n))}><Text style={styles.numpadText}>{n}</Text></TouchableOpacity>))}</View>
+                ))}
+                <View style={styles.numpadRow}>
+                  <TouchableOpacity style={[styles.numpadButton, styles.numpadActionButton, { height: 48 }]} onPress={() => klopPad('-')}><Text style={[styles.numpadText, { fontSize: 20, letterSpacing: 3 }]}>+/−</Text></TouchableOpacity>
+                  <TouchableOpacity style={[styles.numpadButton, { height: 48 }]} onPress={() => klopPad('0')}><Text style={styles.numpadText}>0</Text></TouchableOpacity>
+                  <TouchableOpacity style={[styles.numpadButton, styles.numpadActionButton, { height: 48 }]} onPress={() => klopPad('DEL')}><Delete size={24} color="#fff" /></TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity style={[styles.modalButton, styles.cancelButton]} onPress={() => { setKlopVals(null); setKlopActive(null); }}><Text style={styles.modalButtonText}>Prekliči</Text></TouchableOpacity>
+                <TouchableOpacity style={[styles.modalButton, styles.primaryModalButton]} onPress={saveKlop} disabled={klopSaving}>
+                  {klopSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.modalButtonText}>Potrdi</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       <Modal visible={showValatModal} transparent animationType="fade" onRequestClose={() => setShowValatModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -1649,6 +1763,8 @@ const styles = StyleSheet.create({
   kindBigText: { color: '#FFFFFF', fontSize: 18, fontWeight: '600' },
   kindButton: { flex: 1, height: 54, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.10)', borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.18)' },
   klopKindButton: { height: 54, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 10, backgroundColor: 'rgba(255,255,255,0.10)', borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.18)' },
+  klopRow: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 52, paddingHorizontal: 12, marginBottom: 6, borderRadius: 14, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' },
+  klopRowOn: { borderWidth: 1, borderColor: 'rgba(10,132,255,0.9)', backgroundColor: 'rgba(10,132,255,0.12)' },
   askRow: { flexDirection: 'row', alignItems: 'center', gap: 14, height: 56, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.08)' },
   askAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#1C1C1E' },
   askName: { flex: 1, color: '#FFFFFF', fontSize: 17 },
