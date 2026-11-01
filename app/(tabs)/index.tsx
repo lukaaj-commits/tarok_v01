@@ -557,6 +557,8 @@ export default function ActiveGame() {
   // "Koga je klical?" / "Kdo je igral?" (nastavitev telefona, privzeto izklopljeno)
   const [partnerAsk, setPartnerAsk] = useState<{ from: string; points: number; kind: 'played' | 'partner'; isValat: boolean } | null>(null);
   const partnerBusy = useRef(false);
+  const [partnerPick, setPartnerPick] = useState<string | null>(null);
+  useEffect(() => { setPartnerPick(null); }, [partnerAsk]);
   const savePartner = async (otherId: string) => {
     if (!partnerAsk || partnerBusy.current) return;
     partnerBusy.current = true;
@@ -1475,20 +1477,24 @@ export default function ActiveGame() {
               <Text style={styles.editHint}>
                 {getSelectedPlayerName()} · <Text style={{ color: scoreInput.startsWith('-') ? COLORS.danger : '#30D158', fontWeight: '600' }}>{scoreInput.startsWith('-') ? scoreInput.replace('-', '−') : `+${scoreInput}`}</Text> · ni označeno
               </Text>
-              <TouchableOpacity activeOpacity={0.8} style={styles.kazenButton} onPress={() => chooseKind('kazen')}>
-                <Text style={{ color: KAZEN_COLOR, fontSize: 19, fontWeight: '800' }}>!</Text>
-                <Text style={styles.kindBigText}>Kazen</Text>
-              </TouchableOpacity>
-              <Text style={[styles.editHint, { marginTop: 6, marginBottom: 14, fontSize: 12 }]}>ujet mond, napačno mešanje …</Text>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <TouchableOpacity activeOpacity={0.8} style={styles.kindButton} onPress={() => chooseKind('played')}><View style={styles.playedDot} /><Text style={styles.kindText}>{g(getSelectedPlayerName(), 'Igral', 'Igrala')}</Text></TouchableOpacity>
-                <TouchableOpacity activeOpacity={0.8} style={styles.kindButton} onPress={() => chooseKind('partner')}><Circle size={9} color="#fff" /><Text style={styles.kindText}>{g(getSelectedPlayerName(), 'Klican', 'Klicana')}</Text></TouchableOpacity>
-                <TouchableOpacity activeOpacity={0.8} style={styles.kindButton} onPress={() => chooseKind('beggar')}><Triangle size={9} color="#fff" fill="#fff" /><Text style={styles.kindText}>Berač</Text></TouchableOpacity>
+              {/* redki izbiri zgoraj: kazen in klop */}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                <TouchableOpacity activeOpacity={0.8} style={[styles.kindPill, { backgroundColor: 'rgba(255,105,97,0.08)', borderColor: 'rgba(255,105,97,0.35)' }]} onPress={() => chooseKind('kazen')}>
+                  <Text style={{ color: KAZEN_COLOR, fontSize: 17, fontWeight: '800' }}>!</Text>
+                  <Text style={styles.kindPillText}>Kazen</Text>
+                </TouchableOpacity>
+                <TouchableOpacity activeOpacity={0.8} style={[styles.kindPill, { backgroundColor: 'rgba(191,90,242,0.08)', borderColor: 'rgba(191,90,242,0.35)' }]} onPress={() => chooseKind('klop')}>
+                  <View style={{ width: 9, height: 9, borderWidth: 1.6, borderColor: KLOP_COLOR, transform: [{ rotate: '45deg' }] }} />
+                  <Text style={styles.kindPillText}>Klop</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity activeOpacity={0.8} style={styles.klopKindButton} onPress={() => chooseKind('klop')}>
-                <View style={{ width: 9, height: 9, borderWidth: 1.6, borderColor: KLOP_COLOR, transform: [{ rotate: '45deg' }] }} />
-                <Text style={styles.kindText}>Klop</Text>
-              </TouchableOpacity>
+              <View style={styles.orRow}><View style={styles.orLine} /><Text style={styles.orText}>ali</Text><View style={styles.orLine} /></View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity activeOpacity={0.8} style={styles.kindTile} onPress={() => chooseKind('played')}><View style={[styles.playedDot, { width: 13, height: 13, borderRadius: 7 }]} /><Text style={styles.kindText}>{g(getSelectedPlayerName(), 'Igral', 'Igrala')}</Text></TouchableOpacity>
+                <TouchableOpacity activeOpacity={0.8} style={styles.kindTile} onPress={() => chooseKind('partner')}><Circle size={14} color="#fff" strokeWidth={2.4} /><Text style={styles.kindText}>{g(getSelectedPlayerName(), 'Klican', 'Klicana')}</Text></TouchableOpacity>
+                <TouchableOpacity activeOpacity={0.8} style={styles.kindTile} onPress={() => chooseKind('beggar')}><Triangle size={14} color="#fff" fill="#fff" /><Text style={styles.kindText}>Berač</Text></TouchableOpacity>
+              </View>
+              <Text style={[styles.editHint, { marginTop: 22, marginBottom: 0, fontSize: 12.5, color: '#636366' }]}>Kazen: ujet mond, napačno mešanje …</Text>
             </View>
           </View>
         </Modal>
@@ -1504,18 +1510,20 @@ export default function ActiveGame() {
                   {n} · <Text style={{ color: partnerAsk.points >= 0 ? '#30D158' : COLORS.danger, fontWeight: '600' }}>{partnerAsk.points > 0 ? '+' : ''}{partnerAsk.points}</Text> · {partnerAsk.kind === 'played' ? g(n, 'igral', 'igrala') : g(n, 'klican', 'klicana')}
                 </Text>
               ); })()}
-              <ScrollView style={{ maxHeight: 340 }}>
-                {players.filter(p => p.id !== partnerAsk.from).map(p => (
-                  <TouchableOpacity key={p.id} activeOpacity={0.7} style={styles.askRow} onPress={() => savePartner(p.id)}>
+              <ScrollView style={{ maxHeight: 360, marginTop: 10 }}>
+                {players.filter(p => p.id !== partnerAsk.from).map(p => { const on = partnerPick === p.id; return (
+                  <TouchableOpacity key={p.id} activeOpacity={0.7} style={[styles.pickRow, on && styles.pickRowOn]} onPress={() => setPartnerPick(on ? null : p.id)}>
                     <Image source={{ uri: getAvatarUrl(p.name) }} style={styles.askAvatar} />
-                    <Text style={styles.askName}>{p.name}</Text>
-                    <ChevronRight size={18} color="#636366" />
+                    <Text style={[styles.askName, on && { fontWeight: '600' }]}>{p.name}</Text>
+                    {on ? <View style={styles.pickCheck}><Check size={14} color="#fff" strokeWidth={3.2} /></View> : <View style={styles.pickEmpty} />}
                   </TouchableOpacity>
-                ))}
+                ); })}
               </ScrollView>
-              <TouchableOpacity activeOpacity={0.8} style={[styles.klopKindButton, { marginTop: 16 }]} onPress={() => setPartnerAsk(null)}>
-                <Text style={styles.kindText}>{partnerAsk.kind === 'played' ? g(players.find(p => p.id === partnerAsk.from)?.name, 'Igral sam', 'Igrala sama') : 'Preskoči'}</Text>
-              </TouchableOpacity>
+              {(() => { const picked = players.find(p => p.id === partnerPick); const pts = `${partnerAsk.points > 0 ? '+' : ''}${partnerAsk.points}`; return (
+                <TouchableOpacity activeOpacity={0.85} style={styles.pickButton} onPress={() => { if (picked) savePartner(picked.id); else setPartnerAsk(null); }}>
+                  <Text style={styles.pickButtonText}>{picked ? `Potrdi · ${picked.name} ${pts}` : (partnerAsk.kind === 'played' ? g(players.find(p => p.id === partnerAsk.from)?.name, 'Igral sam', 'Igrala sama') : 'Preskoči')}</Text>
+                </TouchableOpacity>
+              ); })()}
               <TouchableOpacity style={{ alignItems: 'center', paddingTop: 14 }} onPress={() => { setAskPartner(false); setPartnerAsk(null); showToast('Izklopljeno. Vklopiš v profilu, čisto spodaj.'); }}>
                 <Text style={{ color: '#636366', fontSize: 12.5 }}>Ne sprašuj več</Text>
               </TouchableOpacity>
@@ -1798,6 +1806,18 @@ const styles = StyleSheet.create({
   klopKindButton: { height: 54, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 10, backgroundColor: 'rgba(255,255,255,0.10)', borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.18)' },
   klopRow: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 52, paddingHorizontal: 12, marginBottom: 6, borderRadius: 14, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)' },
   klopRowOn: { borderWidth: 1, borderColor: 'rgba(10,132,255,0.9)', backgroundColor: 'rgba(10,132,255,0.12)' },
+  kindPill: { flex: 1, height: 48, borderRadius: 24, borderWidth: 0.5, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
+  kindPillText: { color: '#FFFFFF', fontSize: 15.5 },
+  orRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 20, marginHorizontal: 4 },
+  orLine: { flex: 1, height: 0.5, backgroundColor: 'rgba(255,255,255,0.10)' },
+  orText: { color: '#636366', fontSize: 12 },
+  kindTile: { flex: 1, height: 84, borderRadius: 18, alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: 'rgba(255,255,255,0.10)', borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.18)' },
+  pickRow: { flexDirection: 'row', alignItems: 'center', gap: 14, height: 62, paddingLeft: 12, paddingRight: 16, borderRadius: 16, marginBottom: 10, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.04)' },
+  pickRowOn: { borderWidth: 1.5, borderColor: '#0A84FF', backgroundColor: 'rgba(10,132,255,0.14)' },
+  pickCheck: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#0A84FF', alignItems: 'center', justifyContent: 'center' },
+  pickEmpty: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: '#48484A' },
+  pickButton: { height: 56, borderRadius: 16, marginTop: 10, backgroundColor: '#0A84FF', alignItems: 'center', justifyContent: 'center' },
+  pickButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
   askRow: { flexDirection: 'row', alignItems: 'center', gap: 14, height: 56, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.08)' },
   askAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#1C1C1E' },
   askName: { flex: 1, color: '#FFFFFF', fontSize: 17 },
