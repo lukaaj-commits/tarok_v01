@@ -15,7 +15,9 @@ import {
   Platform,
   Dimensions,
   Image,
-  AppState
+  AppState,
+  Animated,
+  Easing,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -284,6 +286,34 @@ export default function ActiveGame() {
     return () => { cancelled = true; };
   }, [gameId, players]);
 
+  // NOV VPIS Z DRUGEGA TELEFONA: kratko obvestilo "Nov vpis: Miha +70" (vpisi s tega telefona se ne javljajo)
+  const ownEntryIds = useRef<Set<string>>(new Set());
+  const playersRef = useRef(players);
+  playersRef.current = players; // vedno svež seznam (tudi za obvestila iz poslušalca v živo)
+  const lastEntryAt = useRef<string | null>(null);
+  const [radelcHint, setRadelcHint] = useState(false); // gumb Radelc rahlo utripa po valatu, klopu ali beraču
+  const radelcWorthy = (e: any) => !!(e.is_valat || e.is_beggar || e.is_klop);
+  useEffect(() => {
+    lastEntryAt.current = null; ownEntryIds.current = new Set(); setRadelcHint(false);
+    if (!gameId) return;
+    // izhodišče: zadnji vpis ob odprtju igre (starejših ne javljamo)
+    supabase.from('score_entries').select('created_at').eq('game_id', gameId).order('created_at', { ascending: false }).limit(1)
+      .then(({ data }) => { lastEntryAt.current = data?.[0]?.created_at || new Date(0).toISOString(); });
+  }, [gameId]);
+  const checkNewEntries = async (gid: string) => {
+    const since = lastEntryAt.current;
+    if (!since) return;
+    const { data } = await supabase.from('score_entries').select('*').eq('game_id', gid).gt('created_at', since).order('created_at', { ascending: true });
+    if (!data || !data.length) return;
+    lastEntryAt.current = data[data.length - 1].created_at;
+    const foreign = data.filter((e: any) => !ownEntryIds.current.has(e.id) && !e.is_penalty);
+    if (!foreign.length) return;
+    const nameOf = (id: string) => playersRef.current.find(p => p.id === id)?.name || 'igralec';
+    const txt = foreign.map((e: any) => `${nameOf(e.player_id)} ${Number(e.points) > 0 ? '+' : ''}${e.points}`).join(', ');
+    showToast(`Nov vpis: ${txt}`);
+    setRadelcHint(radelcWorthy(foreign[foreign.length - 1]));
+  };
+
   // REZULTATI V ŽIVO: ko je igra odprta, poslušamo spremembe igralcev in radelcev te igre
   // (točke, razveljavitve, radelci z drugih naprav) in ob spremembi ponovno naložimo stanje.
   useEffect(() => {
@@ -292,7 +322,7 @@ export default function ActiveGame() {
     // Več hkratnih sprememb (npr. radelc za vse igralce) združimo v eno osvežitev
     const refresh = () => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => { loadPlayers(gameId); loadRadelci(gameId); }, 300);
+      timer = setTimeout(() => { loadPlayers(gameId); loadRadelci(gameId); checkNewEntries(gameId); }, 300);
     };
     const gameFilter = `game_id=eq.${gameId}`;
     const channel = supabase
@@ -432,12 +462,13 @@ export default function ActiveGame() {
     const ask = partnerAsk;
     const otherIsPartner = ask.kind === 'played'; // igralec -> drugi je klican; klican -> drugi je igral
     try {
-      const { error } = await supabase.from('score_entries').insert({
+      const { data: inserted, error } = await supabase.from('score_entries').insert({
         player_id: otherId, game_id: gameId, points: ask.points,
         played: !otherIsPartner, is_partner: otherIsPartner, is_beggar: false, is_valat: ask.isValat,
         is_klop: false, is_kazen: false,
-      });
+      }).select('id');
       if (error) throw error;
+      (inserted || []).forEach((r: any) => ownEntryIds.current.add(r.id));
       const total = await recalcPlayerTotal(otherId);
       setPlayers(prev => prev.map(p => (p.id === otherId ? { ...p, total_score: total } : p)));
       const nameOf = (id: string) => players.find(p => p.id === id)?.name || '';
@@ -545,7 +576,7 @@ export default function ActiveGame() {
     setSubmitting(true);
     const kind = entryKind.current || scoreMode; // izbira v vprašanju ali gumb v oknu
     try {
-      const { error } = await supabase.from('score_entries').insert({
+      const { data: inserted, error } = await supabase.from('score_entries').insert({
         player_id: selectedPlayerId, 
         game_id: gameId, 
         points, 
@@ -555,8 +586,10 @@ export default function ActiveGame() {
         is_valat: isValat,
         is_klop: kind === 'klop',
         is_kazen: kind === 'kazen',
-      });
+      }).select('id');
       if (error) throw error;
+      (inserted || []).forEach((r: any) => ownEntryIds.current.add(r.id));
+      setRadelcHint(isValat || kind === 'beggar' || kind === 'klop');
 
       const newScore = await recalcPlayerTotal(selectedPlayerId!);
       setPlayers(prev => prev.map(p => p.id === selectedPlayerId ? { ...p, total_score: newScore } : p));
@@ -937,7 +970,8 @@ export default function ActiveGame() {
           <UserPlus size={21} color={COLORS.primary} />
           <Text style={styles.tileText}>Igralec</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.tile, styles.tileRadelc]} onPress={() => once('radelc', addGlobalRadelc)} activeOpacity={0.7}>
+        <TouchableOpacity style={[styles.tile, styles.tileRadelc]} onPress={() => { setRadelcHint(false); once('radelc', addGlobalRadelc); }} activeOpacity={0.7}>
+          {radelcHint && <PulseGlow />}
           <Plus size={21} color={COLORS.radelcBorder} />
           <Text style={styles.tileText}>Radelc</Text>
         </TouchableOpacity>
@@ -1693,3 +1727,23 @@ const styles = StyleSheet.create({
   inGameText: { color: COLORS.textMuted, fontSize: 14, fontWeight: '500' },
   pickCircleOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
 });
+
+// Rahlo utripajoč sij na gumbu Radelc (po valatu, klopu ali beraču)
+function PulseGlow() {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(v, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+      Animated.timing(v, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [v]);
+  return (
+    <Animated.View pointerEvents="none" style={{
+      position: 'absolute', top: -1, left: -1, right: -1, bottom: -1, borderRadius: 16, borderWidth: 1.5,
+      borderColor: '#64D2FF', backgroundColor: 'rgba(10,132,255,0.28)',
+      opacity: v.interpolate({ inputRange: [0, 1], outputRange: [0.15, 1] }),
+    }} />
+  );
+}
