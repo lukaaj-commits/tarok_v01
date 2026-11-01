@@ -83,13 +83,13 @@ const COLORS = {
 };
 
 // Okna in kratka sporočila v dizajnu aplikacije
-import { showAlert, showToast } from '@/lib/alert';
+import { showAlert, showToast, confirmDialog } from '@/lib/alert';
 import { AnimatedNumber, ReorderList } from '@/components/Motion';
 import PullToRefresh from '@/components/PullToRefresh';
 import { buildFacts, pickFact, Fact } from '@/lib/startFacts';
 import { HomeStoryCard } from '@/components/StoryEntry';
 import { openStoryFlow } from '@/lib/storyEntry';
-import { getAskPartner, setAskPartner } from '@/components/AskPartnerRow';
+import { getAskPartner, setAskPartner, useKeepAwake } from '@/components/AskPartnerRow';
 import GameChart from '@/components/GameChart';
 import SwipeTabs from '@/components/SwipeTabs';
 
@@ -410,6 +410,19 @@ export default function ActiveGame() {
   const [askKind, setAskKind] = useState(false);
   const chooseKind = (k: EntryKind) => { entryKind.current = k; setAskKind(false); submitScore(); };
 
+  // ZASLON NE UGASNE: med aktivno igro (nastavitev telefona, privzeto izklopljeno)
+  const keepAwake = useKeepAwake();
+  useFocusEffect(useCallback(() => {
+    const nav: any = typeof navigator !== 'undefined' ? navigator : null;
+    if (!keepAwake || !gameId || !nav?.wakeLock) return;
+    let lock: any = null, off = false;
+    const take = async () => { try { if (!off && document.visibilityState === 'visible') lock = await nav.wakeLock.request('screen'); } catch {} };
+    const onVis = () => { if (document.visibilityState === 'visible') take(); }; // ob vrnitvi v aplikacijo znova
+    take();
+    document.addEventListener('visibilitychange', onVis);
+    return () => { off = true; document.removeEventListener('visibilitychange', onVis); try { lock?.release(); } catch {} };
+  }, [keepAwake, gameId]));
+
   // "Koga je klical?" / "Kdo je igral?" (nastavitev telefona, privzeto izklopljeno)
   const [partnerAsk, setPartnerAsk] = useState<{ from: string; points: number; kind: 'played' | 'partner'; isValat: boolean } | null>(null);
   const partnerBusy = useRef(false);
@@ -437,8 +450,17 @@ export default function ActiveGame() {
     } finally { partnerBusy.current = false; }
   };
 
+  // točke se v taroku vpisujejo po 5; drugačne so skoraj vedno tipkarska napaka
+  const oddOk = useRef<number | null>(null);
+  const confirmOdd = (points: number) => confirmDialog({
+    title: `${points > 0 ? '+' : ''}${points}, si prepričan?`,
+    confirmText: `Vpiši ${points > 0 ? '+' : ''}${points}`,
+    cancelText: 'Popravi',
+  });
+
   const openScoreInput = (playerId: string) => {
     entryKind.current = null;
+    oddOk.current = null;
     setSelectedPlayerId(playerId); 
     setScoreInput(''); 
     setScoreMode('none'); 
@@ -460,6 +482,7 @@ export default function ActiveGame() {
     const points = parseInt(editInput, 10);
     if (isNaN(points)) { showAlert('Napaka', 'Neveljaven vnos.'); return; }
     if (points === Number(editEntry.points)) { setEditEntry(null); return; }
+    if (points % 5 !== 0 && !(await confirmOdd(points))) return;
     const pid = editEntry.player_id;
     if (!pid) return;
     setEditSaving(true);
@@ -490,6 +513,10 @@ export default function ActiveGame() {
     if (scoreInput === '-') { setScoreInput(''); return; }
     const points = parseInt(scoreInput, 10);
     if (isNaN(points)) { showAlert("Napaka", "Neveljaven vnos."); return; }
+    if (points % 5 !== 0 && oddOk.current !== points) {
+      if (!(await confirmOdd(points))) return; // Popravi: ostanemo v številčnici
+      oddOk.current = points;
+    }
     // nič ni označeno: najprej vprašamo, kaj je bil vpis
     if (scoreMode === 'none' && !entryKind.current) { setAskKind(true); return; }
 

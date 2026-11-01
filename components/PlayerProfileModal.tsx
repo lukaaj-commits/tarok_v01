@@ -13,8 +13,8 @@ import StoryRow from '@/components/StoryRow';
 import SwipeTabs from '@/components/SwipeTabs';
 import ProfileAvatar from '@/components/ProfileAvatar';
 import { MonthRankRow, TableStats } from '@/components/ProfileExtras';
-import { PhoneOwnerRow } from '@/components/WhoAmI';
-import AskPartnerRow from '@/components/AskPartnerRow';
+import { PhoneOwnerRow, useMyPlayer } from '@/components/WhoAmI';
+import AskPartnerRow, { KeepAwakeRow } from '@/components/AskPartnerRow';
 
 const COLORS = {
   bg: '#000000',
@@ -55,6 +55,7 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
   const [chartWidth, setChartWidth] = useState(0);
   const [showDuel, setShowDuel] = useState(false);
   const [tab, setTab] = useState<'stats' | 'ach'>('stats');
+  const myName = useMyPlayer(); // ime, izbrano na tem telefonu
   const [showClassic, setShowClassic] = useState(false);
   const detailScrollRef = useRef<ScrollView>(null);
   const scrollY = useRef(0);
@@ -317,8 +318,9 @@ export default function PlayerProfileModal({ player, visible, onClose }: Props) 
                             </>
                             </View>
                             </SwipeTabs>
-                            {/* nastavitev tega telefona, čisto na dnu vsebine */}
-                            <AskPartnerRow />
+                            {/* nastavitvi tega telefona: samo v svojem profilu, čisto na dnu vsebine */}
+                            {myName === player.name && <AskPartnerRow />}
+                            {myName === player.name && <KeepAwakeRow />}
                         </ScrollView>
                         {/* kdo uporablja ta telefon (za "Tvoj mesec" na začetnem zaslonu) */}
                         <PhoneOwnerRow />

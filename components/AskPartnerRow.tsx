@@ -43,3 +43,39 @@ const styles = StyleSheet.create({
   text: { fontSize: 13, color: '#EBEBF5' },
   sub: { fontSize: 11.5, color: '#636366', marginTop: 1 },
 });
+
+// ---------------------------------------------------------------------
+// Nastavitev telefona "Zaslon med igro ne ugasne" (privzeto izklopljeno)
+// ---------------------------------------------------------------------
+const AWAKE_KEY = 'tarok_zaslon_med_igro_v1';
+let awake: boolean | undefined;
+const awakeListeners = new Set<(v: boolean) => void>();
+
+export async function getKeepAwake(): Promise<boolean> {
+  if (awake !== undefined) return awake;
+  try { awake = (await AsyncStorage.getItem(AWAKE_KEY)) === '1'; } catch { awake = false; }
+  return awake;
+}
+export async function setKeepAwake(v: boolean) {
+  awake = v;
+  try { await AsyncStorage.setItem(AWAKE_KEY, v ? '1' : '0'); } catch {}
+  awakeListeners.forEach(l => l(v));
+}
+export function useKeepAwake() {
+  const [v, setV] = useState<boolean>(awake ?? false);
+  useEffect(() => { getKeepAwake().then(setV); awakeListeners.add(setV); return () => { awakeListeners.delete(setV); }; }, []);
+  return v;
+}
+
+export function KeepAwakeRow() {
+  const on = useKeepAwake();
+  return (
+    <View style={[styles.row, { borderTopWidth: 0, marginTop: 0, paddingTop: 4 }]}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.text}>Zaslon med igro ne ugasne</Text>
+        <Text style={styles.sub}>Telefon se med aktivno igro ne zaklene.</Text>
+      </View>
+      <Switch value={on} onValueChange={setKeepAwake} trackColor={{ false: 'rgba(120,120,128,0.32)', true: '#30D158' }} thumbColor="#FFFFFF" {...({ activeThumbColor: '#FFFFFF' } as any)} />
+    </View>
+  );
+}
