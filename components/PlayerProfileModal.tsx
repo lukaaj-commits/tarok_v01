@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
   rivalsSection: { marginTop: 24, marginBottom: 10 }, 
   rivalCard: { paddingVertical: 10, paddingHorizontal: 2, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.10)' },
   rivalTitle: { color: COLORS.label, fontSize: 11, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 6 },
-  rivalName: { color: COLORS.text, fontSize: 16, fontWeight: '600' },
+  rivalName: { color: COLORS.text, fontSize: 15, fontWeight: '500' },
   rivalDesc: { color: COLORS.textMuted, fontSize: 12, marginTop: 2 },
   
   recordsSection: { marginTop: 24 },
@@ -491,9 +491,9 @@ const styles = StyleSheet.create({
   gridLabel: { color: '#636366', fontSize: 10, position: 'absolute', left: 0, top: -14 },
   lastGamesSection: { marginTop: 24 },
   rankRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 2, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.10)' },
-  rankRowDate: { color: '#AEAEB2', fontSize: 14 },
-  rankBadge: { height: 24, paddingHorizontal: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.30)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)' },
-  rankBadgeText: { color: '#AEAEB2', fontSize: 12, fontWeight: '600' },
+  rankRowDate: { color: COLORS.text, fontSize: 15, fontWeight: '500' },
+  rankBadge: { height: 28, paddingHorizontal: 12, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.30)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)' },
+  rankBadgeText: { color: '#AEAEB2', fontSize: 15, fontWeight: '600' },
   awardsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 10 },
   
   awardCard: { 
