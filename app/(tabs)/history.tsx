@@ -34,6 +34,7 @@ import { gameMoment as computeMoment } from '@/lib/gameMoment';
 import { confirmDialog } from '@/lib/alert';
 import PullToRefresh from '@/components/PullToRefresh';
 import SwipeTabs from '@/components/SwipeTabs';
+import { countDeals, dealsLabel } from '@/lib/dealCount';
 import TapButton from '@/components/TapButton';
 
 // "Zmagovalec" / "Zmagovalka" / "Zmagovalci" glede na spol in število zmagovalcev
@@ -582,7 +583,7 @@ const loadGlobalStats = async (destination: 'leaderboard' | 'select' = 'leaderbo
               <ViewShot ref={viewShotRef} options={{ format: 'jpg', quality: 1.0 }}>
                 <View style={{ backgroundColor: COLORS.sheet, paddingTop: 8, paddingBottom: 6 }}>
                   <Text style={[styles.modalTitle, { fontSize: 19, marginBottom: 14 }]}>{selectedGame ? getFormattedTitle(selectedGame) : 'Igra'}</Text>
-                  <Text style={styles.sectionLabel}>Končna lestvica</Text>
+                  <Text style={styles.sectionLabel}>Končna lestvica{!detailsLoading && countDeals(playerHistory) > 0 && <Text style={styles.dealsCount}>  ({dealsLabel(countDeals(playerHistory))})</Text>}</Text>
                   {detailsLoading && (<ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: 60 }} />)}
                   
                   {!selectedGame?.is_active && gamePlayers.length > 0 && (
@@ -918,6 +919,7 @@ const styles = StyleSheet.create({
   centerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
   gameModalCard: { width: '92%', maxWidth: 440, maxHeight: '88%', backgroundColor: COLORS.sheet, borderRadius: 28, padding: 16, borderWidth: 0.5, borderColor: 'rgba(100,170,255,0.14)', borderTopColor: 'rgba(120,190,255,0.40)', overflow: 'hidden' },
   sectionLabel: { color: COLORS.textMuted, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8, marginLeft: 4 },
+  dealsCount: { textTransform: 'none', letterSpacing: 0, fontSize: 13, color: COLORS.textMuted },
   pointsPill: { height: 24, paddingHorizontal: 10, borderRadius: 12, backgroundColor: 'rgba(48,209,88,0.18)', justifyContent: 'center' },
   pointsPillText: { color: COLORS.success, fontSize: 14, fontWeight: '600' },
   pillNeg: { backgroundColor: 'rgba(255,69,58,0.16)' },
