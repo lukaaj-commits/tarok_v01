@@ -96,6 +96,7 @@ import GameChart from '@/components/GameChart';
 import SwipeTabs from '@/components/SwipeTabs';
 import TapButton from '@/components/TapButton';
 import TableScreen, { TableCounts } from '@/components/TableScreen';
+import { countDeals, dealsShort } from '@/lib/dealCount';
 
 const GRADIENT_COLORS = ['#0A84FF', '#0A84FF']; 
 const KLOP_COLOR = '#BF5AF2';  // klop: vijoličen romb
@@ -142,6 +143,7 @@ export default function ActiveGame() {
   const [playedCounts, setPlayedCounts] = useState<Record<string, number>>({}); // kolikokrat je igralec igral (tudi berač)
   const [tableCounts, setTableCounts] = useState<TableCounts>({}); // za mizni zaslon: igral, klican, berač ločeno
   const [showTable, setShowTable] = useState(false); // mizni zaslon
+  const [dealCount, setDealCount] = useState(0); // koliko iger je bilo odigranih v tem večeru
   const [allProfiles, setAllProfiles] = useState<PlayerProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -278,10 +280,10 @@ export default function ActiveGame() {
   // Kolikokrat je vsak igralec v tej igri igral (igral ali berač; klican ne šteje).
   // Osveži se ob vsaki spremembi igralcev (vnos, razveljavitev, sprememba z drugega telefona).
   useEffect(() => {
-    if (!gameId) { setPlayedCounts({}); setTableCounts({}); return; }
+    if (!gameId) { setPlayedCounts({}); setTableCounts({}); setDealCount(0); return; }
     let cancelled = false;
     (async () => {
-      const { data } = await supabase.from('score_entries').select('player_id, played, is_beggar, is_partner').eq('game_id', gameId);
+      const { data } = await supabase.from('score_entries').select('player_id, played, is_beggar, is_partner, is_klop, created_at').eq('game_id', gameId);
       if (cancelled || !data) return;
       const counts: Record<string, number> = {};
       data.forEach((e: any) => { if (e.played || e.is_beggar) counts[e.player_id] = (counts[e.player_id] || 0) + 1; });
@@ -293,6 +295,7 @@ export default function ActiveGame() {
         if (e.is_partner) c.partner++;
       });
       setTableCounts(tc);
+      setDealCount(countDeals(data as any));
     })();
     return () => { cancelled = true; };
   }, [gameId, players]);
@@ -910,7 +913,7 @@ export default function ActiveGame() {
 
   const getSelectedPlayerName = () => players.find(x => x.id === selectedPlayerId)?.name || '';
 
-  const getFormattedTitle = (game: Game | null) => {
+  const getFormattedTitle = (game: Game | null, noTime = false) => {
     if (!game) return '';
     const dateObj = new Date(game.created_at);
     const dateStr = dateObj.toLocaleDateString('sl-SI', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -922,7 +925,7 @@ export default function ActiveGame() {
     cleanName = cleanName.replace(/\bob\b/gi, '');
     cleanName = cleanName.trim().replace(/[,.-]+$/, '').trim();
     if (!cleanName) cleanName = "Tarok";
-    return `${cleanName}, ${dateStr} (${timeStr})`;
+    return noTime ? `${cleanName}, ${dateStr}` : `${cleanName}, ${dateStr} (${timeStr})`;
   };
 
   const renderListWinner = (game: Game) => {
@@ -1082,7 +1085,7 @@ export default function ActiveGame() {
         </TouchableOpacity>
         
         <View style={{ flex: 1, alignItems: 'flex-end', marginLeft: 10 }}>
-            <Text style={styles.headerGameTitle} numberOfLines={1}>{getFormattedTitle({ id: gameId || '', name: gameName, created_at: activeGamesList.find(g => g.id === gameId)?.created_at || new Date().toISOString(), is_active: true })}</Text>
+            <Text style={styles.headerGameTitle} numberOfLines={1}>{getFormattedTitle({ id: gameId || '', name: gameName, created_at: activeGamesList.find(g => g.id === gameId)?.created_at || new Date().toISOString(), is_active: true }, true)}{dealCount > 0 ? ` · ${dealsShort(dealCount)}` : ''}</Text>
         </View>
         <TouchableOpacity onPress={() => setShowTable(true)} style={styles.tableBtn} activeOpacity={0.7} hitSlop={8} accessibilityLabel="Mizni zaslon">
           <Maximize2 size={16} color={COLORS.primary} />

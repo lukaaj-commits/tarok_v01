@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
   gridLabel: { color: '#636366', fontSize: 10, position: 'absolute', left: 0, top: -14 },
   lastGamesSection: { marginTop: 24 },
   rankRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 2, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.10)' },
-  rankRowDate: { color: COLORS.text, fontSize: 15, fontWeight: '500' },
+  rankRowDate: { color: '#AEAEB2', fontSize: 15, fontWeight: '500' },
   rankBadge: { height: 28, paddingHorizontal: 12, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.30)', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.06)' },
   rankBadgeText: { color: '#AEAEB2', fontSize: 15, fontWeight: '600' },
   awardsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 10 },

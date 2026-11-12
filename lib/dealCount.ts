@@ -22,3 +22,12 @@ export function dealsLabel(n: number): string {
   if (m === 3 || m === 4) return `odigrane ${n} igre`;
   return `odigranih ${n} iger`;
 }
+
+// kratko: "1 igra", "2 igri", "3 igre", "14 iger"
+export function dealsShort(n: number): string {
+  const m = n % 100;
+  if (m === 1) return `${n} igra`;
+  if (m === 2) return `${n} igri`;
+  if (m === 3 || m === 4) return `${n} igre`;
+  return `${n} iger`;
+}
