@@ -766,6 +766,13 @@ export default function ActiveGame() {
               undoType = 'radelc';
           }
 
+          // pred brisanjem vprašamo, kaj točno bo razveljavljeno (lahko je vpis z drugega telefona)
+          const undoTitle = undoType === 'score'
+              ? `Razveljavim: ${players.find(p => p.id === lastScore.player_id)?.name || 'igralec'} ${Number(lastScore.points) > 0 ? '+' : ''}${Number(lastScore.points)}?`
+              : 'Razveljavim zadnji radelc?';
+          const ok = await confirmDialog({ title: undoTitle, confirmText: 'Razveljavi', cancelText: 'Prekliči', destructive: true });
+          if (!ok) return;
+
           if (undoType === 'score') {
               const { error: deleteError } = await supabase.from('score_entries').delete().eq('id', lastScore.id);
               if (deleteError) throw deleteError;
@@ -870,23 +877,37 @@ export default function ActiveGame() {
     setLoading(true);
     try {
         const finalPlayers = [...players];
+        // Neporabljene radelce preberemo sveže iz baze (ne iz stanja na tem telefonu).
+        const { data: openRads, error: openErr } = await supabase.from('radelci').select('id, player_id').eq('game_id', gameId).eq('is_used', false);
+        if (openErr) throw openErr;
+        let otherPhoneFinishing = false;
         const updates = finalPlayers.map(async (p, i) => {
-            const unusedRadelci = radelci.filter(r => r.player_id === p.id && !r.is_used);
-            if (unusedRadelci.length > 0) {
-                const penalty = unusedRadelci.length * -50;
-                const { error: penaltyError } = await supabase.from('score_entries').insert({
-                    game_id: gameId, player_id: p.id, points: penalty, played: false, is_penalty: true 
-                });
-                if (penaltyError) throw penaltyError;
-                
-                const radelcIds = unusedRadelci.map(r => r.id);
-                await supabase.from('radelci').update({ is_used: true }).in('id', radelcIds);
+            const ids = (openRads || []).filter((r: any) => r.player_id === p.id).map((r: any) => r.id);
+            if (ids.length > 0) {
+                // Radelce najprej "prevzamemo": označijo se le tisti, ki še niso porabljeni.
+                // Če igro hkrati zaključuje še drug telefon, vsak radelc dobi kazen samo enkrat.
+                const { data: claimed, error: claimErr } = await supabase.from('radelci')
+                    .update({ is_used: true }).in('id', ids).eq('is_used', false).select('id');
+                if (claimErr) throw claimErr;
+                const n = (claimed || []).length;
+                if (n < ids.length) otherPhoneFinishing = true;
+                if (n > 0) {
+                    const { error: penaltyError } = await supabase.from('score_entries').insert({
+                        game_id: gameId, player_id: p.id, points: n * -50, played: false, is_penalty: true
+                    });
+                    if (penaltyError) throw penaltyError;
+                }
             }
             // Končni seštevek vsakega igralca iz vseh vnosov v bazi
             const total = await recalcPlayerTotal(p.id);
             finalPlayers[i] = { ...p, total_score: total };
         });
         await Promise.all(updates);
+        // Drug telefon je del kazni zapisal hkrati: počakamo nanj in seštevke preberemo še enkrat.
+        if (otherPhoneFinishing) {
+            await new Promise(r => setTimeout(r, 1500));
+            await Promise.all(finalPlayers.map(async (p, i) => { finalPlayers[i] = { ...p, total_score: await recalcPlayerTotal(p.id) }; }));
+        }
 
         const maxScore = Math.max(...finalPlayers.map(p => p.total_score));
         const winners = finalPlayers.filter(p => p.total_score === maxScore);
@@ -1102,7 +1123,7 @@ export default function ActiveGame() {
           <Plus size={21} color={COLORS.radelcBorder} />
           <Text style={styles.tileText}>Radelc</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tile} onPress={handleUndo} disabled={isUndoing} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.tile} onPress={() => once('undo', handleUndo)} disabled={isUndoing} activeOpacity={0.7}>
           {isUndoing ? <ActivityIndicator size="small" color={COLORS.primary} /> : <RotateCcw size={21} color={COLORS.primary} />}
           <Text style={styles.tileText}>Razveljavi</Text>
         </TouchableOpacity>

@@ -2,8 +2,10 @@
 // Pravila (dogovorjeno):
 //  - čas večera = čas med vpisi; premori, daljši od 1 ure, se ne štejejo (npr. igra, odprta več dni)
 //  - igre, kjer so vsi vpisi narejeni v 5 minutah (vpisane naknadno), se pri času ne štejejo
-//  - deljenje (runda) = vpisi z manj kot 90 s razmika; isti igralec ne more imeti dveh vpisov v enem deljenju
+//  - deljenje (igra) = šteje se enako kot v Zgodovini (lib/dealCount): Igral/Berač = 1, Klop za vse = 1, klicani in kazni se ne štejejo
 //  - valat = en dogodek (par ima dva vpisa, šteje enkrat)
+
+import { countDeals } from '@/lib/dealCount';
 
 const GAP_MS = 60 * 60 * 1000;
 const LATE_ENTRY_MS = 5 * 60 * 1000;
@@ -51,9 +53,8 @@ export function computeTableStats(d: { games: any[]; players: any[]; entries: an
     const start = new Date(g.created_at).getTime();
     const ts = es.map(e => new Date(e.created_at).getTime());
 
-    // deljenja
-    let n = 0, last = -Infinity, cur: Record<string, true> = {};
-    es.forEach((e, i) => { if (ts[i] - last > ROUND_MS || cur[e.player_id]) { n++; cur = {}; } cur[e.player_id] = true; last = ts[i]; });
+    // deljenja (iste meje kot "odigranih N iger" v Zgodovini)
+    const n = countDeals(es);
     deals += n;
     if (!mostDeals || n > mostDeals.n) mostDeals = { date: g.created_at, n };
 
