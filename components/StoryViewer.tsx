@@ -14,6 +14,7 @@ import { computeStory, Story } from '@/lib/monthStory';
 import { markSeen } from '@/lib/storySeen';
 import { getAvatarUrl } from '@/lib/avatars';
 import { g } from '@/lib/gender';
+import { swallowNextClick } from '@/lib/ghostClick';
 
 const SCREEN_MS = 6000;
 const C = {
@@ -464,8 +465,9 @@ export default function StoryViewer({ name, periods, start, onClose, onSeen }: P
     const q = xy(e);
     const dy = q.y - p.y;
     const held = Date.now() - p.t;
-    if (dy > 80) { onClose(); return; }
-    if (held < 300 && Math.abs(dy) < 20) { if (p.x < width / 3) goPrev(); else goNext(); return; }
+    if (dy > 80) { swallowNextClick(); onClose(); return; }
+    // tap lahko zgodbo zapre (zadnji zaslon): klik brskalnika ne sme pasti na krog pod njo
+    if (held < 300 && Math.abs(dy) < 20) { swallowNextClick(); if (p.x < width / 3) goPrev(); else goNext(); return; }
     progress.stopAnimation(v => run(v));
   };
 

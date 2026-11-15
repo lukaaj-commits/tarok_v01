@@ -3,11 +3,12 @@
 // zato je moral uporabnik pritisniti dvakrat. Ta gumb deluje že na prvi dotik.
 import { ReactNode, useRef, useState } from 'react';
 import { View, StyleProp, ViewStyle } from 'react-native';
+import { swallowNextClick } from '@/lib/ghostClick';
 
 export default function TapButton({ onPress, style, children, accessibilityLabel }: { onPress: () => void; style?: StyleProp<ViewStyle>; children: ReactNode; accessibilityLabel?: string }) {
   const [down, setDown] = useState(false);
   const fired = useRef(0);
-  const fire = () => { const now = Date.now(); if (now - fired.current < 400) return; fired.current = now; onPress(); };
+  const fire = () => { const now = Date.now(); if (now - fired.current < 400) return; fired.current = now; swallowNextClick(); onPress(); };
   return (
     <View
       accessibilityRole="button"
